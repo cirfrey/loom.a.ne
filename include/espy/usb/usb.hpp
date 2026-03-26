@@ -34,7 +34,6 @@ namespace espy::usb
                                /// - RGB Control: Changing colors on a gaming peripheral.
                                /// Here is a trick for your "Endpoint Budget": HID allows the host to send Output Reports via the Control Endpoint (Endpoint 0) using a SET_REPORT request.
                                /// - The Benefit: If your device only needs to receive occasional small data (like an LED state), you can skip the dedicated Interrupt OUT endpoint entirely.
-                               /// - The Result: You save 1 endpoint in your limited pool of 6.
 
             uac2_iso_in,  // Speaker connection.    [Host -> Device].
             uac2_iso_out, // Microphone connection. [Device -> Host].
@@ -45,8 +44,11 @@ namespace espy::usb
             // Each midi endpoint has 16 virtual cables/channels.
             midi_bulk_in,  // Send notes to PC. [Device -> Host].
             midi_bulk_out, // Receive notes from PC. [Host -> Device].
-        } type;
-        u8 interface; // What interface is using this endpoint.
+
+            msc_bulk_in,  // [Device -> Host] For data/status
+            msc_bulk_out, // [Host -> Device] For data/commands
+        };
+
         enum class interface_type_t {
             unassigned = 0,
 
@@ -64,20 +66,33 @@ namespace espy::usb
                                          /// Standard USB-MIDI is actually a subclass of USB Audio, so it requires a "dummy" Audio Control interface (often with no endpoints).
             midi_streaming = 7,
 
-        } interface_type;
+            msc = 8,
+        };
+
         enum class direction_t { NONE, IN, OUT, INOUT };
+
+        type_t type;
+        u8 interface; // What interface is using this endpoint.
+        interface_type_t interface_type;
         const direction_t available_directions;
         direction_t configured_direction;
     };
 
-    struct string_descriptor_t
+    struct descriptors_t
     {
+        // --- Device descriptors ---
+        u16 vendor_id  = 0x303A; // The primary USB Vendor ID (VID) for Espressif Systems.
+        u16 product_id = 0x80C4; // Lolin S2 Mini - UF2 Bootloader
+        u16 bcd_device = 0x0100; // Device Release Number (1.0)
+
+        // --- String descriptors ---
         const char* manufacturer = "Cirfrey Inc.";
         const char* product      = "Espy Multidevice";
         const char* midi         = "ESPY MIDI";
         const char* hid          = "ESPY HID";
         const char* uac          = "ESPY UAC";
         const char* cdc          = "ESPY CDC";
+        const char* msc          = "ESPY MSC";
     };
 
     struct configuration_t
@@ -96,8 +111,8 @@ namespace espy::usb
 
         // Enables/disables Keyboard/Mouse/Gamepad.
         // NOTE: logging = logging_t::hid forces this to true.
-        // Look at espy::usb::hid_reportid for the reportids of each
-        // hid type.
+        // Look at espy::usb::hid::hid_reportid for the reportids
+        // of each hid type.
         bool hid;
         u8 hid_pooling_interval_ms = 5;
 
@@ -109,19 +124,21 @@ namespace espy::usb
         } midi;
         u8 midi_cable_count = 4;
         static const u8 midi_max_cable_count = 16;
-    };
 
-    enum class hid_reportid : u8
-    {
-        mouse    = 1,
-        keyboard = 2,
-        gamepad  = 3, // Standard 16-button, 2-joystick, 8-way hat gamepad.
-        vendor   = 4  // See configuration_t::logging_t::hid_vendor_logging.
+        bool msc; // 2 EP.
     };
 
     auto init(
         configuration_t& cfg,
-        std::span<endpoint_info_t> available_endpoints,
-        string_descriptor_t string_descriptor = {}
+        std::span<endpoint_info_t> endpoints,
+        descriptors_t descriptors = {}
     ) -> void;
+
+    enum class event : u8
+    {
+        cdc_enabled,
+        cdc_disabled,
+        hid_enabled,
+        hid_disabled,
+    };
 }

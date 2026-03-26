@@ -1,17 +1,18 @@
 #include "espy/usb/usb.hpp"
+
 #include "espy/usb/common.hpp"
-#include "espy/usb/logging.hpp"
+#include "espy/usb/cdc.hpp"
 #include "espy/usb/midi.hpp"
+#include "espy/usb/msc.hpp"
 #include "espy/usb/hid.hpp"
 #include "espy/usb/uac2.hpp"
-
-#include "espy/blink.hpp"
+#include "espy/config.hpp"
+#include "espy/task.hpp"
+#include "espy/bus.hpp"
 
 #include <array>
 
 #include <tusb.h>
-
-#include "freertos/FreeRTOS.h"
 
 #include <esp_log.h>
 #include <esp_mac.h>
@@ -25,7 +26,7 @@ namespace espy::usb::inline impl
     std::array<char[string_descriptor_max_size], (u8)string_descriptor_idxs::idx_max + configuration_t::midi_max_cable_count> string_descriptor_arr;
 
     static usb_phy_handle_t phy_hdl;
-    static tusb_desc_device_t const device_descriptor = {
+    static tusb_desc_device_t device_descriptor = {
         .bLength            = sizeof(tusb_desc_device_t),
         .bDescriptorType    = TUSB_DESC_DEVICE,
         .bcdUSB             = 0x0200,      // USB 2.0
@@ -45,59 +46,60 @@ namespace espy::usb::inline impl
         .idProduct          = 0x80C4,      // Lolin S2 Mini - UF2 Bootloader
         .bcdDevice          = 0x0100,      // Device Release Number (1.0)
 
-        .iManufacturer      = (u8) string_descriptor_idxs::idx_manufacturer,
-        .iProduct           = (u8) string_descriptor_idxs::idx_product,
-        .iSerialNumber      = (u8) string_descriptor_idxs::idx_serial,
+        .iManufacturer      = (u8)string_descriptor_idxs::idx_manufacturer,
+        .iProduct           = (u8)string_descriptor_idxs::idx_product,
+        .iSerialNumber      = (u8)string_descriptor_idxs::idx_serial,
 
         .bNumConfigurations = 0x01         // We only have 1 "floor plan"
     };
 
-    #ifndef ESPY_USB_DESC_LEN
-    #define ESPY_USB_DESC_LEN 512
-    #endif
-    static uint8_t configuration_descriptor[ESPY_USB_DESC_LEN];
+    static uint8_t configuration_descriptor[espy::config::usb::config_descriptor_max_size];
 }
 
 auto espy::usb::init(
     configuration_t& cfg,
     std::span<ep_t> eps,
-    string_descriptor_t string_descriptor
+    descriptors_t descriptors
 ) -> void
 {
-    ESP_LOGI("espy::usb::init", "CDC initialization");
-
     // NOTE: string_descriptor_idx::idx_lang is handled by the tinyusb callback.
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_manufacturer], string_descriptor_max_size, string_descriptor.manufacturer);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_product],      string_descriptor_max_size, string_descriptor.product);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_manufacturer], string_descriptor_max_size, descriptors.manufacturer);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_product],      string_descriptor_max_size, descriptors.product);
     uint8_t mac[6];
     esp_efuse_mac_get_default(mac);
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_serial],       string_descriptor_max_size, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_midi],         string_descriptor_max_size, string_descriptor.midi);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_hid],          string_descriptor_max_size, string_descriptor.hid);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_uac],          string_descriptor_max_size, string_descriptor.uac);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_cdc],          string_descriptor_max_size, string_descriptor.cdc);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_midi],         string_descriptor_max_size, descriptors.midi);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_hid],          string_descriptor_max_size, descriptors.hid);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_uac],          string_descriptor_max_size, descriptors.uac);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_cdc],          string_descriptor_max_size, descriptors.cdc);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_msc],          string_descriptor_max_size, descriptors.msc);
+    // Add some more string descriptors for each extra MIDI cable.
     for(u8 i = 0; i < configuration_t::midi_max_cable_count; ++i) {
-        snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_max + i],  string_descriptor_max_size, "%s - Jack %i", string_descriptor.midi, i);
+        snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_max + i],  string_descriptor_max_size, "%s - Jack %i", descriptors.midi, i);
     }
+    device_descriptor.idVendor  = descriptors.vendor_id;
+    device_descriptor.idProduct = descriptors.product_id;
+    device_descriptor.bcdDevice = descriptors.bcd_device;
 
     // TODO: check config and if malconfigured enable only CDC and log out the reason.
     auto state = configuration_descriptor_builder_state_t{
         .desc = configuration_descriptor,
-        .curr_itf_idx = 0,
+        .lowest_free_itf_idx = 0,
         .desc_curr_len = 0,
-        .desc_max_len = ESPY_USB_DESC_LEN,
+        .desc_max_len = espy::config::usb::config_descriptor_max_size,
     };
     // Configuration Header
     state.append_desc({ 0x09, TUSB_DESC_CONFIGURATION, 0, 0, 0, 1, 0, 0x80, 0x64 });
     // The composite classes.
-    espy::usb::logging::do_configuration_descriptor(state, cfg, eps);
+    espy::usb::cdc::do_configuration_descriptor(state, cfg, eps);
     espy::usb::hid::do_configuration_descriptor(state, cfg, eps);
     espy::usb::midi::do_configuration_descriptor(state, cfg, eps);
-    //espy::usb::uac2::do_configuration_descriptor(state, cfg, eps);
+    espy::usb::msc::do_configuration_descriptor(state, cfg, eps);
+    espy::usb::uac2::do_configuration_descriptor(state, cfg, eps);
     // Fixup header: Total Length and Interface Count
     configuration_descriptor[2] = (uint8_t)(state.desc_curr_len & 0xFF);
     configuration_descriptor[3] = (uint8_t)((state.desc_curr_len >> 8) & 0xFF);
-    configuration_descriptor[4] = state.curr_itf_idx;
+    configuration_descriptor[4] = state.lowest_free_itf_idx;
 
     usb_phy_config_t phy_conf = {
         .controller = USB_PHY_CTRL_OTG,      // Use the OTG controller
@@ -109,13 +111,18 @@ auto espy::usb::init(
     };
     ESP_ERROR_CHECK(usb_new_phy(&phy_conf, &espy::usb::phy_hdl));
 
-    xTaskCreate([](void *tparams){
+    if(cfg.cdc) espy::bus::publish({.topic = espy::bus::usb, .type = (u8)espy::usb::event::cdc_enabled});
+    else        espy::bus::publish({.topic = espy::bus::usb, .type = (u8)espy::usb::event::cdc_disabled});
+    if(cfg.hid) espy::bus::publish({.topic = espy::bus::usb, .type = (u8)espy::usb::event::hid_enabled});
+    else        espy::bus::publish({.topic = espy::bus::usb, .type = (u8)espy::usb::event::hid_disabled});
+
+    espy::task::create(espy::config::task::usb_device, [](void *tparams){
         tusb_init(); // This will trigger the descriptor callbacks immediately.
         while (1) {
             tud_task(); // Device event handling loop
-            vTaskDelay(pdMS_TO_TICKS(1)); // Yield to other tasks
+            espy::task::delay_ms(espy::config::task::usb_device.sleep_ms); // Yield to other tasks
         }
-    }, "usbd_task", 4096, nullptr, 5, nullptr);
+    });
 }
 
 // --- TinyUSB callbacks ---
@@ -160,7 +167,6 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
         return _desc_str;
     };
     // Return the UTF-16 string for the given index
-    // This is where your string_descriptor_t::rebuild_arr() logic goes
     return utf8_to_utf16( espy::usb::string_descriptor_arr[index] );
 }
 

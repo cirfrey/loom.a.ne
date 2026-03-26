@@ -2,6 +2,8 @@
 
 #include "tusb.h"
 
+auto audio_state_init() -> void;
+
 auto espy::usb::uac2::do_configuration_descriptor(
     configuration_descriptor_builder_state_t& state,
     cfg_t& cfg,
@@ -9,10 +11,11 @@ auto espy::usb::uac2::do_configuration_descriptor(
 ) -> void
 {
     if (cfg.uac == configuration_t::microphone) {
-        auto const control_itf = state.curr_itf_idx++;
+        auto const control_itf = state.lowest_free_itf_idx++;
+        auto const streaming_itf = state.lowest_free_itf_idx++;
 
         auto [ep_in_idx, ep_in]     = espy::usb::find_unassigned_ep(eps, dir_t::IN, dir_t::INOUT);
-        ep_in->interface            = control_itf;
+        ep_in->interface            = streaming_itf;
         ep_in->interface_type       = itf_t::uac2_streaming;
         ep_in->configured_direction = dir_t::IN;
 
@@ -20,15 +23,17 @@ auto espy::usb::uac2::do_configuration_descriptor(
         // TUD_AUDIO_DESC_IAD(itfnum, str_idx)
         // TUD_AUDIO_DESC_CONTROL(itfnum, str_idx, revision)
         // TUD_AUDIO_DESC_ST_IN(itf_stream, str_idx, n_channels, resolution, ep_in)
-        auto num_itfs = state.curr_itf_idx - control_itf;
+        auto num_itfs = state.lowest_free_itf_idx - streaming_itf;
         state.append_desc({ TUD_AUDIO_MIC_ONE_CH_DESCRIPTOR(
             control_itf,
             (u8)string_descriptor_idxs::idx_uac,
             CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX,
             CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX*8,
-            (u8)(0x80 | ep_in_idx),
+            (u8)(EP_DIR_IN | ep_in_idx),
             CFG_TUD_AUDIO_EP_SZ_IN
         )});
+
+        audio_state_init();
     }
 }
 
@@ -46,6 +51,37 @@ audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range stat
 // Audio test data
 uint16_t test_buffer_audio[(CFG_TUD_AUDIO_EP_SZ_IN - 2) / 2];
 uint16_t startVal = 0;
+
+// Call this function in your main setup BEFORE espy::usb::init() / tud_init()
+void audio_state_init() {
+    // 1. Set the Current Frequency (Must match your descriptor math!)
+    sampFreq = 48000;
+
+    // 2. Mark Clock as Valid (Critical for Windows)
+    clkValid = 1;
+
+    // 3. Define Supported Range (Critical for Windows "Advanced" Tab)
+    // Format: [Number of Ranges] (Lower) (Upper) (Resolution)
+    sampleFreqRng.wNumSubRanges = 1;
+    sampleFreqRng.subrange[0].bMin = 48000;
+    sampleFreqRng.subrange[0].bMax = 48000;
+    sampleFreqRng.subrange[0].bRes = 0; // 0 means "Discrete" or "No stepping"
+
+    // 4. Initialize Volume (Optional, but good practice)
+    // Set all channels to 0dB (0x0000) and Unmuted
+    for(int i=0; i < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1; i++) {
+        volume[i] = 0x0000; // 0dB
+        mute[i] = 0;        // Unmuted
+
+        // Initialize Volume Ranges (e.g. -90dB to 0dB)
+        volumeRng[i].wNumSubRanges = 1;
+        volumeRng[i].subrange[0].bMin = -90 * 256; // -90 dB
+        volumeRng[i].subrange[0].bMax = 0;         // 0 dB
+        volumeRng[i].subrange[0].bRes = 1 * 256;   // 1 dB steps
+    }
+}
+
+extern "C" {
 
 bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff){
   (void) rhport;
@@ -251,30 +287,5 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
   startVal = 0;
   return true;
 }
-
-/*
-bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request){
-  (void) rhport;
-  (void) p_request;
-  return true;
-}
-bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const* p_request) {
-    (void) rhport; (void) p_request;
-    return true;
-}
-// Required for volume/mute controls even if empty
-bool tud_audio_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* p_request) {
-    (void) rhport; (void) stage; (void) p_request;
-    return true;
-}
-// Required for Feedback
-bool tud_audio_tx_done_pre_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t n_bytes) {
-    (void) rhport; (void) itf; (void) ep_in; (void) n_bytes;
-    return true;
-}
-bool tud_audio_rx_done_pre_cb(uint8_t rhport, uint8_t itf, uint8_t ep_out, uint8_t n_bytes) {
-    (void) rhport; (void) itf; (void) ep_out; (void) n_bytes;
-    return true;
-}*/
 
 } // extern "C"

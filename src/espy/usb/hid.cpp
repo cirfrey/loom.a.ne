@@ -32,12 +32,13 @@ auto espy::usb::hid::do_configuration_descriptor(
 {
     if (!cfg.hid) return;
 
-    auto hid_itf = state.curr_itf_idx++;
+    auto hid_itf = state.lowest_free_itf_idx++;
 
     auto [ep_in_idx, ep_in]     = espy::usb::find_unassigned_ep(eps, dir_t::IN, dir_t::INOUT);
     ep_in->configured_direction = ep_t::direction_t::IN;
-    ep_in->interface            = hid_itf;
     ep_in->interface_type       = ep_t::interface_type_t::hid;
+    ep_in->interface            = hid_itf;
+    ep_in->type                 = ept_t::hid_interrupt_in;
 
     state.append_desc({ TUD_HID_DESCRIPTOR(
         hid_itf,

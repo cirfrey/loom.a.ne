@@ -14,11 +14,12 @@ namespace espy::usb
     using ep_t = endpoint_info_t;
     using dir_t = ep_t::direction_t;
     using itf_t = ep_t::interface_type_t;
+    using ept_t = ep_t::type_t;
 
     struct configuration_descriptor_builder_state_t
     {
         u8* const desc; // Points to the beginning of the descriptor.
-        u8 curr_itf_idx; // Current interface index.
+        u8 lowest_free_itf_idx;
         u16 desc_curr_len;
         const u16 desc_max_len;
 
@@ -43,6 +44,7 @@ namespace espy::usb
         idx_hid = 5,
         idx_uac = 6,
         idx_cdc = 7,
+        idx_msc = 8,
         idx_max
     };
 
@@ -63,9 +65,4 @@ namespace espy::usb
             return ret_t {};
         }
     };
-
-    auto append_buf_raw(u8* buf, const void* data, size_t len) -> u8*;
-
-    constexpr auto clamp(auto v, auto lo, auto hi)
-    { return v < lo ? lo : v > hi ? hi : v; }
 }

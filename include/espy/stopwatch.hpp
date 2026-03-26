@@ -1,3 +1,5 @@
+#pragma once
+
 #include <chrono>
 
 template <typename Timer = std::chrono::high_resolution_clock>
