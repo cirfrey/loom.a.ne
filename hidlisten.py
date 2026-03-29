@@ -1,41 +1,73 @@
-import hid # pip install hidapi
+import argparse
+import hid  # pip install hidapi
 import time
 
-vid = 0x303A
-pid = 0x00001
 
-try:
+def pick_device(devices, vendor_usage_page):
+    for d in devices:
+        if d.get("usage_page") == vendor_usage_page:
+            return d
+    return devices[0] if devices else None
+
+
+def run(vid, pid, vendor_usage_page, duration_s=None):
+    start = time.time()
     while True:
+        print("\n---------------------------------------")
+        h = None
         try:
-            print('\n---------------------------------------')
-
-            d = False
-            for d in hid.enumerate(vid, pid):
+            devices = hid.enumerate(vid, pid)
+            for d in devices:
                 print(d)
-                #print(f"Path: {d['path']}, Interface: {d['interface_number']}, Usage: {d['usage']}")
-                if d['usage'] == 512:
-                    print('Found device!')
-                    break
-            if not d:
-                print('--- Device not found: Retrying in 2 seconds')
+
+            selected = pick_device(devices, vendor_usage_page)
+            if selected is None:
+                print("--- Device not found: Retrying in 2 seconds")
                 time.sleep(2)
                 continue
 
-            # Open specifically by path
             h = hid.device()
-            h.open_path(d['path'])
-            print("Listening for ESPY HID Logs...")
-            print('---------------------------------------')
+            h.open_path(selected["path"])
+            h.set_nonblocking(1)
+            print(f"Opened path: {selected['path']!r}")
+            print("Listening for loom.a.ne HID Logs...")
+            print("---------------------------------------")
+
+            idle = 0
             while True:
-                data = h.read(65)
+                data = h.read(64)
                 if data:
-                    # First byte is Report ID, rest is the string
-                    message = "".join(chr(b) for b in data[1:] if b != 0)
-                    print(message, end="")
+                    idle = 0
+                    payload = data[1:] if data and data[0] in (1, 2, 3, 4) else data
+                    msg = "".join(chr(b) for b in payload if b != 0)
+                    if msg:
+                        print(msg, end="", flush=True)
+                    else:
+                        print(f"<{len(data)} raw bytes>", end="", flush=True)
+                else:
+                    idle += 1
+                    if idle % 200 == 0:
+                        print(".", end="", flush=True)
+                    time.sleep(0.005)
+
+                if duration_s is not None and (time.time() - start) >= duration_s:
+                    return 0
         except OSError as e:
-            h.close()
-            print('--- OSError: Retrying in 2 seconds => ', e)
+            if h is not None:
+                h.close()
+            print("--- OSError: Retrying in 2 seconds => ", e)
             time.sleep(2)
 
-except KeyboardInterrupt:
-    print('Exiting')
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--vid", type=lambda x: int(x, 0), default=0x303A)
+    parser.add_argument("--pid", type=lambda x: int(x, 0), default=0x00005)
+    parser.add_argument("--usage-page", type=lambda x: int(x, 0), default=0xFFAB)
+    parser.add_argument("--duration", type=float, default=None, help="Optional auto-exit duration in seconds")
+    args = parser.parse_args()
+
+    try:
+        raise SystemExit(run(args.vid, args.pid, args.usage_page, args.duration))
+    except KeyboardInterrupt:
+        print("Exiting")

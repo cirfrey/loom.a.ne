@@ -1,13 +1,21 @@
+# Nice-to-haves
+[x] Implement version banner with art.
+[x] Embed build info in code.
+[x] Rename project (espy is very specific to esp32 boards).
+
 # Phase 1: Infrastructure & Stability
-[x] Implement espy::config (Centralize priorities/stack sizes).
+[x] Implement lm::config (Centralize priorities/stack sizes).
 [x] Implement Logging Task (RingBuffer + Worker Task).
     [ ] Fix HID + CDC logging problems.
-[ ] Implement RAM Health Monitor (Heap tracking).
-[ ] Implement CPU Load Monitor (FreeRTOS Run Time Stats).
-[ ] Implement Task Watchdogs (Prevent freezes).
-[x] Implement EventBus.
-[ ] Implement SystemFSM (The State Machine "Brain").
-[ ] Implement CDC Input -> Publish to Event Bus.
+[~] Implement Healthmon - RAM Health Monitor (Heap tracking) / CPU Load Monitor (FreeRTOS Run Time Stats) / Task Monitor.
+[x] Implement Event Bus.
+[x] Implement Task lifetime and monitoring via statuses and commands from the Event Bus
+    [ ] Finish abstracting this into lm::board.
+[x] Implement Busmon.
+[x] Implement lm::board.
+[~] Implement lm::sysman (The State Machine "Brain"). ~Working, need to implement the rest of the states.
+[ ] Implement lm::bus::input -> Publish to Event Bus and react accordingly.
+[ ] Implement a minimal lm::board::mock (testing code directly on pc).
 
 # Phase 2: Audio & Storage
 [~] Fix UAC2. ~Enumerates and shows up on windows but I didn't test it yet. Code needs cleanup.
