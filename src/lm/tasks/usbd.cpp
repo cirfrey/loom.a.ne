@@ -7,6 +7,8 @@
 #include "lm/usbd/hid.hpp"
 #include "lm/usbd/uac2.hpp"
 
+#include "lm/chip/info.hpp"
+#include "lm/chip/usb.hpp"
 #include "lm/tasks/logging.hpp"
 #include "lm/config.hpp"
 #include "lm/board.hpp"
@@ -18,8 +20,6 @@
 #include <tusb.h>
 
 #include <esp_log.h>
-#include <esp_private/usb_phy.h>
-#include <driver/gpio.h>
 
 // Static stuff required for this to work.
 namespace lm::usbd
@@ -27,7 +27,6 @@ namespace lm::usbd
     constexpr auto string_descriptor_max_size = 32;
     std::array<char[string_descriptor_max_size], (u8)string_descriptor_idxs::idx_max + configuration_t::midi_max_cable_count> string_descriptor_arr;
 
-    static usb_phy_handle_t phy_hdl;
     static tusb_desc_device_t device_descriptor = {
         .bLength            = sizeof(tusb_desc_device_t),
         .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -62,6 +61,8 @@ namespace lm::usbd
 
 auto lm::usbd::task(lm::task::config const& cfg) -> void
 {
+    chip::usb::phy::power_up();
+
     using tc = lm::task::event::task_command;
     auto tc_bus = tc::make_bus();
     tc::wait_for_start(tc_bus, cfg.id);
@@ -73,8 +74,6 @@ auto lm::usbd::task(lm::task::config const& cfg) -> void
         /// TODO: respond to usb::get_status requests.
         //        for that, we need to get configuration_t into this
         //        task by copy.
-
-        lm::task::delay_ms(cfg.sleep_ms); // Yield to other tasks
     }
     tusb_deinit(0);
 }
@@ -90,7 +89,7 @@ auto lm::usbd::init(
     // NOTE: string_descriptor_idx::idx_lang is handled by the tinyusb callback.
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_manufacturer], string_descriptor_max_size, descriptors.manufacturer);
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_product],      string_descriptor_max_size, descriptors.product);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_serial],       string_descriptor_max_size, "%s", lm::board::get_mac_str());
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_serial],       string_descriptor_max_size, "%.*s", lm::chip::info::uuid().size, lm::chip::info::uuid().data);
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_midi],         string_descriptor_max_size, descriptors.midi);
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_hid],          string_descriptor_max_size, descriptors.hid);
     snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_uac],          string_descriptor_max_size, descriptors.uac);
@@ -136,16 +135,6 @@ auto lm::usbd::init(
     configuration_descriptor[2] = (uint8_t)(state.desc_curr_len & 0xFF);
     configuration_descriptor[3] = (uint8_t)((state.desc_curr_len >> 8) & 0xFF);
     configuration_descriptor[4] = state.lowest_free_itf_idx;
-
-    usb_phy_config_t phy_conf = {
-        .controller = USB_PHY_CTRL_OTG,      // Use the OTG controller
-        .target = USB_PHY_TARGET_INT,        // Internal PHY pins (GPIO 19/20)
-        .otg_mode = USB_OTG_MODE_DEVICE,     // Explicitly set as a Device
-        .otg_speed = USB_PHY_SPEED_FULL,     // 12 Mbps
-        .ext_io_conf = nullptr,              // Not using external PHY
-        .otg_io_conf = nullptr               // Use default IO pins
-    };
-    ESP_ERROR_CHECK(usb_new_phy(&phy_conf, &lm::usbd::phy_hdl));
 
     if(cfg.cdc) lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::cdc_enabled});
     else        lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::cdc_disabled});

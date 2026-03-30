@@ -1,0 +1,28 @@
+#pragma once
+
+// Already imported, this file is 'pasted' at the end of board.hpp.
+// We'll include it anyway to avoid editor squiggles.
+#include "lm/chip/types.hpp"
+
+namespace lm::board
+{
+    enum pin : chip::pin
+    {
+        status_led = 15,
+
+        gpio17 = 17,
+        gpio18 = 18,
+    };
+
+    enum uart_port : chip::uart_port
+    {
+        uart_zero = 0,
+        uart_one  = 1,
+        uart_two  = 2,
+
+        /// TODO: this really doesn't belong here but for now it is convenient.
+        uart_internal = uart_zero,
+        uart_trace    = uart_one,
+        uart_midi     = uart_two,
+    };
+}

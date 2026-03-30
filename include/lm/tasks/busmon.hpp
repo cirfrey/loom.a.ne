@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 
 namespace lm::task { struct config; } // Forward decl.
 namespace lm::bus  { struct event; } // Forward decl.

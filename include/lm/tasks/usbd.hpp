@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 
 #include <span>
 #include <array>
@@ -170,7 +170,7 @@ namespace lm::usbd
 
 /// Impls.
 
-#include "lm/utils/renum.hpp"
+#include "lm/core/reflect.hpp"
 #include <cstdio>
 
 template <lm::u32 ArrSize>
@@ -187,12 +187,11 @@ auto lm::usbd::debug::eps_to_table(std::array<endpoint_info_t, ArrSize> const& e
     for (size_t i = 0; i < eps.size(); ++i) {
         const auto& ep = eps[i];
 
-        using namespace renum;
-        using ep_t = endpoint_info_t;
-        auto type_v  = reflect<ep_t::type_t,                      0, 20>::unqualified(ep.type);
-        auto itf_v   = reflect<endpoint_info_t::interface_type_t, 0, 10>::unqualified(ep.interface_type);
-        auto dir_v   = reflect<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.configured_direction);
-        auto avail_v = reflect<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.available_directions);
+        using ep_t   = endpoint_info_t;
+        auto type_v  = renum<ep_t::type_t,                      0, 20>::unqualified(ep.type);
+        auto itf_v   = renum<endpoint_info_t::interface_type_t, 0, 10>::unqualified(ep.interface_type);
+        auto dir_v   = renum<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.configured_direction);
+        auto avail_v = renum<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.available_directions);
 
         offset += std::snprintf(out.data() + offset, out.size() - offset,
             "| %-2d | %-17.*s | %-3d | %-16.*s | %-9.*s | %-20.*s |\n",

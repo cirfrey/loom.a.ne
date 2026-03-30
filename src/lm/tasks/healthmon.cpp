@@ -3,7 +3,9 @@
 #include "lm/config.hpp"
 #include "lm/task.hpp"
 #include "lm/tasks/logging.hpp"
+#include "lm/chip/memory.hpp"
 #include "lm/board.hpp"
+#include "lm/core/cvt.hpp"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -36,22 +38,21 @@ auto lm::healthmon::task(lm::task::config const& cfg) -> void
         // info from event bus and keeping track of it,
         // then - every once in a while - make a report on it
         // with some heavier processing.
-        lm::task::delay_ms(cfg.sleep_ms);
+        lm::task::sleep_ms(cfg.sleep_ms);
 
         // --- PART A: Global Heap Health ---
-        /// TODO: this needs to be abstracted into a lm::board.
-        uint32_t free_heap = esp_get_free_heap_size();
-        uint32_t min_heap  = esp_get_minimum_free_heap_size();
-        uint32_t max_block = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+        auto total     = chip::memory::total();
+        auto free_heap = chip::memory::free();
 
-        lm::logging::logf(
-            "\n=== SYSTEM HEALTH REPORT ===\n"
-            "[RAM] Free: %u | Min: %u | MaxBlock: %u\n",
-            free_heap, min_heap, max_block);
+        lm::logging::logf("RAM: %zu/%zukb [%.1f%%] | Peak: %zukb | MaxBlock: %zukb\n",
+            (total - free_heap)/1024, total/1024, (total-free_heap)/(total | to<f32>)*100,
+            chip::memory::peak_used()/1024, chip::memory::largest_free_block()/1024);
 
         if (free_heap < 15000) {
             lm::logging::logf("[WARN] LOW MEMORY! Instability possible.\n");
         }
+
+        continue;
 
         /// TODO: add eventbus stats (memory, listeners, events published by topic, etc).
         /// TODO: add task cpu usage %.

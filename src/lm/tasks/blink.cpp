@@ -3,15 +3,13 @@
 #include "lm/utils/stopwatch.hpp"
 #include "lm/tasks/logging.hpp"
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
+#include "lm/chip/gpio.hpp"
+#include "lm/board.hpp"
 #include "lm/config.hpp"
 #include "lm/task.hpp"
 
 #include <bitset>
-
-#include <driver/gpio.h>
-
-#include "lm/board.hpp"
 
 namespace lm
 {
@@ -182,32 +180,20 @@ auto lm::blink_pattern<MPS>::state() -> bool
 auto lm::blink::init() -> void { lm::task::create(lm::config::task::blink, lm::blink::task); }
 auto lm::blink::task(lm::task::config const& cfg) -> void
 {
-    using tc = lm::task::event::task_command;
-
-    lm::board::init_pin(lm::board::status_led, lm::board::pin_mode::output);
-    /// TODO: refactor into board abstraction layer.
-    // auto pin = GPIO_NUM_15;
-    // gpio_config_t io_conf = {
-    //     .pin_bit_mask = (1ULL << pin),
-    //     .mode = GPIO_MODE_OUTPUT,
-    //     .pull_up_en = GPIO_PULLUP_DISABLE,
-    //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    //     .intr_type = GPIO_INTR_DISABLE
-    // };
-    // gpio_config(&io_conf);
-
+    chip::gpio::init(board::status_led, chip::gpio::pin_mode::output);
     blink_controller blink;
     auto sw = stopwatch();
 
+    using tc = lm::task::event::task_command;
     auto tc_bus = tc::make_bus();
     tc::wait_for_start(tc_bus, cfg.id);
 
     sw.click();
     while(!tc::should_stop(tc_bus, cfg.id))
     {
-        lm::task::delay_ms(cfg.sleep_ms);
+        lm::task::sleep_ms(cfg.sleep_ms);
 
         u32 dt = (u32)sw.click().last_segment<std::chrono::microseconds>();
-        lm::board::set_pin(lm::board::status_led, blink.tick(dt));
+        chip::gpio::set(board::status_led, blink.tick(dt));
     }
 }

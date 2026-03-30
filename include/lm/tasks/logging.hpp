@@ -1,7 +1,9 @@
 /// TODO: cleanup this header.
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
+
+#include "lm/chip/time.hpp"
 
 #include <source_location>
 
@@ -28,10 +30,11 @@ namespace lm::logging
         return end + 1;
     }
 
+    /// TODO: sort out where this should actually go.
     // A trace is a log you only see in uart.
     // Mostly used for debugging.
     // If you wanna show it to CDC or HID use logt instead.
-    #define LOOM_TRACE(fmt, ...)  lm::logging::logf_uart("[%s:%-3d] " fmt, lm::logging::_rawfilename(std::source_location::current().file_name()), std::source_location::current().line(), ##__VA_ARGS__)
+    #define LOOM_TRACE(fmt, ...)  lm::logging::logf_uart("[%6llu][%s:%-3d] " fmt, lm::chip::time::uptime()/1000, lm::logging::_rawfilename(std::source_location::current().file_name()), std::source_location::current().line(), ##__VA_ARGS__)
     #define LOOM_RTRACE           lm::logging::logf_uart
     #define LOOM_BTRACE           lm::logging::lograw_uart
 

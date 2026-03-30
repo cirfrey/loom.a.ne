@@ -1,9 +1,15 @@
 #include "lm/board.hpp"
 
+#include "lm/chip/uart.hpp"
+#include "lm/chip/system.hpp"
+#include "lm/chip/time.hpp"
+
 #include "lm/version/defs.hpp"
 #include "lm/version/banner.hpp"
 #include "lm/task.hpp"
 #include "lm/tasks/sysman.hpp"
+
+#include <cstdio>
 
 // app_main is only the entrypoint/launcher to the application, their responsibilities are
 // - Init the hardware.
@@ -15,16 +21,25 @@
 //       whoever spawned it will take care of the cleanup.
 extern "C" auto app_main() -> void
 {
-    lm::board::init_console();
-    lm::board::init_hardware();
+    using namespace lm;
+
+    chip::system::init();
+    chip::uart::init(board::uart_trace, board::gpio17, board::gpio18);
 
     // By printing the banner we make sure that things like the mac address are
     // initialized and can be used by the rest of the code.
-    lm::version::write_banner_to_console(
-        lm::version::major, lm::version::minor,
-        lm::version::git_hash, lm::version::build_date
+    char bootstrbuf[12];
+    auto bootstr = text{
+        .data = bootstrbuf,
+        .size = (st)std::snprintf(bootstrbuf, 12, "\n[%2llu] Boot\n", chip::time::uptime()/1000)
+    };
+    version::write_banner(
+        board::uart_trace,
+        version::major, version::minor,
+        version::git_hash, version::build_date,
+        bootstr
     );
-    lm::task::delay_ms(500); // Take a moment to appreciate the banner, it's pretty.
+    task::sleep_ms(500); // Take a moment to appreciate the banner, it's pretty.
 
-    lm::sysman::init();
+    sysman::init();
 }

@@ -14,6 +14,7 @@ extern "C" {
 /// TODO: Add support to ESP32S3
 #define CFG_TUSB_MCU                OPT_MCU_ESP32S2 // Or S3 depending on your board
 #define CFG_TUD_ENDPOINT0_SIZE      64
+#define CFG_TUSB_OS                 OPT_OS_FREERTOS
 
 #define CFG_TUD_ENABLED 1
 #define CFG_TUSB_RHPORT0_MODE    (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)

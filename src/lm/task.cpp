@@ -2,8 +2,9 @@
 
 #include "lm/tasks/logging.hpp"
 
-#include "lm/board.hpp"
+#include "lm/chip/system.hpp"
 
+/// TODO: abstract
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
@@ -15,15 +16,17 @@ auto lm::task::create(lm::task::config const& cfg, task_function_t task, bool do
     // Used for trampolining the cfg into the task itself.
     struct task_context_t {
         task_function_t func;
-        lm::task::config const* cfg;
+        task::config const* cfg;
     };
     auto* ctx = new task_context_t{
         .func = task,
         .cfg = &cfg
     };
 
-    auto core_id = lm::board::get_physical_core(cfg.core_affinity);
-    if(core_id == -1) core_id = tskNO_AFFINITY;
+    auto core_count = chip::system::core_count();
+    auto core_id = cfg.core_affinity == config::no_affinity
+        ? tskNO_AFFINITY
+        : cfg.core_affinity >= core_count ? core_count - 1 : cfg.core_affinity; /// TODO: this works for now but doesn't scale
 
     TaskHandle_t handle;
     auto status = xTaskCreatePinnedToCore(
@@ -31,14 +34,14 @@ auto lm::task::create(lm::task::config const& cfg, task_function_t task, bool do
             auto [func, cfg] = *(task_context_t*)ctx;
             delete (task_context_t*)ctx;
             func(*cfg);
-            lm::task::event::task_status::wait_for_shutdown(cfg->id);
+            task::event::task_status::wait_for_shutdown(cfg->id);
         },
         cfg.name,
         cfg.stack_size,
         ctx,
         cfg.priority,
         &handle,
-        core_id
+        (BaseType_t)core_id
     );
     if (status != pdPASS) {
         delete ctx; // Clean up if creation failed
@@ -62,7 +65,7 @@ auto lm::task::get_handle() -> void* { return xTaskGetCurrentTaskHandle(); }
 
 auto lm::task::reap(void* handle) -> void { vTaskDelete((TaskHandle_t)handle); }
 
-auto lm::task::delay_ms(unsigned long ms) -> void
+auto lm::task::sleep_ms(unsigned long ms) -> void
 {
     if(ms == 0) portYIELD();
     else { vTaskDelay(pdMS_TO_TICKS(ms)); }
@@ -139,7 +142,7 @@ auto lm::task::event::task_status::wait_for_shutdown(lm::task::id_t taskid) -> v
             .topic = lm::bus::task_status,
             .type = lm::task::event::task_status::ready_for_shutdown
         });
-        lm::task::delay_ms(1000);
+        lm::task::sleep_ms(1000);
     }
 }
 
@@ -166,7 +169,7 @@ auto lm::task::event::task_command::wait_for_start(event_bus_t& bus, lm::task::i
                 break;
             }
         }
-        if(!ready_to_start) lm::task::delay_ms(10);
+        if(!ready_to_start) lm::task::sleep_ms(10);
     }
 }
 

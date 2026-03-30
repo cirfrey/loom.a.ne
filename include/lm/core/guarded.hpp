@@ -3,9 +3,10 @@
 #include <shared_mutex>
 #include <mutex>
 
-namespace lm::utils
+namespace lm
 {
     // Very simple wrapper for concurrent resources.
+    // Based on CsLibGuarded but just for reeeeally simple types.
     template <typename T>
     struct guarded
     {
@@ -22,7 +23,7 @@ namespace lm::utils
 
 template <typename T>
 template <typename F>
-auto lm::utils::guarded<T>::write(F&& f) -> void
+auto lm::guarded<T>::write(F&& f) -> void
 {
     std::unique_lock<decltype(mutex)> lock(mutex);
     f(data);
@@ -30,7 +31,7 @@ auto lm::utils::guarded<T>::write(F&& f) -> void
 
 template <typename T>
 template <typename F>
-auto lm::utils::guarded<T>::read(F&& f) const -> void
+auto lm::guarded<T>::read(F&& f) const -> void
 {
     std::shared_lock lock(mutex);
     f(data);

@@ -1,4 +1,4 @@
-// Who likes long types?
+// Who likes long/non-descriptive types?
 #pragma once
 
 namespace lm
@@ -43,7 +43,16 @@ namespace lm
     using i32 = decltype(detail::signed_integer_sized<32>());
     using i64 = decltype(detail::signed_integer_sized<64>());
 
+    // Our very own free-range std::size_t.
+    using st = decltype(sizeof(0));
+    // Corresponds to std::intptr_t.
+    using ipt = decltype(static_cast<char*>(nullptr) - static_cast<char*>(nullptr));
+    // Corresponds to std::uintptr_t.
+    using upt = decltype(detail::unsigned_integer_sized<sizeof(ipt) * 8>());
+
+    // Yuck.
     using f32 = float;
+    // Doubly yucky.
     using f64 = double;
     static_assert(sizeof(f32) == 32/8 && sizeof(f64) == 64/8);
 
@@ -58,5 +67,42 @@ namespace lm
         constexpr auto operator""_i16(unsigned long long val) { return static_cast<i16>(val); }
         constexpr auto operator""_i32(unsigned long long val) { return static_cast<i32>(val); }
         constexpr auto operator""_i64(unsigned long long val) { return static_cast<i64>(val); }
+
+        constexpr auto operator""_st(unsigned long long val) { return static_cast<st>(val); }
+        constexpr auto operator""_ipt(unsigned long long val) { return static_cast<ipt>(val); }
+        constexpr auto operator""_upt(unsigned long long val) { return static_cast<upt>(val); }
+    };
+
+    // Non-owning const view over raw binary data.
+    struct view {
+        void const* data = nullptr;
+        st size          = 0;
+
+        constexpr bool empty() const { return size == 0; }
+    };
+    // Non-owning, const view of a character string. NOT null-terminated (.size is law).
+    struct text {
+        char const* data = nullptr;
+        st size          = 0;
+
+        /// TODO: "whatever" | lm::totext;
+
+        constexpr operator view() { return { .data = data, .size = size }; }
+
+        // Automatically creates text from "literals"
+        // The null terminator exists in the binary but is EXCLUDED from size.
+        template<st N>
+        static constexpr text from(const char (&str)[N])
+        { return { .data = str, .size = (N > 0 ? N - 1 : 0) }; }
+
+        static constexpr text from(char const* str) {
+            if (!str) return { nullptr, 0 };
+
+            st len = 0;
+            while (str[len] != '\0') { ++len; }
+            return { .data = str, .size = len };
+        }
+
+        constexpr bool empty() const { return size == 0; }
     };
 }

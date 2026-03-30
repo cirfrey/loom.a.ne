@@ -2,11 +2,10 @@
 
 #include "lm/config.hpp"
 #include "lm/task.hpp"
+#include "lm/core/guarded.hpp"
 
 #include <array>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 namespace lm::bus
 {
@@ -17,8 +16,9 @@ namespace lm::bus
         u64 filter_mask          = 0; // Bitmask for fast filtering
     };
 
-    static std::array<subscriber, lm::config::bus::max_subscribers> _subs;
-    static SemaphoreHandle_t _mutex = nullptr;
+    static guarded<
+        std::array<subscriber, lm::config::bus::max_subscribers>
+    > bus_subs;
 
     // Helper: Convert List -> Bitmask
     static auto make_mask(std::initializer_list<u8> ids) -> u64
@@ -36,9 +36,9 @@ namespace lm::bus
 
 auto lm::bus::init() -> void
 {
-    _mutex = xSemaphoreCreateMutex();
-    // Clear array
-    for(auto& s : _subs) s.queue = nullptr;
+    bus_subs.write([](auto& bus_subs){
+        for(auto& s : bus_subs) s.queue = nullptr;
+    });
 }
 
 
@@ -56,47 +56,48 @@ lm::bus::subscribe_token::~subscribe_token() { if(impl) lm::bus::unsubscribe(imp
 
 auto lm::bus::subscribe(lm::task::queue_t& queue, lm::bus::topic_t topic, std::initializer_list<u8> types) -> subscribe_token
 {
-    xSemaphoreTake(_mutex, portMAX_DELAY);
-
     void* subscriber = nullptr;
-    for (auto& sub : _subs) {
-        if (sub.queue == nullptr) {
+    bus_subs.write([&](auto& bus_subs){
+        for (auto& sub : bus_subs) {
+            if (sub.queue != nullptr) continue;
+
             sub.queue = &queue;
             sub.filter_mask = make_mask(types);
             sub.topic = (u8)topic;
             subscriber = &sub;
-            break;
+            return;
         }
-    }
 
-    xSemaphoreGive(_mutex);
+    });
+
     return subscribe_token(subscriber);
 }
 
 auto lm::bus::update_subscription(lm::task::queue_t& old_q, lm::task::queue_t& new_q) -> void
 {
-    xSemaphoreTake(_mutex, portMAX_DELAY);
-    for (auto& sub : _subs) {
-        if (sub.queue == (void*)&old_q) {
+    bus_subs.write([&](auto& bus_subs){
+        for (auto& sub : bus_subs) {
+            if (sub.queue != (void*)&old_q) continue;
+
             sub.queue = &new_q;
-            break;
+            return;
         }
-    }
-    xSemaphoreGive(_mutex);
+    });
 }
 
 auto lm::bus::unsubscribe(void* subscriber) -> bool
 {
-    xSemaphoreTake(_mutex, portMAX_DELAY);
-    for (auto& sub : _subs) {
-        if (&sub == subscriber) {
+    bool unsubscribed = false;
+    bus_subs.write([&](auto& bus_subs){
+        for (auto& sub : bus_subs) {
+            if (&sub != subscriber) continue;
+
             sub.queue = nullptr;
-            xSemaphoreGive(_mutex);
-            return true;
+            unsubscribed = true;
+            return;
         }
-    }
-    xSemaphoreGive(_mutex);
-    return false;
+    });
+    return unsubscribed;
 }
 
 auto lm::bus::publish(event const& e) -> u32
@@ -106,19 +107,18 @@ auto lm::bus::publish(event const& e) -> u32
     // NOTE: We take the mutex to iterate the list safely,
     //       but we do NOT block on queue->send.
     auto listeners = 0_u32;
-    xSemaphoreTake(_mutex, portMAX_DELAY);
-    for (auto const& sub : _subs) {
-        // Only send if the subscriber explicitly asked for this event and topic.
-        if (
-            sub.queue != nullptr &&
-            (sub.topic       == (u8)topic_t::any || sub.topic == (u8)e.topic) &&
-            (sub.filter_mask == (u8)type_t::any  || sub.filter_mask & event_bit)
-        ){
-            if(sub.queue->send(&e, 0)) ++listeners;
+    bus_subs.read([&](auto const& bus_subs){
+        for (auto const& sub : bus_subs) {
+            // Only send if the subscriber explicitly asked for this event and topic.
+            if (
+                sub.queue != nullptr &&
+                (sub.topic       == (u8)topic_t::any || sub.topic == (u8)e.topic) &&
+                (sub.filter_mask == (u8)type_t::any  || sub.filter_mask & event_bit)
+            ){
+                if(sub.queue->send(&e, 0)) ++listeners;
+            }
         }
-    }
-
-    xSemaphoreGive(_mutex);
+    });
     return listeners;
 }
 

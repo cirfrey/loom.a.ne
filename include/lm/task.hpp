@@ -1,7 +1,7 @@
 // Maybe it's a smart idea to abstract from freeRTOS... Maybe not, I don't know yet.
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 #include "lm/bus.hpp"
 
 #include "lm/task/types.hpp"
@@ -10,7 +10,6 @@ namespace lm::task
 {
     using task_function_t = void (*)(lm::task::config const&);
 
-    // Safeguard so we only create the tasks we know of (requires an lm::config::task::info_t).
     // A typical task looks like this:
     //
     //     auto lm::whatever::task(lm::task::config const& cfg) -> void
@@ -24,7 +23,7 @@ namespace lm::task
     //         while(!tc::should_stop(tc_bus, cfg.id))
     //         {
     //             /* Do task processing here */
-    //             lm::task::delay_ms(cfg.id);
+    //             lm::task::sleep_ms(cfg.sleep_ms);
     //             /* Or here, depends on what makes sense for this task. */
     //         }
     //     }
@@ -42,7 +41,7 @@ namespace lm::task
     // Deletes a task by it's handle.
     auto reap(void* handle) -> void;
 
-    auto delay_ms(unsigned long ms) -> void;
+    auto sleep_ms(unsigned long ms) -> void;
 
     struct queue_t;
     template <typename T>

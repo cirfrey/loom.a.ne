@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 
 #include "lm/task/types.hpp"
 

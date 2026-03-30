@@ -3,18 +3,18 @@
 #include "lm/config.hpp"
 #include "lm/task.hpp"
 #include "lm/tasks/logging.hpp"
-#include "lm/utils/renum.hpp"
+#include "lm/core/reflect.hpp"
 
 #include <cstdio>
 
 // Default fallback for when we don't know the event/topic.
 LOOM_BUSMON_PRINTER(fallback_printer, {
-    auto topic_sv = lm::renum::reflect<lm::bus::topic_t>::semi_qualified(e.topic);
-    return std::snprintf(buf, bufsize, "unkown_event{ .topic=%.*s, .type=%u, .data=%p }", topic_sv.size(), topic_sv.data(), e.type, e.data);
+    auto topic_sv = lm::renum<lm::bus::topic_t>::semi_qualified(e.topic);
+    return std::snprintf(buf, bufsize, "unkown_event{ .topic=%.*s, .type=%u, .data=%p }", topic_sv.size, topic_sv.data, e.type, e.data);
 });
 LOOM_BUSMON_PRINTER(busmon_printer, {
-    auto topic_sv = lm::renum::reflect<lm::bus::topic_t>::semi_qualified((lm::bus::topic_t)e.type);
-    return std::snprintf(buf, bufsize, "busmon::teach_topic{ .topic=%.*s }", topic_sv.size(), topic_sv.data());
+    auto topic_sv = lm::renum<lm::bus::topic_t>::semi_qualified((lm::bus::topic_t)e.type);
+    return std::snprintf(buf, bufsize, "busmon::teach_topic{ .topic=%.*s }", topic_sv.size, topic_sv.data);
 });
 
 auto lm::busmon::init() -> void { lm::task::create(lm::config::task::busmon, lm::busmon::task); }
@@ -50,6 +50,6 @@ auto lm::busmon::task(lm::task::config const& cfg) -> void
             auto strsize = topic_cbs[ev.topic](ev, buf, bufsize);
             lm::log::logf("[BUSMON] %.*s\n", strsize, buf);
         }
-        lm::task::delay_ms(cfg.sleep_ms);
+        lm::task::sleep_ms(cfg.sleep_ms);
     }
 }

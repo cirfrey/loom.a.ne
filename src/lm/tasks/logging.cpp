@@ -1,16 +1,18 @@
 #include "lm/tasks/logging.hpp"
 
+#include "lm/chip/uart.hpp"
 #include "lm/config.hpp"
+#include "lm/board.hpp"
 #include "lm/task.hpp"
 #include "lm/bus.hpp"
-#include "lm/board.hpp"
 
 #include "lm/tasks/usbd.hpp"
 #include "lm/usbd/hid.hpp"
 
 #include "lm/utils/stopwatch.hpp"
-#include "lm/utils/math.hpp"
+#include "lm/core/math.hpp"
 
+/// TODO: abstract
 #include <freertos/FreeRTOS.h>
 #include <freertos/ringbuf.h>
 #include <freertos/task.h>
@@ -55,7 +57,8 @@ auto lm::logging::logf_uart(const char* fmt, ...) -> int
     return len;
 }
 
-auto lm::logging::lograw_uart(const char* bytes, u32 len) -> void { lm::board::console_write(bytes, len); }
+auto lm::logging::lograw_uart(const char* bytes, u32 len) -> void
+{ chip::uart::write(board::uart_trace, {bytes, len}); }
 
 /// --- CDC & HID stuff ---
 
@@ -182,7 +185,7 @@ auto lm::logging::lograw(const char* bytes, u32 len) -> void
         logtype = "trun";
         msgsize = max_preview;
     }
-    LOOM_TRACE("%slog(%3u)|%s: %.*s\n", status, len, logtype, msgsize, bytes);
+    LOOM_TRACE("%s[%s]: %.*s\n", status, logtype, msgsize, bytes);
 }
 
 auto lm::logging::init() -> void
@@ -282,7 +285,7 @@ auto lm::logging::task(lm::task::config const& cfg) -> void
         }
 
         // Throttling so we don't starve anyone else.
-        lm::task::delay_ms(cfg.sleep_ms);
+        lm::task::sleep_ms(cfg.sleep_ms);
 
         // Try to clear data from the ringbuf while we're at it.
         while(try_get_bytes(0));
@@ -326,7 +329,7 @@ auto lm::logging::hid_dispatcher_callback(u8* data, u32 data_size, dispatcher::t
     constexpr auto max_chunk_size = 63;
     u8 report[64] = {0};
 
-    int chunk_size = lm::math::clamp(data_size - ti.bytes_sent, 0, max_chunk_size);
+    int chunk_size = clamp(data_size - ti.bytes_sent, 0, max_chunk_size);
     memcpy(report, data + ti.bytes_sent, chunk_size);
     if(tud_hid_report((u8)lm::usbd::hid::hid_reportid::vendor, report, max_chunk_size)) {
         ti.bytes_sent += chunk_size;
@@ -344,7 +347,7 @@ auto lm::logging::cdc_dispatcher_callback(u8* data, u32 data_size, dispatcher::t
     uint32_t avail = tud_cdc_write_available();
     if(avail == 0) { return dispatcher::status_t::backoff; }
 
-    uint32_t chunk = lm::math::clamp(data_size - ti.bytes_sent, 0, avail);
+    uint32_t chunk = clamp(data_size - ti.bytes_sent, 0, avail);
     auto sent = tud_cdc_write(data + ti.bytes_sent, chunk);
     ti.bytes_sent += sent;
 

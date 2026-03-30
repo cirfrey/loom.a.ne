@@ -1,6 +1,6 @@
 #include "lm/tasks/sysman.hpp"
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 #include "lm/config.hpp"
 #include "lm/task.hpp"
 #include "lm/bus.hpp"
@@ -9,7 +9,8 @@
 #include "lm/tasks/logging.hpp"
 #include "lm/tasks/healthmon.hpp"
 
-#include "lm/utils/renum.hpp"
+#include "lm/core/reflect.hpp"
+#include "lm/core/cvt.hpp"
 
 #include <array>
 
@@ -61,10 +62,9 @@ namespace lm::sysman
         // Helpers.
         auto transition(system_state_t to)
         {
-            using renum = lm::renum::reflect<system_state_t>;
-            auto _from  = renum::semi_qualified(state);
-            auto _to    = renum::semi_qualified(to);
-            LOOM_TRACE("> [%.*s] => [%.*s]\n", _from.size(), _from.data(), _to.size(), _to.data());
+            auto _from    = renum<system_state_t>::semi_qualified(state);
+            auto _to      = renum<system_state_t>::semi_qualified(to);
+            LOOM_TRACE("> [%.*s] => [%.*s]\n", _from.size, _from.data, _to.size, _to.data);
             state = to;
         }
 
@@ -80,14 +80,13 @@ namespace lm::sysman
         {
             if(task_registry[(u8)id].status != from) return;
 
-            using renum = lm::renum::reflect<task_status>;
-            auto _from = renum::unqualified(from);
-            auto _to   = renum::unqualified(to);
+            auto _from = renum<task_status>::unqualified(from);
+            auto _to   = renum<task_status>::unqualified(to);
             LOOM_TRACE(
                 "[%s]: [%.*s] =f=> [%.*s]\n",
                 lm::config::task::by_id[(u8)id].name,
-                _from.size(), _from.data(),
-                _to.size(), _to.data()
+                _from.size, _from.data,
+                _to.size, _to.data
             );
             transition();
             status(id) = to;
@@ -98,7 +97,7 @@ namespace lm::sysman
             if(status(id) != task_status::ready) return;
 
             lm::bus::publish({
-                .data      = reinterpret_cast<void*>((uintptr_t)id),
+                .data      = id | to<upt> | rc<void*>,
                 .sender_id = lm::task::id_t::sysman,
                 .topic     = lm::bus::task_command,
                 .type      = lm::task::event::task_command::start,
@@ -107,7 +106,7 @@ namespace lm::sysman
 
         lm::task::config const& cfg;
         system_state_t state = system_state_t::undefined;
-        std::array<task_info_t, (u8)lm::task::id_t::taskid_max> task_registry;
+        std::array<task_info_t, (u8)lm::task::id_t::taskid_count> task_registry;
         lm::task::event_bus_t status_bus;
     };
 }
@@ -136,7 +135,7 @@ lm::sysman::sysman_t::sysman_t(lm::task::config const& cfg) : cfg{cfg}
 
 auto lm::sysman::sysman_t::do_loop(void) -> bool
 {
-    lm::task::delay_ms(cfg.sleep_ms);
+    lm::task::sleep_ms(cfg.sleep_ms);
 
     process_events();
     reap_stopped_tasks();
@@ -232,14 +231,13 @@ auto lm::sysman::sysman_t::process_events() -> void
         ///       change, but that just seems like a lot of effort.
         if(new_status <= info.status) continue;
 
-        using renum = lm::renum::reflect<task_status>;
-        auto prev = renum::unqualified(info.status);
-        auto curr = renum::unqualified(new_status);
+        auto prev = renum<task_status>::unqualified(info.status);
+        auto curr = renum<task_status>::unqualified(new_status);
         LOOM_TRACE(
             "[%s]: [%.*s] => [%.*s]\n",
             lm::config::task::by_id[id].name,
-            prev.size(), prev.data(),
-            curr.size(), curr.data()
+            prev.size, prev.data,
+            curr.size, curr.data
         );
         info.status = new_status;
     }

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
+#include "lm/chip/types.hpp"
 
 namespace lm::version
 {
@@ -24,11 +25,18 @@ namespace lm::version
 > --------------------------------------- [89762c5:2026-03-28T23:21:13]
 
     */
-    auto write_banner_to_console(
+    auto write_banner(
+        chip::uart_port port, // Where to write this.
         u8 major, u8 minor,
-        char const* git_hash, char const* build_date,
-        char const* prefix = "\n",
-        u8 interval = 1
+        text git_hash, text build_date,
+        text prefix = text::from("\n"), // Appended to the start of the banner. Useful if you want
+                                        // a little space or some extra info/branding before printing
+                                        // the chip banner and specs.
+        u8 interval = 1 // How much to sleep for between characters. 0 disables this feature.
+                        // Cmon, if we're printing a banner we might as well make it look cool.
+                        // Also, if we're on a boot loop for whatever reason this helps to not
+                        // absolutely flood the terminal every time we restart (assuming you)
+                        // are printing the banner during the boot sequence.
     ) -> void;
 
     constexpr const char* adjectives[32] = {

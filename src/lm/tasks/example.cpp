@@ -14,6 +14,6 @@ auto lm::example::task(lm::task::config const& cfg) -> void
 
     while (!tc::should_stop(tc_bus, cfg.id))
     {
-        lm::task::delay_ms(cfg.sleep_ms);
+        lm::task::sleep_ms(cfg.sleep_ms);
     }
 }

@@ -1,6 +1,7 @@
 #include "lm/usbd/midi.hpp"
 
-#include "lm/utils/math.hpp"
+#include "lm/core/math.hpp"
+#include "lm/core/cvt.hpp"
 
 #include "tusb.h"
 
@@ -29,7 +30,7 @@ auto lm::usbd::midi::do_configuration_descriptor(
         ep_in->interface            = midi_streaming_itf;
         ep_in->type                 = ept_t::midi_bulk_in;
 
-        cfg.midi_cable_count = lm::math::clamp(cfg.midi_cable_count, 1, cfg.midi_max_cable_count);
+        cfg.midi_cable_count = clamp(cfg.midi_cable_count, 1, cfg.midi_max_cable_count);
 
         /// --- Writing the descriptors ---
         /// If this is confusing refer to TUD_MIDI_DESCRIPTOR, thats the basic structure, this just has extra jacks.
@@ -53,15 +54,16 @@ extern "C"
 
 /// TODO: API me!
 void send_midi_note(uint8_t cable, uint8_t channel, uint8_t note, uint8_t velocity) {
+    using namespace lm;
     // 1. Construct the Header Byte
     // Upper 4 bits: Cable Number (0-15)
     // Lower 4 bits: Code Index Number (0x9 for Note On)
-    uint8_t header = (uint8_t)((cable << 4) | 0x09);
+    u8 header = (cable << 4) | 0x09 | toe;
 
     // 2. Construct the MIDI Payload
-    uint8_t status   = (uint8_t)(0x90 | (channel & 0x0F));
-    uint8_t note_num = (uint8_t)(note & 0x7F);
-    uint8_t vel      = (uint8_t)(velocity & 0x7F);
+    u8 status   = (0x90 | (channel & 0x0F)) | toe;
+    u8 note_num = (note & 0x7F) | toe;
+    u8 vel      = (velocity & 0x7F) | toe;
 
     // 3. Create the 4-byte packet
     uint8_t packet[4] = { header, status, note_num, vel };

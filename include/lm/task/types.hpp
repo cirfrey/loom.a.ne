@@ -1,16 +1,9 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 
 namespace lm::task
 {
-    enum class affinity
-    {
-        core_wifi,       // Logical Core A
-        core_processing, // Logical Core B
-        core_any,        // Dynamic/OS decided
-    };
-
     // Used for identifying the sender
     // in the bus and maybe other places.
     enum class id_t : u8
@@ -28,7 +21,8 @@ namespace lm::task
         sysman,
         usbd,
 
-        taskid_max,
+        taskid_max = usbd,
+        taskid_count
     };
 
     struct config
@@ -38,6 +32,9 @@ namespace lm::task
         const char* name;
         u16 stack_size;
         u16 sleep_ms; // How much it should sleep between loops, or however it may sleep internally, if applicable.
-        lm::task::affinity core_affinity; // What core it should run at, remember that the ESP32S2 has 1 core and the ESP32S3 has 2.
+        i16 core_affinity; // What core it should run at.
+
+        // The task can run at any core.
+        static constexpr auto no_affinity = -1;
     };
 }

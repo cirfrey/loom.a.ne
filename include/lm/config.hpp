@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/aliases.hpp"
+#include "lm/core/types.hpp"
 
 #include "lm/task/types.hpp"
 
@@ -14,7 +14,7 @@ namespace lm::config::task
         .name = "lm::usbd",
         .stack_size = 8192,
         .sleep_ms = 1,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // ESPNOW / Audio Pump.
@@ -24,7 +24,7 @@ namespace lm::config::task
         .name = "lm::radio",
         .stack_size = 3072,
         .sleep_ms = 1,
-        .core_affinity = lm::task::affinity::core_wifi,
+        .core_affinity = 0,
     };
 
     constexpr auto sysman = lm::task::config{
@@ -33,7 +33,7 @@ namespace lm::config::task
         .name = "lm::sysman",
         .stack_size = 4096,
         .sleep_ms = 10,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // Captive portal, MIDI mapping, debouncing, etc.
@@ -43,7 +43,7 @@ namespace lm::config::task
         .name = "lm::app",
         .stack_size = 4096,
         .sleep_ms = 1,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // The task that handles flushing the log buffers to their
@@ -54,7 +54,7 @@ namespace lm::config::task
         .name = "lm::logging",
         .stack_size = 3072,
         .sleep_ms = 1,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // General health monitor (RAM, Memory usage, Core usage, etc).
@@ -64,7 +64,7 @@ namespace lm::config::task
         .name = "lm::healthmon",
         .stack_size = 4096,
         .sleep_ms = 1000,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // Monitors and prints messages posted on the bus.
@@ -74,7 +74,7 @@ namespace lm::config::task
         .name = "lm::busmon",
         .stack_size = 4096,
         .sleep_ms = 10,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     constexpr auto blink = lm::task::config{
@@ -83,7 +83,7 @@ namespace lm::config::task
         .name = "lm::blink",
         .stack_size = 2048,
         .sleep_ms = 10,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = 1,
     };
 
     // Just so we have something to put in the array below.
@@ -93,7 +93,7 @@ namespace lm::config::task
         .name = "lm::dummy",
         .stack_size = 0,
         .sleep_ms = 1000 * 32,
-        .core_affinity = lm::task::affinity::core_processing,
+        .core_affinity = lm::task::config::no_affinity,
     };
 
     constexpr lm::task::config by_id[] = {

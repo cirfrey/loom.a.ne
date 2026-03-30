@@ -1,5 +1,10 @@
 #include "lm/version/banner.hpp"
 
+#include "lm/chip/info.hpp"
+#include "lm/chip/uart.hpp"
+#include "lm/chip/memory.hpp"
+#include "lm/chip/time.hpp"
+#include "lm/chip/sensor.hpp"
 #include "lm/board.hpp"
 #include "lm/task.hpp"
 
@@ -33,22 +38,28 @@ namespace lm
 }
 
 // The code is split up by printing the prefix -> header -> art -> footer.
-auto lm::version::write_banner_to_console(u8 major, u8 minor, char const* git_hash, char const* build_date, char const* prefix, u8 interval) -> void
+auto lm::version::write_banner(
+    chip::uart_port port,
+    u8 major, u8 minor,
+    text git_hash, text build_date,
+    text prefix,
+    u8 interval
+) -> void
 {
-    auto write = [&](char const* buf, u32 len){
+    auto write = [&](char const* data, u32 size){
         if(!interval) {
-            lm::board::console_write(buf, len);
+            chip::uart::write(port, {data, size});
             return;
         }
 
-        while(len--) {
-            lm::board::console_write(buf++, 1);
-            lm::task::delay_ms(interval);
+        while(size--) {
+            chip::uart::write(port, {data++, 1});
+            lm::task::sleep_ms(interval);
         }
     };
 
     // --- Prefix ---
-    write(prefix, strlen(prefix));
+    write(prefix.data, prefix.size);
 
     // --- Header ---
     const auto headerlen = 73;
@@ -67,7 +78,7 @@ auto lm::version::write_banner_to_console(u8 major, u8 minor, char const* git_ha
     write(header, headerlen - 1);
 
     // --- Art ---
-    static char const default_banner_art[] = R"(
+    static constexpr text default_banner = text::from(R"(
 >       //      //      //      //      //    //      //      //      /
 >      //      //      //      //      //    //      //      //      //
 >     //  /\  //  /\  //  /\  //  /\  //    //  /\  //  /\  //  /\  //
@@ -75,32 +86,35 @@ auto lm::version::write_banner_to_console(u8 major, u8 minor, char const* git_ha
 >   //  /    /  /    /  /    /  /    /    //  /    /  /    /  /    /  /
 >  //  /    /  /    /  /    /  /    /    //  /    /  /    /  /    /  /
 > //  /    // /   //  /   //  /   //    /   //   /  //   /  //   /  /
-)";
-    auto art = lm::board::get_banner_art();
-    if(!art.data || !art.len)
-    art = { .data = default_banner_art + 1, .len = sizeof(default_banner_art) - 2 }; // Skip the first newline and the '\0'
-    write(art.data, art.len);
+)");
+    auto art = chip::info::banner();
+    if(!art.data || !art.size) art = {
+        .data = default_banner.data + 1,
+        .size = default_banner.size - 1
+    };
+    write(art.data, art.size);
 
     // --- Footer ---
+    auto uuid = chip::info::uuid();
     char chip[36];
-    std::snprintf(chip, 36, "%s", lm::board::get_pretty_name());
-    uint32_t total_ram = lm::board::get_ram() / 1024;
-    uint32_t free_ram  = lm::board::get_free_ram() / 1024;
+    std::snprintf(chip, 36, "%s", chip::info::full_name());
+    uint32_t total_ram = chip::memory::total() / 1024;
+    uint32_t free_ram  = chip::memory::free() / 1024;
     uint32_t used_ram  = total_ram - free_ram;
     char uptime[64];
-    lm::format_uptime(lm::board::get_uptime(), uptime, 64);
+    lm::format_uptime(chip::time::uptime(), uptime, 64);
 
     char footer[320];
     auto footer_size = std::snprintf(
         footer, 320,
-        "> ------------------------------------------------- [%s]\n"
+        "> ------------------------------------------------- [%.*s]\n"
         ">  [CHIP  ] %-36s [RAM ] %ukb / %ukb\n"
         ">  [UPTIME] %-36s [TEMP] %.1f°C\n"
-        "> --------------------------------------- [%s:%s]\n",
-        lm::board::get_mac_str(),
+        "> --------------------------------------- [%.*s:%.*s]\n",
+        uuid.size, uuid.data,
         chip, used_ram, total_ram,
-        uptime, lm::board::get_cpu_temperature(),
-        git_hash, build_date
+        uptime, chip::sensor::internal_temperature(),
+        git_hash.size, git_hash.data, build_date.size, build_date.data
     );
     write(footer, footer_size);
 }

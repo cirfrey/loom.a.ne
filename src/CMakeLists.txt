@@ -7,7 +7,7 @@ list(APPEND app_sources
     "lm/version/banner.cpp"
 
     ### TODO: configurable.
-    "lm/board/esp32.cpp"
+    "lm/chips/esp32.cpp"
 
     "lm/tasks/app.cpp"
     "lm/tasks/blink.cpp"
