@@ -1,23 +1,16 @@
-#include "lm/chip/types.hpp"
-#include "lm/chip/info.hpp"
-#include "lm/chip/system.hpp"
-#include "lm/chip/time.hpp"
-#include "lm/chip/gpio.hpp"
-#include "lm/chip/uart.hpp"
-#include "lm/chip/memory.hpp"
-#include "lm/chip/sensor.hpp"
-#include "lm/chip/usb.hpp"
+#include "lm/chip.hpp"
 
-#include "lm/core/types.hpp"
+#include "lm/core.hpp"
 
-#include <esp_system.h>
+#include <esp_private/usb_phy.h>
 #include <esp_chip_info.h>
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 #include <esp_timer.h>
 #include <esp_mac.h>
+#include <driver/temperature_sensor.h>
 #include <driver/gpio.h>
 #include <driver/uart.h>
-#include <driver/temperature_sensor.h>
 
 #include <cstdio>
 
@@ -27,7 +20,7 @@
 
 auto lm::chip::info::name() -> text
 {
-    return text::from("Bob"); // Temp for now.
+    return "Adam" | to_text;
 }
 
 auto lm::chip::info::full_name() -> text
@@ -38,8 +31,8 @@ auto lm::chip::info::full_name() -> text
         return info.model;
     }();
 
-    if(chip_model == CHIP_ESP32S2) return text::from("ESP32-S2 XTensa LX7 32bit 1c@240MHz");
-    /*else*/                       return text::from("ESP32-S3 XTensa LX7 32bit 2c@240MHz");
+    if(chip_model == CHIP_ESP32S2) return "ESP32-S2 XTensa LX7 32bit 1c@240MHz" | to_text;
+    /*else*/                       return "ESP32-S3 XTensa LX7 32bit 2c@240MHz" | to_text;
 }
 
 auto lm::chip::info::uuid() -> text
@@ -62,7 +55,7 @@ auto lm::chip::info::uuid() -> text
 
 auto lm::chip::info::banner() -> text
 {
-    static constexpr text banner = text::from(R"(
+    static constexpr text banner = R"(
 > .    . ___  .         ___   .        ___      .     ___
 >       /\  \     .    /\  \       .  /\  \          /\  \         .
 >    . /::\  \ .      /::\  \        /::\  \   .    /::\  \
@@ -74,8 +67,8 @@ auto lm::chip::info::banner() -> text
 >     \:\/:/  /  .   \:\/:/  /      \:\/:/  /  .   \:\/:/  /         .
 >    . \::/  / .    . \::/  /   .    \::/  /        \::/  /
 > .     \/__/   .     .\/__/          \/__/          \/__/
-)");
-    return { banner.data + 1, banner.size - 1 }; // Skip the first \n.
+)" | to_text | trans([](auto b){ return text{b.data+1, b.size-1}; }); // Drop the first '\n'
+    return banner;
 }
 
 
@@ -189,7 +182,7 @@ auto lm::chip::uart::init(uart_port port, pin tx, pin rx, st baud_rate) -> void
     uart_set_pin((uart_port_t)port, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
-auto lm::chip::uart::write(uart_port port, view data) -> void
+auto lm::chip::uart::write(uart_port port, buf data) -> void
 { uart_write_bytes((uart_port_t)port, data.data, data.size); }
 
 
@@ -242,7 +235,6 @@ auto lm::chip::sensor::internal_temperature() -> f32
 
 
 /* --- chip::usb --- */
-#include <esp_private/usb_phy.h>
 
 auto lm::chip::usb::phy::power_up() -> void
 {

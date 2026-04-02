@@ -1,9 +1,16 @@
 #pragma once
 
-namespace lm::task { struct config; } // Forward decl.
+#include "lm/core/types.hpp"
+#include "lm/fabric/types.hpp"
 
-namespace lm::healthmon
+namespace lm::tasks
 {
-    auto task(lm::task::config const& cfg) -> void;
-    auto init() -> void;
+    struct healthmon
+    {
+        healthmon(fabric::task_runtime_info& info);
+        auto on_ready()     -> fabric::managed_task_status;
+        auto before_sleep() -> fabric::managed_task_status;
+        auto on_wake()      -> fabric::managed_task_status;
+        ~healthmon() {}
+    };
 }

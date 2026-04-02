@@ -44,7 +44,7 @@ namespace lm
     using i64 = decltype(detail::signed_integer_sized<64>());
 
     // Our very own free-range std::size_t.
-    using st = decltype(sizeof(0));
+    using st  = decltype(sizeof(0));
     // Corresponds to std::intptr_t.
     using ipt = decltype(static_cast<char*>(nullptr) - static_cast<char*>(nullptr));
     // Corresponds to std::uintptr_t.
@@ -74,35 +74,25 @@ namespace lm
     };
 
     // Non-owning const view over raw binary data.
-    struct view {
+    struct buf {
         void const* data = nullptr;
         st size          = 0;
-
-        constexpr bool empty() const { return size == 0; }
     };
     // Non-owning, const view of a character string. NOT null-terminated (.size is law).
     struct text {
         char const* data = nullptr;
         st size          = 0;
-
-        /// TODO: "whatever" | lm::totext;
-
-        constexpr operator view() { return { .data = data, .size = size }; }
-
-        // Automatically creates text from "literals"
-        // The null terminator exists in the binary but is EXCLUDED from size.
-        template<st N>
-        static constexpr text from(const char (&str)[N])
-        { return { .data = str, .size = (N > 0 ? N - 1 : 0) }; }
-
-        static constexpr text from(char const* str) {
-            if (!str) return { nullptr, 0 };
-
-            st len = 0;
-            while (str[len] != '\0') { ++len; }
-            return { .data = str, .size = len };
-        }
-
-        constexpr bool empty() const { return size == 0; }
+        constexpr operator buf() { return { .data = data, .size = size }; }
+    };
+    // Non-owning, mutable view of a character string, NOT null-terminated (.size is law).
+    struct mut_buf {
+        void* data = nullptr;
+        st size    = 0;
+    };
+    // Non-owning, mutable view of a character string, NOT null-terminated (.size is law).
+    struct mut_text {
+        char* data = nullptr;
+        st size    = 0;
+        constexpr operator mut_buf() { return { .data = data, .size = size }; }
     };
 }

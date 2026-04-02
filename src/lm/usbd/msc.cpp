@@ -2,6 +2,7 @@
 
 #include "lm/config.hpp"
 
+/// TODO: abstract.
 #include <esp_partition.h>
 // #include <sdmmc_cmd.h> // Later - for SD card.
 

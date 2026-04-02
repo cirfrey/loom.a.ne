@@ -1,7 +1,5 @@
 #pragma once
 
-// Already imported, this file is 'pasted' at the end of board.hpp.
-// We'll include it anyway to avoid editor squiggles.
 #include "lm/chip/types.hpp"
 
 namespace lm::board
@@ -24,5 +22,7 @@ namespace lm::board
         uart_internal = uart_zero,
         uart_trace    = uart_one,
         uart_midi     = uart_two,
+
+        uart_port_count,
     };
 }

@@ -1,17 +1,16 @@
 #include "lm/tasks/app.hpp"
 
 #include "lm/config.hpp"
-#include "lm/task.hpp"
+#include "lm/fabric/types.hpp"
 
-auto lm::app::init() -> void { lm::task::create(lm::config::task::app, lm::app::task); }
-auto lm::app::task(lm::task::config const& cfg) -> void
+namespace lm::tasks
 {
-    using tc = lm::task::event::task_command;
-    auto tc_bus = tc::make_bus();
-    tc::wait_for_start(tc_bus, cfg.id);
-
-    while (!tc::should_stop(tc_bus, cfg.id))
+    struct app
     {
-        lm::task::sleep_ms(cfg.sleep_ms);
+        app(fabric::task_runtime_info& info) {}
+        auto on_ready() {}
+        auto before_sleep() -> fabric::managed_task_status { return fabric::managed_task_status::ok; }
+        auto on_wake()      -> fabric::managed_task_status { return fabric::managed_task_status::ok; }
+        ~app() {}
     }
 }

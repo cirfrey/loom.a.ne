@@ -1,9 +1,10 @@
 #include "lm/tasks/sysman.hpp"
 
 #include "lm/core/types.hpp"
+#include "lm/fabric/task.hpp"
+#include "lm/fabric/bus.hpp"
+
 #include "lm/config.hpp"
-#include "lm/task.hpp"
-#include "lm/bus.hpp"
 
 #include "lm/tasks/blink.hpp"
 #include "lm/tasks/logging.hpp"
@@ -255,7 +256,7 @@ auto lm::sysman::sysman_t::reap_stopped_tasks() -> void
         }
 
         LOOM_TRACE("Task [%s] is stopped, will try to reap it.\n", lm::config::task::by_id[i].name);
-        lm::task::reap(info.handle);
+        fabric::reap(info.handle);
         info.handle = nullptr;
         info.status = task_status::deleted;
         LOOM_TRACE("Task [%s] reaped and memory freed.\n", lm::config::task::by_id[i].name);

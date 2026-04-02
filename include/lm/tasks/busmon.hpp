@@ -1,29 +1,32 @@
 #pragma once
 
 #include "lm/core/types.hpp"
+#include "lm/fabric.hpp"
 
-namespace lm::task { struct config; } // Forward decl.
-namespace lm::bus  { struct event; } // Forward decl.
-
-namespace lm::busmon
+namespace lm::tasks
 {
-    auto task(lm::task::config const& cfg) -> void;
-    auto init() -> void;
+    struct busmon
+    {
+        using stringify_cb =
+            st/*how many bytes you wrote*/(*)
+            (fabric::event const& /*event*/, mut_text);
+        struct teach_topic
+        {
+            stringify_cb stringify;
+        };
+        static_assert(sizeof(teach_topic) <= sizeof(fabric::event));
 
-    using to_string_cb_t = u32/*how many bytes you wrote*/(*)(lm::bus::event const& /*event*/,  char* /*str_buf (write the string here)*/, u32 /*bufsize (how big the string can be)*/);
-    struct event_data_t { to_string_cb_t to_string; };
-    // Busmon events are special, just set:
-    // - event.type as the id of the topic you want to teach it and;
-    // - event.data as a event_data_t*.
-    enum class event : u8 { };
+        busmon(fabric::task_runtime_info& info);
+        auto on_ready()     -> fabric::managed_task_status;
+        auto before_sleep() -> fabric::managed_task_status;
+        auto on_wake()      -> fabric::managed_task_status;
+        ~busmon();
 
-    // Use this macro to define your printer (or not, can't make you), do something like this on the global scope:
-    //     LOOM_BUSMON_PRINTER(fallback_printer, {
-    //         auto topic_sv = lm::renum::reflect<lm::bus::topic_t>::semi_qualified(e.topic);
-    //         return std::snprintf(buf, bufsize, "unkown_event{ .topic=%.*s, .type=%u, .data=%p }", topic_sv.size(), topic_sv.data(), e.type, e.data);
-    //     });
-    // Then, somewhere in your task code do:
-    //     lm::bus::publish({ .data = &fallback_printer, .topic = lm::bus::busmon, .type = lm::bus::any });
-    #define LOOM_BUSMON_PRINTER(name, funcbody) \
-        auto name = lm::busmon::event_data_t{ .to_string = [](lm::bus::event const& e, char* buf, lm::u32 bufsize) -> lm::u32 { funcbody } };
+    private:
+        fabric::queue_t ev_q    = {}; // Listens to the whole event bus.
+        fabric::queue_t teach_q = {}; // Listens specifically for teach events.
+        fabric::bus::subscribe_token ev_q_tok    = {};
+        fabric::bus::subscribe_token teach_q_tok = {};
+        stringify_cb topic_cbs[fabric::topic::free_topic_max] = {nullptr};
+    };
 }

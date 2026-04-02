@@ -5,8 +5,8 @@
 #include "lm/chip/memory.hpp"
 #include "lm/chip/time.hpp"
 #include "lm/chip/sensor.hpp"
+#include "lm/fabric/task.hpp"
 #include "lm/board.hpp"
-#include "lm/task.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -39,7 +39,7 @@ namespace lm
 
 // The code is split up by printing the prefix -> header -> art -> footer.
 auto lm::version::write_banner(
-    chip::uart_port port,
+    write_t writer,
     u8 major, u8 minor,
     text git_hash, text build_date,
     text prefix,
@@ -48,13 +48,13 @@ auto lm::version::write_banner(
 {
     auto write = [&](char const* data, u32 size){
         if(!interval) {
-            chip::uart::write(port, {data, size});
+            writer({data, size});
             return;
         }
 
         while(size--) {
-            chip::uart::write(port, {data++, 1});
-            lm::task::sleep_ms(interval);
+            writer({data++, 1});
+            fabric::task::sleep_ms(interval);
         }
     };
 
@@ -78,7 +78,7 @@ auto lm::version::write_banner(
     write(header, headerlen - 1);
 
     // --- Art ---
-    static constexpr text default_banner = text::from(R"(
+    static constexpr text default_banner = R"(
 >       //      //      //      //      //    //      //      //      /
 >      //      //      //      //      //    //      //      //      //
 >     //  /\  //  /\  //  /\  //  /\  //    //  /\  //  /\  //  /\  //
@@ -86,12 +86,9 @@ auto lm::version::write_banner(
 >   //  /    /  /    /  /    /  /    /    //  /    /  /    /  /    /  /
 >  //  /    /  /    /  /    /  /    /    //  /    /  /    /  /    /  /
 > //  /    // /   //  /   //  /   //    /   //   /  //   /  //   /  /
-)");
+)" | to_text | trans([](auto b){ return text{b.data+1, b.size-1}; }); // Drop the first '\n'
     auto art = chip::info::banner();
-    if(!art.data || !art.size) art = {
-        .data = default_banner.data + 1,
-        .size = default_banner.size - 1
-    };
+    if(!art.data || !art.size) art = default_banner;
     write(art.data, art.size);
 
     // --- Footer ---
@@ -109,7 +106,7 @@ auto lm::version::write_banner(
         footer, 320,
         "> ------------------------------------------------- [%.*s]\n"
         ">  [CHIP  ] %-36s [RAM ] %ukb / %ukb\n"
-        ">  [UPTIME] %-36s [TEMP] %.1f°C\n"
+        ">  [UPTIME] %-36s [TEMP] %.1fC\n"
         "> --------------------------------------- [%.*s:%.*s]\n",
         uuid.size, uuid.data,
         chip, used_ram, total_ram,

@@ -5,7 +5,7 @@
 namespace lm::chip::gpio
 {
     // The pin mapping (0 is LED, 1 is whatever, etc...) are configured in
-    // the bsp for the specific board. See lm/boards/.../bsp.hpp
+    // the bsp for the specific board. See lm/board/.../lm/board.hpp
     enum class pin_mode : u8 {
         input,
         input_pullup,

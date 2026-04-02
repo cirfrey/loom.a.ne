@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16.0)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project("loom.a.ne" VERSION 0.1)
+project("loom.a.ne" VERSION 0.2)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/HEAD")
 
 # Generate lm/version/defs.hpp.

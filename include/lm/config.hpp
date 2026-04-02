@@ -2,110 +2,80 @@
 
 #include "lm/core/types.hpp"
 
-#include "lm/task/types.hpp"
+#include "lm/fabric/types.hpp"
 
 namespace lm::config::task
 {
     // Most timing-critical task.
     // Must service 1ms SOF interrupts, If this lags, USB disconnects.
-    constexpr auto usbd = lm::task::config{
-        .id = lm::task::id_t::usbd,
-        .priority = 6,
+    constexpr auto usbd = fabric::task_constants{
         .name = "lm::usbd",
+        .priority = 6,
         .stack_size = 8192,
-        .sleep_ms = 1,
         .core_affinity = 1,
     };
 
     // ESPNOW / Audio Pump.
-    constexpr auto radio = lm::task::config{
-        .id = lm::task::id_t::radio,
-        .priority = 5,
+    constexpr auto radio = fabric::task_constants{
         .name = "lm::radio",
+        .priority = 5,
         .stack_size = 3072,
-        .sleep_ms = 1,
         .core_affinity = 0,
     };
 
-    constexpr auto sysman = lm::task::config{
-        .id = lm::task::id_t::sysman,
-        .priority = 4,
+    constexpr auto sysman = fabric::task_constants{
         .name = "lm::sysman",
+        .priority = 4,
         .stack_size = 4096,
-        .sleep_ms = 10,
         .core_affinity = 1,
     };
 
     // Captive portal, MIDI mapping, debouncing, etc.
-    constexpr auto app = lm::task::config{
-        .id = lm::task::id_t::app,
-        .priority = 3,
+    constexpr auto app = fabric::task_constants{
         .name = "lm::app",
+        .priority = 3,
         .stack_size = 4096,
-        .sleep_ms = 1,
         .core_affinity = 1,
     };
 
     // The task that handles flushing the log buffers to their
     // respective sinks (CDC, HID Vendor, ESPNOW).
-    constexpr auto logging = lm::task::config{
-        .id = lm::task::id_t::logging,
-        .priority = 2,
+    constexpr auto logging = fabric::task_constants{
         .name = "lm::logging",
+        .priority = 2,
         .stack_size = 3072,
-        .sleep_ms = 1,
         .core_affinity = 1,
     };
 
     // General health monitor (RAM, Memory usage, Core usage, etc).
-    constexpr auto healthmon = lm::task::config{
-        .id = lm::task::id_t::healthmon,
-        .priority = 1,
+    constexpr auto healthmon = fabric::task_constants{
         .name = "lm::healthmon",
+        .priority = 1,
         .stack_size = 4096,
-        .sleep_ms = 1000,
         .core_affinity = 1,
     };
 
     // Monitors and prints messages posted on the bus.
-    constexpr auto busmon = lm::task::config{
-        .id = lm::task::id_t::busmon,
-        .priority = 1,
+    constexpr auto busmon = fabric::task_constants{
         .name = "lm::busmon",
+        .priority = 1,
         .stack_size = 4096,
-        .sleep_ms = 10,
         .core_affinity = 1,
     };
 
-    constexpr auto blink = lm::task::config{
-        .id = lm::task::id_t::blink,
-        .priority = 1,
+    constexpr auto blink = fabric::task_constants{
         .name = "lm::blink",
+        .priority = 1,
         .stack_size = 2048,
-        .sleep_ms = 10,
         .core_affinity = 1,
     };
 
     // Just so we have something to put in the array below.
-    constexpr auto dummy = lm::task::config{
-        .id = lm::task::id_t::unspecified,
-        .priority = 0,
+    constexpr auto dummy = fabric::task_constants{
         .name = "lm::dummy",
+        .priority = 0,
         .stack_size = 0,
-        .sleep_ms = 1000 * 32,
-        .core_affinity = lm::task::config::no_affinity,
-    };
-
-    constexpr lm::task::config by_id[] = {
-        [(u8)lm::task::id_t::unspecified] = dummy,
-        [(u8)lm::task::id_t::app] = app,
-        [(u8)lm::task::id_t::blink] = blink,
-        [(u8)lm::task::id_t::busmon] = busmon,
-        [(u8)lm::task::id_t::healthmon] = healthmon,
-        [(u8)lm::task::id_t::logging] = logging,
-        [(u8)lm::task::id_t::radio] = radio,
-        [(u8)lm::task::id_t::sysman] = sysman,
-        [(u8)lm::task::id_t::usbd] = usbd,
+        .core_affinity = fabric::task_constants::no_affinity,
     };
 }
 
@@ -120,7 +90,7 @@ namespace lm::config::logging
     // packet, CDC is probably 256, ESPNOW is ~250, ESPNOW2 is ~1400) then
     // this is equal to how many messages ahead the fastest backend can be
     // from the slowest one.
-    constexpr u16 dispatchbuf_max_size = 32;
+    constexpr u16 consumerbuf_max_size = 32;
 
     // If you use logf() instead of log(), this is the size of the
     // internal buffer for formatting (vsnprinf), anything longer then

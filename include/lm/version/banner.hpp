@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/core/types.hpp"
+#include "lm/core/helpers.hpp"
 #include "lm/chip/types.hpp"
 
 namespace lm::version
@@ -21,17 +21,19 @@ namespace lm::version
 > .     \/__/   .     .\/__/          \/__/          \/__/
 > ------------------------------------------------- [48:27:E2:57:1A:DE]
 >  [CHIP  ] ESP32-S2 XTensa LX7 32bit 1c@240MHz  [RAM ] 11kb / 246kb
->  [UPTIME] 69 days, 4 hours, 20 minutes         [TEMP] 30.9°C
+>  [UPTIME] 69 days, 4 hours, 20 minutes         [TEMP] 30.9C
 > --------------------------------------- [89762c5:2026-03-28T23:21:13]
 
     */
+
+    using write_t = void(*)(text);
     auto write_banner(
-        chip::uart_port port, // Where to write this.
+        write_t, // Where to write this.
         u8 major, u8 minor,
         text git_hash, text build_date,
-        text prefix = text::from("\n"), // Appended to the start of the banner. Useful if you want
-                                        // a little space or some extra info/branding before printing
-                                        // the chip banner and specs.
+        text prefix = to_text("\n"), // Appended to the start of the banner. Useful if you want
+                                     // a little space or some extra info/branding before printing
+                                     // the chip banner and specs.
         u8 interval = 1 // How much to sleep for between characters. 0 disables this feature.
                         // Cmon, if we're printing a banner we might as well make it look cool.
                         // Also, if we're on a boot loop for whatever reason this helps to not

@@ -1,19 +1,26 @@
 // Use this as a starting point for your task.
-// Don't forget to get a unique id and config in lm::config::task.
+
 #include "lm/tasks/example.hpp"
 
-#include "lm/config.hpp"
-#include "lm/task.hpp"
-
-auto lm::example::init() -> void { lm::task::create(lm::config::task::example, lm::example::task); }
-auto lm::example::task(lm::task::config const& cfg) -> void
+lm::tasks::example::example(fabric::task_runtime_info& info)
 {
-    using tc = lm::task::event::task_command;
-    auto tc_bus = tc::make_bus();
-    tc::wait_for_start(tc_bus, cfg.id);
+}
 
-    while (!tc::should_stop(tc_bus, cfg.id))
-    {
-        lm::task::sleep_ms(cfg.sleep_ms);
-    }
+auto lm::tasks::example::on_ready() -> fabric::managed_task_status
+{ 
+    return fabric::managed_task_status::ok; 
+}
+
+auto lm::tasks::example::before_sleep() -> fabric::managed_task_status
+{ 
+    return fabric::managed_task_status::ok;
+}
+
+auto lm::tasks::example::on_wake() -> fabric::managed_task_status
+{
+    return fabric::managed_task_status::ok;
+}
+
+lm::tasks::example::~example()
+{
 }

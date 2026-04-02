@@ -1,9 +1,8 @@
 #pragma once
 
 #include "lm/core/types.hpp"
-#include "lm/core/traits.hpp"
-
-#include <type_traits>
+#include "lm/core/veil.hpp"
+#include "lm/core/helpers.hpp"
 
 namespace lm
 {
@@ -12,25 +11,25 @@ namespace lm
     template<typename T, bool EnableShortInts = true>
     constexpr auto type_name() -> text
     {
-        if constexpr (EnableShortInts && is_integral_v<T>)
+        if constexpr (EnableShortInts && veil::is_integral_v<T>)
         {
             constexpr char const* unsigned_atlas[] = {"u8", "u16", "dummy", "u32", "dummy", "dummy", "dummy", "u64"};
             constexpr char const* signed_atlas[]   = {"i8", "i16", "dummy", "i32", "dummy", "dummy", "dummy", "i64"};
 
-            if constexpr (is_signed_v<T>){return text::from(signed_atlas[sizeof(T) - 1]);}
-            else return text::from(unsigned_atlas[sizeof(T) - 1]);
+            if constexpr (veil::is_signed_v<T>){ return to_text(signed_atlas[sizeof(T) - 1]); }
+            else return to_text(unsigned_atlas[sizeof(T) - 1]);
         }
         text name, prefix, suffix;
         #if defined(__clang__)
-            name   = text::from(__PRETTY_FUNCTION__);
-            prefix = text::from("lm::text lm::type_name() [T = ");
-            if constexpr (EnableShortInts) { suffix = text::from(", EnableShortInts = true]"); }
-            else                           { suffix = text::from(", EnableShortInts = false]"); }
+            name   = to_text(__PRETTY_FUNCTION__);
+            prefix = to_text("lm::text lm::type_name() [T = ");
+            if constexpr (EnableShortInts) { suffix = to_text(", EnableShortInts = true]"); }
+            else                           { suffix = to_text(", EnableShortInts = false]"); }
         #elif defined(__GNUC__)
-            name   = text::from(__PRETTY_FUNCTION__);
-            prefix = text::from("constexpr lm::text lm::type_name() [with T = ");
-            if constexpr (EnableShortInts) { suffix = text::from("; bool EnableShortInts = true]"); }
-            else                           { suffix = text::from("; bool EnableShortInts = false]"); }
+            name   = to_text(__PRETTY_FUNCTION__);
+            prefix = to_text("constexpr lm::text lm::type_name() [with T = ");
+            if constexpr (EnableShortInts) { suffix = to_text("; bool EnableShortInts = true]"); }
+            else                           { suffix = to_text("; bool EnableShortInts = false]"); }
         #elif defined(_MSC_VER)
             static_assert(false, "Please implement type_name() for this compiler");
         #else
@@ -50,7 +49,7 @@ namespace lm
 
     template <typename T, bool EnableShortInts = true>
     constexpr auto clean_type_name(T&&) -> text
-    { return type_name< remove_cvref_t<T>, EnableShortInts >(); }
+    { return type_name< veil::remove_cvref_t<T>, EnableShortInts >(); }
 
     template <typename Enum, typename I, I... Values>
     struct renum_t;

@@ -53,21 +53,17 @@ extern "C"
 }
 
 /// TODO: API me!
-void send_midi_note(uint8_t cable, uint8_t channel, uint8_t note, uint8_t velocity) {
+void send_midi_note(lm::u8 cable, lm::u8 channel, lm::u8 note, lm::u8 velocity) {
     using namespace lm;
-    // 1. Construct the Header Byte
-    // Upper 4 bits: Cable Number (0-15)
-    // Lower 4 bits: Code Index Number (0x9 for Note On)
-    u8 header = (cable << 4) | 0x09 | toe;
 
-    // 2. Construct the MIDI Payload
-    u8 status   = (0x90 | (channel & 0x0F)) | toe;
-    u8 note_num = (note & 0x7F) | toe;
-    u8 vel      = (velocity & 0x7F) | toe;
+    usbd::midi::packet pkt({
+        .cable    = cable,
+        .code     = usbd::midi::cin::note_on,
+        .channel  = channel,
+        .type     = usbd::midi::status::note_on,
+        .note     = note,
+        .velocity = velocity
+    });
 
-    // 3. Create the 4-byte packet
-    uint8_t packet[4] = { header, status, note_num, vel };
-
-    // 4. Send to TinyUSB
-    if (tud_midi_mounted()) { tud_midi_packet_write(packet); }
+    if (tud_midi_mounted()) { tud_midi_packet_write(&pkt | rc<u8*>); }
 }
