@@ -84,7 +84,45 @@ auto lm::fabric::queue_t::receive(void* into, u32 timeout) -> bool    { return x
 auto lm::fabric::queue_t::capacity() const     -> st { return max_elements; }
 auto lm::fabric::queue_t::element_size() const -> st { return element_size_in_bytes; }
 
+auto lm::fabric::semaphore::create_binary() -> semaphore
+{
+    semaphore s;
+    s.impl = xSemaphoreCreateBinary();
+    return s;
+}
 
+auto lm::fabric::semaphore::create_counting(u32 max, u32 initial) -> semaphore
+{
+    semaphore s;
+    s.impl = xSemaphoreCreateCounting(max, initial);
+    return s;
+}
+
+lm::fabric::semaphore::semaphore(semaphore&& o) noexcept : impl(o.impl) {
+    o.impl = nullptr;
+}
+
+auto lm::fabric::semaphore::operator=(semaphore&& o) noexcept -> semaphore& {
+    auto timpl = impl;
+    impl = o.impl;
+    o.impl = timpl;
+    return *this;
+}
+
+lm::fabric::semaphore::~semaphore()
+{ if (impl) vSemaphoreDelete((SemaphoreHandle_t)impl); }
+
+auto lm::fabric::semaphore::take(u32 timeout_ms) const -> bool
+{
+    if (!impl) return false;
+    return xSemaphoreTake((SemaphoreHandle_t)impl, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
+}
+
+auto lm::fabric::semaphore::give() const -> void
+{ if (impl) xSemaphoreGive((SemaphoreHandle_t)impl); }
+
+auto lm::fabric::semaphore::initialized() const -> bool
+{ return impl != nullptr; }
 
 /* --- task.cpp --- */
 
@@ -107,7 +145,7 @@ auto lm::fabric::task::create(
     task_constants const& cfg,
     task_runtime_info const& info,
     task_function_t task,
-    bool do_publish
+    void* taskarg
 ) -> task_handle_t
 {
     auto core_count = chip::system::core_count();
@@ -120,7 +158,7 @@ auto lm::fabric::task::create(
         task,
         cfg.name,
         cfg.stack_size,
-        info | smuggle<void*>,
+        taskarg ? taskarg : (info | smuggle<void*>),
         cfg.priority,
         &handle,
         (BaseType_t)core_id
@@ -130,20 +168,18 @@ auto lm::fabric::task::create(
         return nullptr;
     }
 
-    if(do_publish) {
-        bus::publish(fabric::event{
-            .topic = topic::task,
-            .type = event::created,
-            .sender_id = info.id,
-        }.with_payload<status_event>({ .handle = handle }));
-    }
+    bus::publish(fabric::event{
+        .topic = topic::task,
+        .type = event::created,
+        .sender_id = info.id,
+    }.with_payload<status_event>({ .handle = handle }));
 
     return handle;
 }
 
-auto lm::fabric::task::get_handle() -> void* { return xTaskGetCurrentTaskHandle(); }
+auto lm::fabric::task::get_handle() -> task_handle_t { return xTaskGetCurrentTaskHandle(); }
 
-auto lm::fabric::task::reap(void* handle) -> void { vTaskDelete((TaskHandle_t)handle); }
+auto lm::fabric::task::reap(task_handle_t handle) -> void { vTaskDelete((TaskHandle_t)handle); }
 
 auto lm::fabric::task::sleep_ms(unsigned long ms) -> void
 {

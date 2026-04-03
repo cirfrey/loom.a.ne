@@ -41,7 +41,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
     }
 
     va_list args;
-    va_start(args, fmt);
+    va_start(args, f);
     out.size += std::vsnprintf(out.data + out.size, in.size - out.size, f.fmt, args);
     out.size = clamp(out.size, 0, in.size);
     va_end(args);

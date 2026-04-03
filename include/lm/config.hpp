@@ -10,8 +10,15 @@ namespace lm::config::task
     // Must service 1ms SOF interrupts, If this lags, USB disconnects.
     constexpr auto usbd = fabric::task_constants{
         .name = "lm::usbd",
+        .priority = 2,
+        .stack_size = 64 * 128,
+        .core_affinity = 1,
+    };
+
+    constexpr auto tud = fabric::task_constants{
+        .name = "tinyusb(tud)",
         .priority = 6,
-        .stack_size = 8192,
+        .stack_size = 64 * 128,
         .core_affinity = 1,
     };
 
@@ -19,14 +26,14 @@ namespace lm::config::task
     constexpr auto radio = fabric::task_constants{
         .name = "lm::radio",
         .priority = 5,
-        .stack_size = 3072,
+        .stack_size = 24 * 128,
         .core_affinity = 0,
     };
 
-    constexpr auto sysman = fabric::task_constants{
-        .name = "lm::sysman",
+    constexpr auto tman = fabric::task_constants{
+        .name = "lm::tman",
         .priority = 4,
-        .stack_size = 4096,
+        .stack_size = 26 * 128,
         .core_affinity = 1,
     };
 
@@ -34,7 +41,7 @@ namespace lm::config::task
     constexpr auto app = fabric::task_constants{
         .name = "lm::app",
         .priority = 3,
-        .stack_size = 4096,
+        .stack_size = 32 * 128,
         .core_affinity = 1,
     };
 
@@ -43,7 +50,7 @@ namespace lm::config::task
     constexpr auto logging = fabric::task_constants{
         .name = "lm::logging",
         .priority = 2,
-        .stack_size = 3072,
+        .stack_size = 24 * 128,
         .core_affinity = 1,
     };
 
@@ -51,7 +58,7 @@ namespace lm::config::task
     constexpr auto healthmon = fabric::task_constants{
         .name = "lm::healthmon",
         .priority = 1,
-        .stack_size = 4096,
+        .stack_size = 22 * 128,
         .core_affinity = 1,
     };
 
@@ -59,14 +66,14 @@ namespace lm::config::task
     constexpr auto busmon = fabric::task_constants{
         .name = "lm::busmon",
         .priority = 1,
-        .stack_size = 4096,
+        .stack_size = 18 * 128,
         .core_affinity = 1,
     };
 
     constexpr auto blink = fabric::task_constants{
         .name = "lm::blink",
         .priority = 1,
-        .stack_size = 2048,
+        .stack_size = 11 * 128,
         .core_affinity = 1,
     };
 
@@ -92,10 +99,10 @@ namespace lm::config::logging
     // from the slowest one.
     constexpr u16 consumerbuf_max_size = 32;
 
-    // If you use logf() instead of log(), this is the size of the
-    // internal buffer for formatting (vsnprinf), anything longer then
+    // If you use log() and co. instead of dispatch(), this is the size of the
+    // internal buffer for formatting (snprinf), anything longer then
     // this is cutoff before submitted.
-    constexpr u16 logf_bufsize = 256;
+    constexpr u16 logf_bufsize = 128;
 }
 
 namespace lm::config::bus

@@ -7,6 +7,10 @@
 #include "lm/board.hpp"
 #include "lm/core/math.hpp"
 
+#include "lm/tasks/usbd.hpp"
+
+#include "lm/utils/stopwatch.hpp"
+
 #include <tusb.h>
 
 namespace lm::tasks::logging
@@ -25,6 +29,14 @@ auto lm::tasks::log::dispatch(text t) -> bool
 
 lm::tasks::log::log(fabric::task_runtime_info& info)
 {
+    //     // Forwards ESP_LOG* to uart.
+    //     esp_log_set_vprintf([](const char* format, va_list args) {
+    //         char buf[lm::config::logging::logf_bufsize];
+    //         int len = vsnprintf(buf, sizeof(buf), format, args);
+    //         if (len > 0) { lograw_uart(buf, len); }
+    //         return len; // Return the number of characters written
+    //     });
+
     logging::logbuf.write([](auto& buf){
         buf = fabric::bytebuf(config::logging::ringbuf_size);
     });
@@ -32,35 +44,59 @@ lm::tasks::log::log(fabric::task_runtime_info& info)
     consumers[0].type = logging::consumer::type_t::uart;
     for(auto i = 1; i < consumer_count; ++i)
         consumers[i].type = logging::consumer::type_t::disabled;
+
+    usbd_status_q = fabric::queue<fabric::event>(4);
+    usbd_status_q_tok = fabric::bus::subscribe(
+        usbd_status_q,
+        fabric::topic::usbd,
+        {
+            usbd::event::cdc_enabled, usbd::event::cdc_disabled,
+            usbd::event::hid_enabled, usbd::event::hid_disabled,
+        }
+    );
 }
 
 auto lm::tasks::log::on_ready() -> fabric::managed_task_status
 {
-    // usbd_status_timer.start();
+    usbd_status_timer.start();
     return fabric::managed_task_status::ok;
 }
 
 auto lm::tasks::log::before_sleep() -> fabric::managed_task_status
 {
     // 0. Request consumer update if necessary.
-    // if(usbd_status_timer.is_done()) {
-    //     usbd_status_timer.restart();
-    //     lm::bus::publish({
-    //         .sender_id = cfg.id,
-    //         .topic = lm::bus::usbd,
-    //         .type = (u8)lm::usbd::event::get_status,
-    //     });
-    // }
+    if(usbd_status_timer.is_done()) {
+        usbd_status_timer.restart();
+        fabric::bus::publish({
+            .topic = fabric::topic::usbd,
+            .type  = usbd::event::get_status,
+        });
+    }
 
     // 1. Update consumers if necessary.
-    // // Consume usbd events.
-    // for(auto& e : usbd_bus) { switch((lm::usbd::event)e.type){
-    //     case lm::usbd::event::cdc_enabled:  enable_dispatcher(cdc_dispatcher, cdc_dispatcher_id, cdc_dispatcher_callback); break;
-    //     case lm::usbd::event::hid_enabled:  enable_dispatcher(hid_dispatcher, hid_dispatcher_id, hid_dispatcher_callback); break;
-    //     case lm::usbd::event::cdc_disabled: disable_dispatcher(cdc_dispatcher); break;
-    //     case lm::usbd::event::hid_disabled: disable_dispatcher(hid_dispatcher); break;
-    //     default: break;
-    // }}
+    for(auto& e : usbd_status_q.consume<fabric::event>()) { switch((usbd::event::event_t)e.type){
+        case usbd::event::cdc_enabled:
+            if(consumers[1].type == logging::consumer::type_t::cdc) break;
+            consumers[1].type = logging::consumer::type_t::cdc;
+            lm::log::debug("Enabled CDC consumer\n");
+            break;
+        case usbd::event::hid_enabled:
+            if(consumers[2].type == logging::consumer::type_t::hid) break;
+            consumers[2].type = logging::consumer::type_t::hid;
+            lm::log::debug("Enabled HID consumer\n");
+            break;
+        case usbd::event::cdc_disabled:
+            if(consumers[1].type == logging::consumer::type_t::disabled) break;
+            consumers[1].type = logging::consumer::type_t::disabled;
+            lm::log::debug("Disabled CDC consumer\n");
+            break;
+        case usbd::event::hid_disabled:
+            if(consumers[2].type == logging::consumer::type_t::disabled) break;
+            consumers[2].type = logging::consumer::type_t::disabled;
+            lm::log::debug("Disabled HID consumer\n");
+            break;
+        default: break;
+    }}
 
     // 2. Consume.
     for(auto i = 0; i < consumer_count; ++i)
@@ -187,14 +223,3 @@ auto lm::tasks::logging::consumer::flush() -> void
 {
     /// TODO:
 }
-
-// auto lm::logging::init_uart() -> void
-// {
-//     // Forwards ESP_LOG* to uart.
-//     esp_log_set_vprintf([](const char* format, va_list args) {
-//         char buf[lm::config::logging::logf_bufsize];
-//         int len = vsnprintf(buf, sizeof(buf), format, args);
-//         if (len > 0) { lograw_uart(buf, len); }
-//         return len; // Return the number of characters written
-//     });
-// }

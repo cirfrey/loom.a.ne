@@ -62,14 +62,10 @@ namespace lm::fabric::task
     //
     // Then you call lm::task::create(lm::config::whatever, lm::whatever::task, (void*)whateverparams).
     // void* whateverparams is forwarded to lm::whatever::task.
-    //
-    // NOTE: For most cases we want to also publish the task creation event -- EXCEPT for sysman. The problem
-    //       is that sysman is responsible for intializing the bus and other things during its boot state and
-    //       if we try to publish to the bus before it is initialized nasty things can happen.
-    auto create(task_constants const& cfg, task_runtime_info const& info, task_function_t task, bool do_publish = true) -> task_handle_t;
-    auto get_handle() -> void*;
+    auto create(task_constants const& cfg, task_runtime_info const& info, task_function_t task, void* taskarg = nullptr) -> task_handle_t;
+    auto get_handle() -> task_handle_t;
     // Deletes a task by it's handle.
-    auto reap(void* handle) -> void;
+    auto reap(task_handle_t handle) -> void;
 
     enum event : u8
     {
@@ -79,6 +75,10 @@ namespace lm::fabric::task
         ready,
         running,
         waiting_for_reap,
+
+
+
+        loop_timing,
 
 
         /* --- signals (payload = signal_event) --- */
@@ -92,11 +92,18 @@ namespace lm::fabric::task
         void* handle;
     }; static_assert(sizeof(status_event) <= sizeof(fabric::event::payload));
 
+    struct timing_event
+    {
+        u64 time;
+    }; static_assert(sizeof(timing_event) <= sizeof(fabric::event::payload));
+
     struct signal_event
     {
         u64 task_id;
     }; static_assert(sizeof(signal_event) <= sizeof(fabric::event::payload));
 }
+
+#include "lm/chip/time.hpp"
 
 /* --- Impls --- */
 template <typename Task>
@@ -117,10 +124,20 @@ constexpr auto lm::fabric::task::managed() -> task_function_t
             wait_for_start(signal_queue, info.id);
 
             if(task.on_ready() == managed_task_status::exit) return;
+            auto start = chip::time::uptime();
             while (!should_stop(signal_queue, info.id))
             {
                 if(task.before_sleep() == managed_task_status::exit) return;
-                if(info.sleep_ms > 0) sleep_ms(info.sleep_ms);
+
+                auto end = chip::time::uptime();
+                bus::publish(fabric::event{
+                    .topic = topic::task,
+                    .type  = event::loop_timing,
+                    .sender_id = info.id,
+                }.with_payload(timing_event{ .time = end - start }));
+                sleep_ms(info.sleep_ms);
+                start = chip::time::uptime();
+
                 if(task.on_wake() == managed_task_status::exit) return;
             }
         }();
@@ -128,3 +145,19 @@ constexpr auto lm::fabric::task::managed() -> task_function_t
         wait_for_shutdown(info.id);
     };
 }
+
+/* prev
+[1010918][healthmon.cpp:49 ] RAM: 32/243kb [13.4%] | Peak: 32kb | MaxBlock: 200kb
+[1010919][healthmon.cpp:83 ] Task Name        | St  | Pri | Stack (Bytes Left)
+[1010919][healthmon.cpp:84 ] --------------------------------------------------
+[1010920][healthmon.cpp:94 ] lm::healthmon    |  X  |   1 | 264
+[1010920][healthmon.cpp:94 ] lm::busmon       |  B  |   1 | 288
+[1010920][healthmon.cpp:94 ] lm::blink        |  B  |   1 | 300
+[1010921][healthmon.cpp:94 ] lm::logging      |  B  |   2 | 744
+[1010921][healthmon.cpp:94 ] lm::tman         |  B  |   4 | 932
+[1010921][healthmon.cpp:94 ] IDLE             |  R  |   0 | 1140
+[1010921][healthmon.cpp:111] ==============================
+*/
+/* with timing
+
+*/

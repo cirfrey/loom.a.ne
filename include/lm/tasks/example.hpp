@@ -1,6 +1,8 @@
 // Use this as a starting point for your task.
 #pragma once
 
+#include "lm/fabric/types.hpp"
+
 namespace lm::tasks
 {
     struct example

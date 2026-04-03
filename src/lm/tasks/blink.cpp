@@ -4,11 +4,16 @@
 #include "lm/chip/gpio.hpp"
 #include "lm/board.hpp"
 
-
-lm::tasks::blink::blink(fabric::task_runtime_info& info) {}
+lm::tasks::blink::blink(fabric::task_runtime_info& info)
+{
+    chip::gpio::init(board::status_led, chip::gpio::pin_mode::output);
+}
 
 auto lm::tasks::blink::on_ready() -> fabric::managed_task_status
-{ return fabric::managed_task_status::ok; }
+{
+    sw.click();
+    return fabric::managed_task_status::ok;
+}
 
 auto lm::tasks::blink::before_sleep() -> fabric::managed_task_status
 { return fabric::managed_task_status::ok; }

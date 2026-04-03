@@ -7,19 +7,38 @@
 
 lm::tasks::usbd::usbd(fabric::task_runtime_info& info)
 {
-    cfg = {
+    get_status_q = fabric::queue<fabric::event>(1);
+    get_status_q_tok = fabric::bus::subscribe(
+        get_status_q,
+        fabric::topic::usbd,
+        { event::get_status }
+    );
 
+    cfg = {
+        .cdc  = true,
+        .uac  = lm::usbd::cfg_t::no_uac,
+        .hid  = true,
+        .midi = lm::usbd::cfg_t::midi_inout,
+        .msc  = false,
     };
     endpoints = lm::usbd::esp32_endpoints;
     descriptors = {};
 
+    /// TODO: refactor all usbd internal state into this task.
     lm::usbd::init(cfg, endpoints, descriptors);
     chip::usb::phy::power_up();
 }
 
+#include "lm/config.hpp"
+#include "lm/log.hpp"
+
 auto lm::tasks::usbd::on_ready() -> fabric::managed_task_status
 {
-    tusb_init(); // This will trigger the descriptor callbacks immediately.
+    tud_task_handle = fabric::task::create(config::task::tud, {}, [](void*){
+        tusb_init(); // This will trigger the descriptor callbacks immediately.
+        while(1) tud_task();
+    });
+
     return fabric::managed_task_status::ok;
 }
 
@@ -28,17 +47,22 @@ auto lm::tasks::usbd::before_sleep() -> fabric::managed_task_status
 
 auto lm::tasks::usbd::on_wake() -> fabric::managed_task_status
 {
-    tud_task(); // Device event handling loop
-
-    /// TODO: respond to usb::get_status requests.
-    //if(cfg.cdc) lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::cdc_enabled});
-    //else        lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::cdc_disabled});
-    //if(cfg.hid) lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::hid_enabled});
-    //else        lm::bus::publish({.topic = lm::bus::usbd, .type = (u8)lm::usbd::event::hid_disabled});
+    for(auto& e : get_status_q.consume<fabric::event>())
+    {
+        fabric::bus::publish({
+            .topic = fabric::topic::usbd,
+            .type  = cfg.cdc ? event::cdc_enabled : event::cdc_disabled
+        });
+        fabric::bus::publish({
+            .topic = fabric::topic::usbd,
+            .type  = cfg.hid ? event::hid_enabled : event::hid_disabled
+        });
+    }
 
     return fabric::managed_task_status::ok;
 }
 
 lm::tasks::usbd::~usbd() {
+    if(tud_task_handle) fabric::task::reap(tud_task_handle);
     tusb_deinit(0);
 }

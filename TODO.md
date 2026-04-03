@@ -7,6 +7,7 @@
 [x] Implement lm::config (Centralize priorities/stack sizes).
 [x] Implement Logging Task (RingBuffer + Worker Task).
     [ ] Fix HID + CDC logging problems.
+    [ ] Reimplement HID logs.
 [~] Implement Healthmon - RAM Health Monitor (Heap tracking) / CPU Load Monitor / Task Monitor. ~Only ram for now.
 [x] Implement Event Bus.
 [x] Implement Task lifetime and monitoring via statuses and commands from the Event Bus
@@ -14,9 +15,10 @@
 [x] Implement Hardware/OS abstractions.
     [x] Implement HAL lm::chip.
     [x] Implement BSP lm::board.
-    [~] Implement OSAL lm::fabric::task && lm::fabric::primitives.
-        [~] Implement RingBuf for ESP32.
-[~] Implement lm::sysman (The State Machine "Brain"). .
+    [x] Implement OSAL lm::fabric::task && lm::fabric::primitives.
+        [x] Implement RingBuf for ESP32.
+        [x] Implement semaphore.
+[~] Implement lm::sysman (The State Machine "Brain").
 [ ] Implement lm::bus::input -> Publish to Event Bus and react accordingly.
 [ ] Implement basic ::chip, ::board && ::fabric... for desktop mocking.
 [ ] Have the code stable enough where uart_bridge.ino can be implemented in terms of loom.a.ne.

@@ -10,6 +10,8 @@ namespace lm::fabric
 
     struct bytebuf;
 
+    struct semaphore;
+
 }
 
 struct lm::fabric::bytebuf
@@ -103,3 +105,28 @@ auto lm::fabric::queue_t::consume_as<As>::begin() -> iterator
 template <typename As>
 auto lm::fabric::queue_t::consume_as<As>::end()   -> iterator
 { return {nullptr, {}, true}; }
+
+/* --- semaphore --- */
+
+struct lm::fabric::semaphore
+{
+    static auto create_binary() -> semaphore;
+    static auto create_counting(u32 max, u32 initial) -> semaphore;
+
+    semaphore() = default;
+    semaphore(const semaphore&) = delete;
+    auto operator=(const semaphore&) -> semaphore& = delete;
+    semaphore(semaphore&& o) noexcept;
+    auto operator=(semaphore&& o) noexcept -> semaphore&;
+
+    ~semaphore();
+
+    auto take(u32 timeout_ms = 0xFFFFFFFF) const -> bool;
+    auto give() const -> void;
+    // auto give_from_isr() const -> void;
+
+    auto initialized() const -> bool;
+
+private:
+    void* impl = nullptr;
+};

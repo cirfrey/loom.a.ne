@@ -1,7 +1,9 @@
 #pragma once
 
-#include "lm/fabric/types.hpp"
+#include "lm/fabric.hpp"
 #include "lm/config.hpp"
+
+#include "lm/utils/stopwatch.hpp"
 
 #include <array>
 
@@ -100,5 +102,14 @@ namespace lm::tasks
         static constexpr auto consumer_count = 4;
         u64 consumer_logids[consumer_count] = {0};
         logging::consumer consumers[consumer_count];
+
+        fabric::queue_t usbd_status_q;
+        fabric::bus::subscribe_token usbd_status_q_tok;
+
+        using usbd_status_timer_t = simple_timer<
+            std::chrono::seconds,
+            std::chrono::high_resolution_clock
+        >;
+        usbd_status_timer_t usbd_status_timer = usbd_status_timer_t(10);
     };
 }

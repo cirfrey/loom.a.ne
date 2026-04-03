@@ -9,7 +9,6 @@
 
 #include "lm/chip/info.hpp"
 #include "lm/chip/usb.hpp"
-#include "lm/tasks/logging.hpp"
 #include "lm/config.hpp"
 #include "lm/board.hpp"
 #include "lm/fabric/task.hpp"
@@ -19,8 +18,6 @@
 
 #include <tusb.h>
 
-// TODO: abstract.
-#include <esp_log.h>
 
 // Static stuff required for this to work.
 namespace lm::usbd

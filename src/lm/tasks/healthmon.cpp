@@ -44,13 +44,14 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     auto total     = chip::memory::total();
     auto free_heap = chip::memory::free();
 
-    log::info("RAM: %zu/%zukb [%.1f%%] | Peak: %zukb | MaxBlock: %zukb\n",
-        (total - free_heap)/1024, total/1024, (total-free_heap)/(total | to<f32>)*100,
-        chip::memory::peak_used()/1024, chip::memory::largest_free_block()/1024);
+    // TODO: monitor log ringbuf total and avail.
 
-    if (free_heap < 15000) {
-        log::warn("LOW MEMORY! Instability possible.\n");
-    }
+    log::log(
+        free_heap < 1500 ? log::severity_warn : log::severity_debug,
+        "RAM: %zu/%zukb [%.1f%%] | Peak: %zukb | MaxBlock: %zukb\n",
+        (total - free_heap)/1024, total/1024, (total-free_heap)/(total | to<f32>)*100,
+        chip::memory::peak_used()/1024, chip::memory::largest_free_block()/1024
+    );
 
     return fabric::managed_task_status::ok;
 
@@ -79,8 +80,8 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
             return a.usStackHighWaterMark < b.usStackHighWaterMark;
         });
 
-    log::info("%-16s | %-3s | %-3s | %s\n", "Task Name", "St", "Pri", "Stack (Bytes Left)");
-    log::info("--------------------------------------------------\n");
+    log::debug("%-16s | %-3s | %-3s | %s\n", "Task Name", "St", "Pri", "Stack (Bytes Left)");
+    log::debug("--------------------------------------------------\n");
 
     bool alert_triggered = false;
 
@@ -90,7 +91,7 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
         // On ESP-IDF, usStackHighWaterMark is in BYTES.
         uint32_t stack_left = t.usStackHighWaterMark;
 
-        log::info("%-16s |  %c  | %3u | %u\n",
+        log::debug("%-16s |  %c  | %3u | %u\n",
             t.pcTaskName,
             get_state_char(t.eCurrentState),
             t.uxCurrentPriority,
@@ -104,10 +105,11 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     }
 
     if (alert_triggered) {
-        log::error("\n[!!!] CRITICAL: One or more tasks are near stack overflow (<256B)!\n");
+        log::error("[!!!] CRITICAL: One or more tasks are near stack overflow (<256B)!\n");
     }
-
-    log::info("==============================\n");
 
     return fabric::managed_task_status::ok;
 }
+
+auto lm::tasks::healthmon::on_wake() -> fabric::managed_task_status
+{ return fabric::managed_task_status::ok; }

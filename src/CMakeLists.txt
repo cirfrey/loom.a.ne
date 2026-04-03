@@ -20,8 +20,7 @@ list(APPEND app_sources
     "lm/tasks/busmon.cpp"
     "lm/tasks/healthmon.cpp"
     "lm/tasks/usbd.cpp"
-    # Disabled for now.
-    #"lm/tasks/tman.cpp"
+    "lm/tasks/tman.cpp"
     "lm/tasks/log.cpp"
 
     "lm/usbd/cdc.cpp"
@@ -29,6 +28,7 @@ list(APPEND app_sources
     "lm/usbd/midi.cpp"
     "lm/usbd/msc.cpp"
     "lm/usbd/uac2.cpp"
+    "lm/usbd/usbd.cpp"
 )
 
 idf_component_register(

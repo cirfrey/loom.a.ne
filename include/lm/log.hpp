@@ -47,10 +47,11 @@ namespace lm::log
     // All of these use dispatch() and not dispatch_immediate().
     // If you want formatting for your dispatch_immediate() then you do it
     // yourself using fmt().
-    template<typename... Args> constexpr auto debug(fmt_t f, Args&&...) -> void;
-    template<typename... Args> constexpr auto info(fmt_t f, Args&&...) -> void;
-    template<typename... Args> constexpr auto warn(fmt_t f, Args&&...) -> void;
-    template<typename... Args> constexpr auto error(fmt_t f, Args&&...) -> void;
+    template<typename... Args> constexpr auto log(severity_t, fmt_t f, Args&&...) -> bool;
+    template<typename... Args> constexpr auto debug(fmt_t f, Args&&...) -> bool;
+    template<typename... Args> constexpr auto info(fmt_t f, Args&&...) -> bool;
+    template<typename... Args> constexpr auto warn(fmt_t f, Args&&...) -> bool;
+    template<typename... Args> constexpr auto error(fmt_t f, Args&&...) -> bool;
 
     // Pushes the log to the ringbuffer so the logger task can take care of it.
     auto dispatch(text t) -> bool;
@@ -96,37 +97,27 @@ struct lm::log::fmt_t
 /* --- log impls --- */
 
 template<typename... Args>
-constexpr auto lm::log::debug(fmt_t f, Args&&... args) -> void {
-    f.args.severity = severity_debug;
+constexpr auto lm::log::log(severity_t s, fmt_t f, Args&&... args) -> bool
+{
+    f.args.severity = s;
     char buf[lm::config::logging::logf_bufsize];
     auto in  = mut_text{.data = buf, .size = sizeof(buf)};
     auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    dispatch(text{.data = out.data, .size = out.size});
+    return dispatch(text{.data = out.data, .size = out.size});
 }
 
 template<typename... Args>
-constexpr auto lm::log::info(fmt_t f, Args&&... args) -> void {
-    f.args.severity = severity_info;
-    char buf[lm::config::logging::logf_bufsize];
-    auto in  = mut_text{.data = buf, .size = sizeof(buf)};
-    auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    dispatch(text{.data = out.data, .size = out.size});
-}
+constexpr auto lm::log::debug(fmt_t f, Args&&... args) -> bool
+{ return log(severity_debug, f, veil::forward<decltype(args)>(args)...); }
 
 template<typename... Args>
-constexpr auto lm::log::warn(fmt_t f, Args&&... args) -> void {
-    f.args.severity = severity_warn;
-    char buf[lm::config::logging::logf_bufsize];
-    auto in  = mut_text{.data = buf, .size = sizeof(buf)};
-    auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    dispatch(text{.data = out.data, .size = out.size});
-}
+constexpr auto lm::log::info(fmt_t f, Args&&... args) -> bool
+{ return log(severity_info, f, veil::forward<decltype(args)>(args)...); }
 
 template<typename... Args>
-constexpr auto lm::log::error(fmt_t f, Args&&... args) -> void {
-    f.args.severity = severity_error;
-    char buf[lm::config::logging::logf_bufsize];
-    auto in  = mut_text{.data = buf, .size = sizeof(buf)};
-    auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    dispatch(text{.data = out.data, .size = out.size});
-}
+constexpr auto lm::log::warn(fmt_t f, Args&&... args) -> bool
+{ return log(severity_warn, f, veil::forward<decltype(args)>(args)...); }
+
+template<typename... Args>
+constexpr auto lm::log::error(fmt_t f, Args&&... args) -> bool
+{ return log(severity_error, f, veil::forward<decltype(args)>(args)...); }

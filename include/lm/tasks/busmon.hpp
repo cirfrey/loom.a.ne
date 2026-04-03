@@ -20,7 +20,7 @@ namespace lm::tasks
         auto on_ready()     -> fabric::managed_task_status;
         auto before_sleep() -> fabric::managed_task_status;
         auto on_wake()      -> fabric::managed_task_status;
-        ~busmon();
+        ~busmon() = default;
 
     private:
         fabric::queue_t ev_q    = {}; // Listens to the whole event bus.

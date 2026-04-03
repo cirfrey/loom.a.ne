@@ -68,5 +68,3 @@ auto lm::tasks::busmon::before_sleep() -> fabric::managed_task_status
 
 auto lm::tasks::busmon::on_wake() -> fabric::managed_task_status
 { return fabric::managed_task_status::ok; }
-
-lm::tasks::busmon::~busmon() {}
