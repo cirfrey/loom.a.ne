@@ -27,6 +27,8 @@ namespace lm::tasks
         auto on_wake()      -> fabric::managed_task_status;
         ~usbd();
 
+        auto broadcast_status() -> void;
+
         lm::usbd::configuration_t cfg;
         std::span<lm::usbd::endpoint_info_t> endpoints;
         lm::usbd::descriptors_t descriptors;

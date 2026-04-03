@@ -84,8 +84,9 @@ extern "C" auto app_main() -> void
         }}
     );
 
+    auto ping = 0;
     while(1){
-        fabric::task::sleep_ms(3000);
-        log::warn("Ping\n");
+        fabric::task::sleep_ms(50);
+        log::log(log::severity_none, "Ping %i\n", ping++);
     }
 }

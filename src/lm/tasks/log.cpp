@@ -8,6 +8,7 @@
 #include "lm/core/math.hpp"
 
 #include "lm/tasks/usbd.hpp"
+#include "lm/usbd/hid.hpp"
 
 #include "lm/utils/stopwatch.hpp"
 
@@ -152,7 +153,6 @@ auto lm::tasks::log::on_wake() -> fabric::managed_task_status
 lm::tasks::log::~log()
 {}
 
-
 auto lm::tasks::logging::consumer::mark_as_done() -> status
 {
     offset        = 0;
@@ -194,25 +194,27 @@ auto lm::tasks::logging::consumer::consume(buf b) -> status
     }
     else if(type == type_t::hid)
     {
-        return mark_as_done(); /// TODO
-        /*
-        if(ti.failed_tries == 5) { ti.bytes_sent = data_size; return dispatcher::status_t::fail; } // If failed too many times just mark it as done.
+        if(failed_chunks == 5) return mark_as_done();
 
-        if(!tud_hid_ready()) { return dispatcher::status_t::backoff; }
+        if(!tud_hid_ready()) {
+            ++failed_chunks;
+            return status::blocked;
+        }
 
         constexpr auto max_chunk_size = 63;
         u8 report[64] = {0};
 
-        int chunk_size = clamp(data_size - ti.bytes_sent, 0, max_chunk_size);
-        memcpy(report, data + ti.bytes_sent, chunk_size);
+        int chunk_size = clamp(b.size - offset, 0, max_chunk_size);
+        memcpy(report, (u8*)b.data + offset, chunk_size);
         if(tud_hid_report((u8)lm::usbd::hid::hid_reportid::vendor, report, max_chunk_size)) {
-            ti.bytes_sent += chunk_size;
-            ti.failed_tries = 0; // Reset failure count on success
-            return dispatcher::status_t::backoff;
+            offset += chunk_size;
+            failed_chunks = 0; // Reset failure count on success
+            if(offset >= b.size) return mark_as_done();
+            else                 return status::blocked;
         }
 
-        return dispatcher::status_t::fail;
-        */
+        ++failed_chunks;
+        return status::blocked;
     }
 
     // Silence! You know nothing, compiler!

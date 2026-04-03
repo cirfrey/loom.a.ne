@@ -12,8 +12,9 @@ def pick_device(devices, vendor_usage_page):
 
 def run(vid, pid, vendor_usage_page, duration_s=None):
     start = time.time()
+    print_not_found = True
     while True:
-        print("\n---------------------------------------")
+        if print_not_found: print("\n---------------------------------------")
         h = None
         try:
             devices = hid.enumerate(vid, pid)
@@ -22,10 +23,13 @@ def run(vid, pid, vendor_usage_page, duration_s=None):
 
             selected = pick_device(devices, vendor_usage_page)
             if selected is None:
-                print("--- Device not found: Retrying in 2 seconds")
-                time.sleep(2)
+                if print_not_found: print("--- Device not found: Retrying")
+                else: print('.', end="", flush=True)
+                time.sleep(0.2)
+                print_not_found = False
                 continue
 
+            print_not_found = True
             h = hid.device()
             h.open_path(selected["path"])
             h.set_nonblocking(1)
@@ -47,7 +51,7 @@ def run(vid, pid, vendor_usage_page, duration_s=None):
                 else:
                     idle += 1
                     if idle % 200 == 0:
-                        print(".", end="", flush=True)
+                        pass# print(".", end="", flush=True)
                     time.sleep(0.005)
 
                 if duration_s is not None and (time.time() - start) >= duration_s:
@@ -55,14 +59,13 @@ def run(vid, pid, vendor_usage_page, duration_s=None):
         except OSError as e:
             if h is not None:
                 h.close()
-            print("--- OSError: Retrying in 2 seconds => ", e)
-            time.sleep(2)
-
+            print("--- OSError: Retrying => ", e)
+            time.sleep(0.2)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--vid", type=lambda x: int(x, 0), default=0x303A)
-    parser.add_argument("--pid", type=lambda x: int(x, 0), default=0x00005)
+    parser.add_argument("--pid", type=lambda x: int(x, 0), default=0x80C4)
     parser.add_argument("--usage-page", type=lambda x: int(x, 0), default=0xFFAB)
     parser.add_argument("--duration", type=float, default=None, help="Optional auto-exit duration in seconds")
     args = parser.parse_args()

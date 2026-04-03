@@ -145,19 +145,3 @@ constexpr auto lm::fabric::task::managed() -> task_function_t
         wait_for_shutdown(info.id);
     };
 }
-
-/* prev
-[1010918][healthmon.cpp:49 ] RAM: 32/243kb [13.4%] | Peak: 32kb | MaxBlock: 200kb
-[1010919][healthmon.cpp:83 ] Task Name        | St  | Pri | Stack (Bytes Left)
-[1010919][healthmon.cpp:84 ] --------------------------------------------------
-[1010920][healthmon.cpp:94 ] lm::healthmon    |  X  |   1 | 264
-[1010920][healthmon.cpp:94 ] lm::busmon       |  B  |   1 | 288
-[1010920][healthmon.cpp:94 ] lm::blink        |  B  |   1 | 300
-[1010921][healthmon.cpp:94 ] lm::logging      |  B  |   2 | 744
-[1010921][healthmon.cpp:94 ] lm::tman         |  B  |   4 | 932
-[1010921][healthmon.cpp:94 ] IDLE             |  R  |   0 | 1140
-[1010921][healthmon.cpp:111] ==============================
-*/
-/* with timing
-
-*/
