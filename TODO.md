@@ -2,12 +2,14 @@
 [x] Implement version banner with art.
 [x] Embed build info in code.
 [x] Rename project (espy is very specific to esp32 boards).
+[~] Native builds
+    [ ] Embed build info in /static via native builds
 
 # Phase 1: Infrastructure & Stability
 [x] Implement lm::config (Centralize priorities/stack sizes).
 [x] Implement Logging Task (RingBuffer + Worker Task).
-    [ ] Fix HID + CDC logging problems.
-    [ ] Reimplement HID logs.
+    [x] Fix HID + CDC logging problems.
+    [x] Reimplement HID logs.
 [~] Implement Healthmon - RAM Health Monitor (Heap tracking) / CPU Load Monitor / Task Monitor. ~Only ram for now.
 [x] Implement Event Bus.
 [x] Implement Task lifetime and monitoring via statuses and commands from the Event Bus
@@ -20,7 +22,6 @@
         [x] Implement semaphore.
 [~] Implement lm::sysman (The State Machine "Brain").
 [ ] Implement lm::bus::input -> Publish to Event Bus and react accordingly.
-[ ] Implement basic ::chip, ::board && ::fabric... for desktop mocking.
 [ ] Have the code stable enough where uart_bridge.ino can be implemented in terms of loom.a.ne.
 
 # Phase 2: Audio & Storage

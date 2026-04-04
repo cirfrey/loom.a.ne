@@ -4,7 +4,7 @@
 #include "lm/chip/system.hpp"
 #include "lm/chip/time.hpp"
 
-#include "lm/version/defs.hpp"
+#include "lm/build.hpp"
 #include "lm/version/banner.hpp"
 #include "lm/fabric/task.hpp"
 #include "lm/log.hpp"
@@ -43,8 +43,8 @@ extern "C" auto app_main() -> void
     };
     version::write_banner(
         [](text t){ log::dispatch_immediate(board::uart_trace, t, 0, true); },
-        version::major, version::minor,
-        version::git_hash, version::build_date,
+        build::version_major, build::version_minor,
+        build::git_hash, build::build_date,
         bootstr
     );
     fabric::task::sleep_ms(500); // Take a moment to appreciate the banner, it's pretty.
