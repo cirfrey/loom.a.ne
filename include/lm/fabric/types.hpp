@@ -87,6 +87,7 @@ namespace lm::fabric
         u8 id;
         u16 sleep_ms;
     };
+    struct task_runtime_info_pun { union { task_runtime_info raw; void* dummy; }; };
     static_assert(sizeof(task_runtime_info) <= sizeof(void*), "task_runtime_info needs to fit in a void* to be smuggled across the backend");
 
     enum managed_task_status

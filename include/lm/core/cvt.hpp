@@ -100,8 +100,10 @@ namespace lm
         [](auto&& from) constexpr -> To {
             using From = veil::remove_cvref_t<decltype(from)>;
 
-            static_assert(sizeof(From) <= sizeof(To),
-                "This vessel is much to small for the smuggled goods milord.");
+            static_assert(
+                veil::assert_helper<sizeof(From) <= sizeof(To), From, To>,
+                "This vessel is much to small for the smuggled goods milord."
+            );
 
             union {
                 From in;

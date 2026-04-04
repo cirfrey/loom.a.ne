@@ -32,7 +32,7 @@ extern "C" auto app_main() -> void
     using namespace lm;
 
     chip::system::init();
-    chip::uart::init(board::uart_trace, board::gpio17, board::gpio18);
+    chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);
 
     // By printing the banner we make sure that things like the mac address are
     // initialized and can be used by the rest of the code.
@@ -83,10 +83,4 @@ extern "C" auto app_main() -> void
             .should_be_running = true,
         }}
     );
-
-    auto ping = 0;
-    while(1){
-        fabric::task::sleep_ms(50);
-        log::log(log::severity_none, "Ping %i\n", ping++);
-    }
 }

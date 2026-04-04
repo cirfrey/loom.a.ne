@@ -8,12 +8,14 @@
 #include "lm/log.hpp"
 #include "lm/core/cvt.hpp"
 
-// TODO: abstract.
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
 #include <vector>
 #include <algorithm>
+
+// TODO: abstract.
+#ifndef LOOMANE_NATIVE
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // Helper: Map FreeRTOS state codes to readable chars
 constexpr char get_state_char(eTaskState state) {
@@ -26,6 +28,7 @@ constexpr char get_state_char(eTaskState state) {
         default:         return '?';
     }
 }
+#endif
 
 lm::tasks::healthmon::healthmon(fabric::task_runtime_info&) {}
 
@@ -54,6 +57,8 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     );
 
     return fabric::managed_task_status::ok;
+
+    #ifndef LOOMANE_NATIVE
 
     /// TODO: add eventbus stats (memory, listeners, events published by topic, etc).
     /// TODO: add task cpu usage %.
@@ -109,6 +114,7 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     }
 
     return fabric::managed_task_status::ok;
+    #endif
 }
 
 auto lm::tasks::healthmon::on_wake() -> fabric::managed_task_status

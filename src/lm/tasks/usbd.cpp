@@ -5,7 +5,9 @@
 
 #include "lm/config.hpp"
 
+#ifndef LOOMANE_NATIVE
 #include <tusb.h>
+#endif
 
 lm::tasks::usbd::usbd(fabric::task_runtime_info& info)
 {
@@ -17,27 +19,31 @@ lm::tasks::usbd::usbd(fabric::task_runtime_info& info)
     );
 
     cfg = {
-        .cdc  = true,
+        .cdc  = false,
         .uac  = lm::usbd::cfg_t::no_uac,
         .hid  = true,
         .midi = lm::usbd::cfg_t::midi_inout,
         .midi_cable_count = 16,
-        .msc  = false,
+        .msc  = true,
     };
     endpoints = lm::usbd::esp32_endpoints;
     descriptors = {};
 
+    #ifndef LOOMANE_NATIVE
     /// TODO: refactor all usbd internal state into this task.
     lm::usbd::init(cfg, endpoints, descriptors);
+    #endif
     chip::usb::phy::power_up();
 }
 
 auto lm::tasks::usbd::on_ready() -> fabric::managed_task_status
 {
+    #ifndef LOOMANE_NATIVE
     tud_task_handle = fabric::task::create(config::task::tud, {}, [](void*){
         tusb_init(); // This will trigger the descriptor callbacks immediately.
         while(1) tud_task();
     });
+    #endif
 
     broadcast_status();
 
@@ -56,8 +62,12 @@ auto lm::tasks::usbd::on_wake() -> fabric::managed_task_status
 }
 
 lm::tasks::usbd::~usbd() {
-    if(tud_task_handle) fabric::task::reap(tud_task_handle);
-    tusb_deinit(0);
+    if(tud_task_handle) {
+        fabric::task::reap(tud_task_handle);
+        #ifndef LOOMANE_NATIVE
+        tusb_deinit(0);
+        #endif
+    }
 }
 
 auto lm::tasks::usbd::broadcast_status() -> void

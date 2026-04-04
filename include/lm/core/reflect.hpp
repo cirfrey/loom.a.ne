@@ -145,13 +145,13 @@ namespace lm
         static constexpr I values[] = { Values... };
         static constexpr detail::view views[] = { detail::enum_value_view<Enum, Enum(Values)>()... };
 
-        static constexpr auto operator[] (Enum const& e) {
+        static constexpr auto get(Enum const& e) {
             for(auto i = 0u; i < count; ++i) { if(values[i] == I(e)) return views[i]; }
             return detail::view{"INVALID_ENUM", 12};
         }
-        static constexpr auto qualified(Enum const& e)      -> text { return operator[](e).qualified(); }
-        static constexpr auto unqualified(Enum const& e)    -> text { return operator[](e).unqualified(); }
-        static constexpr auto semi_qualified(Enum const& e) -> text { return operator[](e).semi_qualified(); }
+        static constexpr auto qualified(Enum const& e)      -> text { return get(e).qualified(); }
+        static constexpr auto unqualified(Enum const& e)    -> text { return get(e).unqualified(); }
+        static constexpr auto semi_qualified(Enum const& e) -> text { return get(e).semi_qualified(); }
 
         struct value_iterator_v { I value; detail::view view; };
         template <bool IsValue> struct iterator {

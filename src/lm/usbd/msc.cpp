@@ -1,12 +1,36 @@
 #include "lm/usbd/msc.hpp"
 
 #include "lm/config.hpp"
+#include "lm/log.hpp"
 
 /// TODO: abstract.
 #include <esp_partition.h>
 // #include <sdmmc_cmd.h> // Later - for SD card.
 
 #include <tusb.h>
+
+static const esp_partition_t* s_static_partition = nullptr;
+void init_msc_partition() {
+    lm::log::debug("Listing all partitions...\n");
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+
+    bool found_any = false;
+    while (it != NULL) {
+        const esp_partition_t* p = esp_partition_get(it);
+        lm::log::debug("Found: [%s] Type: 0x%02x Subtype: 0x%02x Size: %lu\n",
+                 p->label, p->type, p->subtype, p->size);
+        it = esp_partition_next(it);
+        found_any = true;
+    }
+    esp_partition_iterator_release(it);
+
+    if (!found_any) {
+        lm::log::debug("No partition table found at all! Check your flash settings.\n");
+    }
+
+    // Now try the specific find again
+    s_static_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "static");
+}
 
 auto lm::usbd::msc::do_configuration_descriptor(
     configuration_descriptor_builder_state_t& state,
@@ -39,6 +63,9 @@ auto lm::usbd::msc::do_configuration_descriptor(
         (u8)(EP_DIR_IN | ep_in_idx),
         CFG_TUD_MSC_EP_BUFSIZE
     )});
+
+    init_msc_partition();
+    lm::log::info("Initialized MSC partition with %p\n", s_static_partition);
 }
 
 extern "C" {
@@ -59,28 +86,46 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 
 // Mandatory: Test Unit Ready
 bool tud_msc_test_unit_ready_cb(uint8_t lun) {
-    (void) lun;
-    return true; // Must be true for the disk to "appear"
+    return (s_static_partition != nullptr);
 }
 
 // Mandatory: Capacity
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
     (void) lun;
-    *block_size = 512;
-    *block_count = 2048; // 1MB for testing
+    if (s_static_partition) {
+        // ESP32 flash sectors are typically 4096 bytes,
+        // but USB MSC usually expects 512-byte logical blocks.
+        *block_size = 4096;
+        *block_count = s_static_partition->size / (*block_size);
+    } else {
+        *block_count = 0;
+        *block_size = 0;
+    }
 }
 
 // Mandatory: Read10
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
-    (void) lun; (void) lba; (void) offset;
-    memset(buffer, 0, bufsize);
-    return (int32_t) bufsize;
+    (void) lun;
+    if (!s_static_partition) return -1;
+
+    // Calculate the flash address: (LBA * block_size) + offset
+    // TinyUSB usually gives offset=0 and bufsize as a multiple of block_size
+    uint32_t addr = (lba * 512) + offset;
+
+    esp_err_t err = esp_partition_read(s_static_partition, addr, buffer, bufsize);
+    return (err == ESP_OK) ? (int32_t)bufsize : -1;
+}
+
+// Optional but recommended: Mark as Write Protected
+bool tud_msc_is_writable_cb(uint8_t lun) {
+    (void) lun;
+    return false; // Tells the host OS the drive is Read-Only
 }
 
 // Mandatory: Write10
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
     (void) lun; (void) lba; (void) offset; (void) buffer;
-    return (int32_t) bufsize;
+    return -1;
 }
 
 // Mandatory: SCSI Start/Stop/Custom

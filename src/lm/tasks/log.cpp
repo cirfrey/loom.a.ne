@@ -12,7 +12,9 @@
 
 #include "lm/utils/stopwatch.hpp"
 
+#ifndef LOOMANE_NATIVE
 #include <tusb.h>
+#endif
 
 namespace lm::tasks::logging
 {
@@ -163,6 +165,7 @@ auto lm::tasks::logging::consumer::mark_as_done() -> status
 
 auto lm::tasks::logging::consumer::consume(buf b) -> status
 {
+    #ifndef LOOMANE_NATIVE
     if(type == type_t::disabled) {
         return status::done;
     }
@@ -216,6 +219,7 @@ auto lm::tasks::logging::consumer::consume(buf b) -> status
         ++failed_chunks;
         return status::blocked;
     }
+    #endif
 
     // Silence! You know nothing, compiler!
     return status::done;

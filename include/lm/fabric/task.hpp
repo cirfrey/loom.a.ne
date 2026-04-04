@@ -110,7 +110,7 @@ template <typename Task>
 constexpr auto lm::fabric::task::managed() -> task_function_t
 {
     return [](void* param){
-        auto info = param | smuggle<task_runtime_info>;
+        auto info = (param | smuggle<task_runtime_info_pun>).raw;
 
         [&]{
             Task task{info};

@@ -63,4 +63,12 @@ namespace lm::veil
 
     using std::extent;
     using std::extent_v;
+
+    template <bool v, typename... Ts>
+    struct assert_helper_t {
+        static_assert(v, "Assertion failed");
+        static constexpr auto value = v;
+    };
+    template <bool v, typename... Ts>
+    constexpr auto assert_helper = assert_helper_t<v, Ts...>::value;
 }

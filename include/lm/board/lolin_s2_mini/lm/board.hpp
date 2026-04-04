@@ -8,8 +8,8 @@ namespace lm::board
     {
         status_led = 15,
 
-        gpio17 = 17,
-        gpio18 = 18,
+        gpio_uart_trace_tx = 17,
+        gpio_uart_trace_rx = 18,
     };
 
     enum uart_port : chip::uart_port

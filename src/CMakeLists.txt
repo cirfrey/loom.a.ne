@@ -9,9 +9,8 @@ list(APPEND app_sources
 
     "lm/version/banner.cpp"
 
-    ### TODO: configurable.
-    "lm/arch/esp32/hal.cpp"
-    "lm/arch/esp32/osal.cpp"
+    "lm/arch/${LOOMANE_MCU_TYPE}/hal.cpp"
+    "lm/arch/${LOOMANE_MCU_TYPE}/osal.cpp"
 
     # Template for new tasks.
     #"lm/tasks/example.cpp"
@@ -35,3 +34,15 @@ idf_component_register(
     SRCS ${app_sources}
     INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/include/lm/board/${LOOMANE_BOARD_TYPE}"
 )
+
+
+# Define the generator executable
+add_executable(gen_build_info lm/gen_build_info.cpp)
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/generated/build_info.txt"
+    COMMAND gen_build_info > "${CMAKE_BINARY_DIR}/generated/build_info.txt"
+    DEPENDS gen_build_info
+    COMMENT "Generating build info artifact via printf redirection"
+)
+# Create a top-level target you can call from Python
+add_custom_target(gen_build_info_tgt ALL DEPENDS "${CMAKE_BINARY_DIR}/generated/build_info.txt")

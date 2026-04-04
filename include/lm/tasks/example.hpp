@@ -11,6 +11,6 @@ namespace lm::tasks
         auto on_ready()     -> fabric::managed_task_status;
         auto before_sleep() -> fabric::managed_task_status;
         auto on_wake()      -> fabric::managed_task_status;
-        ~example() {}
+        ~example();
     };
 }
