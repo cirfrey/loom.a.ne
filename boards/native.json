@@ -1,0 +1,16 @@
+{
+  "build": {
+    "cpu": "x86_64",
+    "mcu": "native",
+    "f_cpu": "3600000000L"
+  },
+  "upload": {
+    "maximum_ram_size": 16777216,
+    "maximum_size": 16777216
+  },
+  "frameworks": [],
+  "name": "Native Desktop",
+  "platform": "native",
+  "url": "",
+  "vendor": "loom.a.ne"
+}

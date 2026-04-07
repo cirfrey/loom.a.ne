@@ -5,6 +5,7 @@
 #include <esp_private/usb_phy.h>
 #include <esp_chip_info.h>
 #include <esp_heap_caps.h>
+#include <esp_partition.h>
 #include <esp_system.h>
 #include <esp_timer.h>
 #include <esp_mac.h>
@@ -182,8 +183,8 @@ auto lm::chip::uart::init(uart_port port, pin tx, pin rx, st baud_rate) -> void
     uart_set_pin((uart_port_t)port, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
-auto lm::chip::uart::write(uart_port port, buf data) -> void
-{ uart_write_bytes((uart_port_t)port, data.data, data.size); }
+auto lm::chip::uart::write(uart_port port, buf data) -> st
+{ return uart_write_bytes((uart_port_t)port, data.data, data.size); }
 
 
 
@@ -216,6 +217,103 @@ auto lm::chip::memory::peak_used() -> st
 
 auto lm::chip::memory::largest_free_block() -> st
 { return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }
+
+auto lm::chip::memory::storage::read(st offset, mut_buf out) const -> storage_op_status
+{
+    if (offset + out.size > size) {
+        return storage_op_status::out_of_bounds;
+    }
+
+    esp_err_t err = esp_partition_read(
+        (esp_partition_t const*)impl,
+        offset,
+        out.data,
+        out.size
+    );
+
+    if (err != ESP_OK) return storage_op_status::hardware_failure;
+    return storage_op_status::ok;
+}
+
+auto lm::chip::memory::storage::write(st offset, buf data) -> storage_op_status
+{
+    if (readonly) {
+        return storage_op_status::unauthorized_access;
+    }
+
+    if (offset + data.size > size) {
+        return storage_op_status::out_of_bounds;
+    }
+
+    esp_err_t err = esp_partition_write(
+        (esp_partition_t const*)impl,
+        offset,
+        data.data,
+        data.size
+    );
+
+    if (err != ESP_OK) return storage_op_status::hardware_failure;
+    return storage_op_status::ok;
+}
+
+auto lm::chip::memory::storage::erase(st offset, st length) -> storage_op_status
+{
+    if (readonly) {
+        return storage_op_status::unauthorized_access;
+    }
+
+    if (offset + length > size) {
+        return storage_op_status::out_of_bounds;
+    }
+
+    // Flash memory hardware physically erases in sectors.
+    // Trying to erase 100 bytes at offset 5 is impossible.
+    if ((offset % sector_size != 0) || (length % sector_size != 0)) {
+        return storage_op_status::unaligned_access;
+    }
+
+    // 3. IDF erase call (Relative offset)
+    esp_err_t err = esp_partition_erase_range(
+        (esp_partition_t const*)impl,
+        offset,
+        length
+    );
+
+    if (err != ESP_OK) return storage_op_status::hardware_failure;
+    return storage_op_status::ok;
+}
+
+auto lm::chip::memory::get_storages() -> std::span<storage>
+{
+    constexpr auto max_partitions = 32;
+    alignas(storage) static u8 storages[sizeof(storage) * max_partitions];
+    static auto storage_count = 0_st;
+    static auto is_init = false;
+
+    if(is_init) return {(storage*)storages, storage_count};
+
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    while (it != NULL && storage_count < max_partitions)
+    {
+        const esp_partition_t* p = esp_partition_get(it);
+        new (&storages[sizeof(storage) * storage_count++]) storage{
+            .label         = p->label | to<char const*> | to_text,
+            .type          = p->type,
+            .subtype       = p->subtype,
+            .size          = p->size,
+            .sector_size   = p->erase_size,
+            .absolute_base = p->address,
+            .readonly      = p->readonly,
+            .impl          = (void*)p,
+        };
+        it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+
+    is_init = true;
+
+    return {(storage*)storages, storage_count};
+}
 
 
 

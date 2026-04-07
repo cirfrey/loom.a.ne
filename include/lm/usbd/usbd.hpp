@@ -15,7 +15,8 @@ namespace lm::usbd
         // NOTE: In USB-speak: IN always means "Into the Computer."
         enum class type_t
         {
-            unassigned, // Mark this port as currently unused.
+            unassigned, // Mark this port/direction as currently unused (free to be used).
+            unavailable, // Mark this port/direction as not assignable.
 
             control, // Used for enumeration and control. Should always be endpoint 0, does not use the endpoint budget.
 
@@ -70,32 +71,31 @@ namespace lm::usbd
             msc = 8,
         };
 
-        enum class direction_t { NONE, IN, OUT, INOUT };
+        type_t in;
+        u8 in_itf_idx = 0; // What interface is using this endpoint.
+        interface_type_t in_itf = interface_type_t::unassigned;
 
-        type_t type;
-        u8 interface; // What interface is using this endpoint.
-        interface_type_t interface_type;
-        const direction_t available_directions;
-        direction_t configured_direction;
+        type_t out;
+        u8 out_itf_idx = 0;
+        interface_type_t out_itf = interface_type_t::unassigned;
     };
 
     namespace debug
     {
         /**
          * Table Layout Constants (Documentation Only):
-         * - Row Width: 87 chars + '\n' = 85 bytes
+         * - Row Width: 84 chars + '\n' = 85 bytes
          * - Static Rows: 3 separators + 1 header = 4 rows
-         * - Data Rows: 87 * ArrSize
+         * - Data Rows: 85 * ArrSize
          * - Null Terminator: 1 byte
          */
-        constexpr auto ept_row_width = 87;
+        constexpr auto ept_row_width = 85;
         template <u32 ArrSize>
-        using ep_table = std::array<char, (ept_row_width * 4) + (ept_row_width * ArrSize) + 1>;
+        constexpr st ep_table_size = (ept_row_width * 4) + (ept_row_width * ArrSize) + 1;
 
         // +----+-------------------+-----+------------------+-----------+----------------------+
         // Returns a printable version of the eps in a nice table, good for debugging.
-        template <u32 ArrSize>
-        auto eps_to_table(std::array<endpoint_info_t, ArrSize> const& eps, ep_table<ArrSize>&) -> void;
+        inline auto eps_to_table(std::span<endpoint_info_t> eps, mut_text in_buf, text prefix) -> mut_text;
     } // namespace lm::usbd::debug
 
     struct descriptors_t
@@ -119,6 +119,7 @@ namespace lm::usbd
     {
         bool cdc; // True = 3 EP. Full CDC support.
                   // False = Can still log with HID vendor logging if HID is enabled.
+        bool cdc_strict_endpoints = false;
 
         enum uac_t : u8 {
             no_uac,             // 0 EP.
@@ -144,8 +145,10 @@ namespace lm::usbd
         } midi;
         u8 midi_cable_count = 4;
         static const u8 midi_max_cable_count = 16;
+        bool midi_strict_endpoints = false;
 
         bool msc; // 2 EP.
+        bool msc_strict_endpoints = false;
     };
 
     auto init(
@@ -171,38 +174,57 @@ namespace lm::usbd
 /// Impls.
 
 #include "lm/core/reflect.hpp"
+#include "lm/core/math.hpp"
 #include <cstdio>
 
-template <lm::u32 ArrSize>
-auto lm::usbd::debug::eps_to_table(std::array<endpoint_info_t, ArrSize> const& eps, ep_table<ArrSize>& out) -> void
+inline auto lm::usbd::debug::eps_to_table(std::span<endpoint_info_t> eps, mut_text in_buf, text prefix) -> mut_text
 {
-    int offset = 0;
+    auto out_buf = mut_text{in_buf.data, 0};
 
-    const char* sep = "+----+-------------------+-----+------------------+-----------+----------------------+\n";
+    const char* sep = "+----+--------------------------------------+--------------------------------------+\n";
 
-    offset += std::snprintf(out.data() + offset, out.size() - offset, "%s", sep);
-    offset += std::snprintf(out.data() + offset, out.size() - offset, "| EP | Type              | Itf | Interface Class  | Direction | Available Directions |\n");
-    offset += std::snprintf(out.data() + offset, out.size() - offset,"%s", sep);
+    out_buf.size += std::snprintf(
+        out_buf.data + out_buf.size, in_buf.size - out_buf.size,
+        "%.*s%s", prefix.size, prefix.data, sep
+    );
+    out_buf.size = clamp(out_buf.size, 0, in_buf.size);
+    out_buf.size += std::snprintf(
+        out_buf.data + out_buf.size, in_buf.size - out_buf.size,
+        "%.*s| EP | (itf id:itf type ) IN                | (itf id:itf type ) OUT               |\n",
+        prefix.size, prefix.data
+    );
+    out_buf.size = clamp(out_buf.size, 0, in_buf.size);
+    out_buf.size += std::snprintf(
+        out_buf.data + out_buf.size, in_buf.size - out_buf.size,
+        "%.*s%s", prefix.size, prefix.data, sep
+    );
+    out_buf.size = clamp(out_buf.size, 0, in_buf.size);
 
     for (size_t i = 0; i < eps.size(); ++i) {
         const auto& ep = eps[i];
 
-        using ep_t   = endpoint_info_t;
-        auto type_v  = renum<ep_t::type_t,                      0, 20>::unqualified(ep.type);
-        auto itf_v   = renum<endpoint_info_t::interface_type_t, 0, 10>::unqualified(ep.interface_type);
-        auto dir_v   = renum<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.configured_direction);
-        auto avail_v = renum<endpoint_info_t::direction_t,      0, 10>::unqualified(ep.available_directions);
+        using re_ept_t = renum<endpoint_info_t::type_t, 0, 20>;
+        using re_itf_t = renum<endpoint_info_t::interface_type_t, 0, 10>;
+        auto in      = re_ept_t::unqualified(ep.in);
+        auto in_itf  = re_itf_t::unqualified(ep.in_itf);
+        auto out     = re_ept_t::unqualified(ep.out);
+        auto out_itf = re_itf_t::unqualified(ep.out_itf);
 
-        offset += std::snprintf(out.data() + offset, out.size() - offset,
-            "| %-2d | %-17.*s | %-3d | %-16.*s | %-9.*s | %-20.*s |\n",
+        out_buf.size += std::snprintf(
+            out_buf.data + out_buf.size, in_buf.size - out_buf.size,
+            "%.*s|  %zu | (%zu:%-14.*s) %-17.*s | (%zu:%-14.*s) %-17.*s |\n",
+            prefix.size, prefix.data,
             i,
-            type_v.length(), type_v.data(),
-            ep.interface,
-            itf_v.length(), itf_v.data(),
-            dir_v.length(), dir_v.data(),
-            avail_v.length(), avail_v.data()
+            ep.in_itf_idx,  in_itf.size,  in_itf.data,  in.size, in.data,
+            ep.out_itf_idx, out_itf.size, out_itf.data, out.size, out.data
         );
+        out_buf.size = clamp(out_buf.size, 0, in_buf.size);
     }
 
-    offset += std::snprintf(out.data() + offset, out.size() - offset, "%s", sep);
+    out_buf.size += std::snprintf(
+        out_buf.data + out_buf.size, in_buf.size - out_buf.size,
+        "%.*s%s", prefix.size, prefix.data, sep
+    );
+    out_buf.size = clamp(out_buf.size, 0, in_buf.size);
+    return out_buf;
 }

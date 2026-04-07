@@ -8,6 +8,6 @@ namespace lm::chip::uart
     auto max_port() -> uart_port;
 
     auto init(uart_port port, pin tx, pin rx, st baud_rate = 115200) -> void;
-    auto write(uart_port port, buf) -> void;
+    auto write(uart_port port, buf) -> st;
     /// TODO: read()
 }

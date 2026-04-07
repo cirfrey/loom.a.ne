@@ -6,7 +6,7 @@ import shutil
 # 1. Define paths
 project_dir = env.subst("$PROJECT_DIR")
 assets_dir = os.path.join(project_dir, "assets")
-partitions_csv = env.get("PARTITIONS_TABLE_CSV")
+partitions_csv = env.GetProjectOption("board_build.partitions", default=None)
 build_dir = env.subst("$BUILD_DIR")
 
 # 2. Grab tools from the PlatformIO environment
@@ -26,6 +26,7 @@ def parse_size(size_str):
     return int(s)
 
 def get_partition_data(target_label):
+    print(f'Reading {target_label} from {partitions_csv}')
     if not os.path.exists(partitions_csv):
         print(f"Error: Partition CSV not found at {partitions_csv}")
         return None, None

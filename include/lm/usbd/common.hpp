@@ -12,7 +12,6 @@ namespace lm::usbd
     using cfg_t = configuration_t;
 
     using ep_t = endpoint_info_t;
-    using dir_t = ep_t::direction_t;
     using itf_t = ep_t::interface_type_t;
     using ept_t = ep_t::type_t;
 
@@ -48,21 +47,34 @@ namespace lm::usbd
         idx_max
     };
 
-    constexpr auto EP_DIR_IN = 0x80_u8; // When ep direction is IN we need to do EP_DIR_IN | ep_idx.
+    constexpr auto EP_DIR_IN = 0x80_u8; // When ep direction is IN we need to do EP_DIR_IN | ep_idx in the configuration descriptor.
 
     struct find_unassigned_ep_ret_t { u8 idx = 0; ep_t* ep = nullptr; };
-    auto find_unassigned_ep(std::span<ep_t> eps, auto direction, auto... further_directions)
+    inline auto find_unassigned_ep_in(std::span<ep_t> eps)
     {
         using ret_t = find_unassigned_ep_ret_t;
 
         for(u8 i = 1; i < eps.size(); ++i)
-            if(eps[i].interface_type == itf_t::unassigned && eps[i].available_directions == direction)
+            if(eps[i].in == ept_t::unassigned)
                 return ret_t{ .idx = i, .ep = eps.data() + i };
+        return ret_t {};
+    };
+    inline auto find_unassigned_ep_out(std::span<ep_t> eps)
+    {
+        using ret_t = find_unassigned_ep_ret_t;
 
-        if constexpr (sizeof...(further_directions) > 0) {
-            return find_unassigned_ep(eps, further_directions...);
-        } else {
-            return ret_t {};
-        }
+        for(u8 i = 1; i < eps.size(); ++i)
+            if(eps[i].out == ept_t::unassigned)
+                return ret_t{ .idx = i, .ep = eps.data() + i };
+        return ret_t {};
+    };
+    inline auto find_unassigned_ep_inout(std::span<ep_t> eps)
+    {
+        using ret_t = find_unassigned_ep_ret_t;
+
+        for(u8 i = 1; i < eps.size(); ++i)
+            if(eps[i].in == ept_t::unassigned && eps[i].out == ept_t::unassigned)
+                return ret_t{ .idx = i, .ep = eps.data() + i };
+        return ret_t {};
     };
 }

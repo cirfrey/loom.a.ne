@@ -82,7 +82,13 @@ namespace lm
     struct text {
         char const* data = nullptr;
         st size          = 0;
-        constexpr operator buf() { return { .data = data, .size = size }; }
+        constexpr operator buf() const { return { .data = data, .size = size }; }
+        constexpr auto operator==(const char* b) const -> bool
+        {
+            st i = 0;
+            while (b[i] != '\0' && i < size && data[i] == b[i]) ++i;
+            return size == i && b[i] == '\0';
+        }
     };
     // Non-owning, mutable view of a character string, NOT null-terminated (.size is law).
     struct mut_buf {

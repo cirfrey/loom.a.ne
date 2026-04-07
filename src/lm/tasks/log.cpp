@@ -12,9 +12,7 @@
 
 #include "lm/utils/stopwatch.hpp"
 
-#ifndef LOOMANE_NATIVE
 #include <tusb.h>
-#endif
 
 namespace lm::tasks::logging
 {
@@ -165,16 +163,16 @@ auto lm::tasks::logging::consumer::mark_as_done() -> status
 
 auto lm::tasks::logging::consumer::consume(buf b) -> status
 {
-    #ifndef LOOMANE_NATIVE
     if(type == type_t::disabled) {
         return status::done;
     }
     else if(type == type_t::uart)
     {
         /// TODO: fixme. How do we chunk for uart?
-        if(lm::log::try_dispatch_immediate(board::uart_trace, b, 10000, true)) return mark_as_done();
+        if(lm::log::try_dispatch_immediate(board::uart_trace, b, 100000, true)) return mark_as_done();
         else return status::blocked;
     }
+    #if CFG_TUD_CDC
     else if(type == type_t::cdc)
     {
         // Skip if CDC is not connected.
@@ -195,6 +193,8 @@ auto lm::tasks::logging::consumer::consume(buf b) -> status
         else if(sent < avail) return mark_as_done();
         /*else*/              return status::blocked;
     }
+    #endif
+    #if CFG_TUD_HID
     else if(type == type_t::hid)
     {
         if(failed_chunks == 5) return mark_as_done();

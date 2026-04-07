@@ -4,6 +4,7 @@
 [x] Rename project (espy is very specific to esp32 boards).
 [~] Native builds
     [ ] Embed build info in /static via native builds
+    [ ] Emulate USB via USB/IP?
 
 # Phase 1: Infrastructure & Stability
 [x] Implement lm::config (Centralize priorities/stack sizes).

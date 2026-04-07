@@ -2,6 +2,20 @@
 
 #include "tusb.h"
 
+#if CFG_TUD_HID == 0
+
+    #include "lm/log.hpp"
+    auto lm::usbd::hid::do_configuration_descriptor(
+        configuration_descriptor_builder_state_t& state,
+        cfg_t& cfg,
+        std::span<ep_t> eps
+    ) -> void {
+        cfg.hid = false;
+        log::debug("HID disabled via CFG_TUD_HID=0\n");
+    }
+
+#else
+
 namespace lm::usbd::hid
 {
     static u8 const report_descriptor[] = {
@@ -34,11 +48,10 @@ auto lm::usbd::hid::do_configuration_descriptor(
 
     auto hid_itf = state.lowest_free_itf_idx++;
 
-    auto [ep_in_idx, ep_in]     = lm::usbd::find_unassigned_ep(eps, dir_t::IN, dir_t::INOUT);
-    ep_in->configured_direction = ep_t::direction_t::IN;
-    ep_in->interface_type       = ep_t::interface_type_t::hid;
-    ep_in->interface            = hid_itf;
-    ep_in->type                 = ept_t::hid_interrupt_in;
+    auto [ep_in_idx, ep_in] = lm::usbd::find_unassigned_ep_in(eps);
+    ep_in->in_itf_idx = hid_itf;
+    ep_in->in_itf     = ep_t::interface_type_t::hid;
+    ep_in->in         = ept_t::hid_interrupt_in;
 
     state.append_desc({ TUD_HID_DESCRIPTOR(
         hid_itf,
@@ -49,7 +62,6 @@ auto lm::usbd::hid::do_configuration_descriptor(
         64, // epsize.
         1) // epinterval (poolin interval in ms).
     });
-
 }
 
 extern "C"
@@ -73,3 +85,4 @@ extern "C"
         return true;
     }
 }
+#endif

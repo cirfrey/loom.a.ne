@@ -55,7 +55,7 @@ namespace lm::usbd
     static uint8_t configuration_descriptor[lm::config::usb::config_descriptor_max_size];
 }
 
-
+#include "lm/log.hpp"
 auto lm::usbd::init(
     configuration_t& cfg,
     std::span<ep_t> eps,
@@ -101,18 +101,49 @@ auto lm::usbd::init(
         .desc_curr_len = 0,
         .desc_max_len = lm::config::usb::config_descriptor_max_size,
     };
+
     // Configuration Header
+    auto headerlen = 0;
     state.append_desc({ 0x09, TUSB_DESC_CONFIGURATION, 0, 0, 0, 1, 0, 0x80, 0x64 });
+    headerlen = state.desc_curr_len;
+
     // The composite classes.
+    auto cdclen = state.desc_curr_len;
     lm::usbd::cdc::do_configuration_descriptor(state, cfg, eps);
+    cdclen = state.desc_curr_len - cdclen;
+    auto hidlen = state.desc_curr_len;
     lm::usbd::hid::do_configuration_descriptor(state, cfg, eps);
+    hidlen = state.desc_curr_len - hidlen;
+    auto midilen = state.desc_curr_len;
     lm::usbd::midi::do_configuration_descriptor(state, cfg, eps);
+    midilen = state.desc_curr_len - midilen;
+    auto msclen = state.desc_curr_len;
     lm::usbd::msc::do_configuration_descriptor(state, cfg, eps);
+    msclen = state.desc_curr_len - msclen;
+    auto uac2len = state.desc_curr_len;
     lm::usbd::uac2::do_configuration_descriptor(state, cfg, eps);
+    uac2len = uac2len - state.desc_curr_len;
+
     // Fixup header: Total Length and Interface Count
     configuration_descriptor[2] = (uint8_t)(state.desc_curr_len & 0xFF);
     configuration_descriptor[3] = (uint8_t)((state.desc_curr_len >> 8) & 0xFF);
     configuration_descriptor[4] = state.lowest_free_itf_idx;
+
+    char fmtbuf[268];
+    auto outbuf = log::fmt(
+        {fmtbuf, sizeof(fmtbuf)},
+        log::fmt_t(
+            "Config descriptor len report.\n"
+            "> +--------+-----+-----+------+-----+------+-------+\n"
+            "> | Header | CDC | HID | MIDI | MSC | UAC2 | Total |\n"
+            "> +--------+-----+-----+------+-----+------+-------+\n"
+            "> | %-6zu | %-3zu | %-3zu | %-4zu | %-3zu | %-4zu | %-5zu |\n"
+            "> +--------+-----+-----+------+-----+------+-------+\n",
+            { .severity = log::severity_debug }
+        ),
+        headerlen, cdclen, hidlen, midilen, msclen, uac2len, state.desc_curr_len
+    );
+    log::dispatch({outbuf.data, outbuf.size});
 }
 
 // --- TinyUSB callbacks ---

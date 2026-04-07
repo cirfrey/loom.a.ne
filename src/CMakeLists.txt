@@ -12,9 +12,7 @@ list(APPEND app_sources
     "lm/arch/${LOOMANE_MCU_TYPE}/hal.cpp"
     "lm/arch/${LOOMANE_MCU_TYPE}/osal.cpp"
 
-    # Template for new tasks.
-    #"lm/tasks/example.cpp"
-
+    "lm/tasks/example.cpp"
     "lm/tasks/blink.cpp"
     "lm/tasks/busmon.cpp"
     "lm/tasks/healthmon.cpp"
@@ -31,7 +29,7 @@ list(APPEND app_sources
 )
 
 idf_component_register(
-    SRCS ${app_sources}
+    SRCS ${app_sources} ${LOOMANE_TINYUSB_SOURCES}
     INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/include/lm/board/${LOOMANE_BOARD_TYPE}"
 )
 

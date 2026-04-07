@@ -42,7 +42,7 @@ namespace lm::log
         severity_t  severity  = severity_debug;
     };
 
-    auto fmt(mut_text in, fmt_t f, ...) -> mut_text;
+    [[nodiscard]] auto fmt(mut_text in, fmt_t f, ...) -> mut_text;
 
     // All of these use dispatch() and not dispatch_immediate().
     // If you want formatting for your dispatch_immediate() then you do it
@@ -100,7 +100,7 @@ template<typename... Args>
 constexpr auto lm::log::log(severity_t s, fmt_t f, Args&&... args) -> bool
 {
     f.args.severity = s;
-    char buf[lm::config::logging::logf_bufsize];
+    char buf[lm::config::logging::log_format_bufsize];
     auto in  = mut_text{.data = buf, .size = sizeof(buf)};
     auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
     return dispatch(text{.data = out.data, .size = out.size});

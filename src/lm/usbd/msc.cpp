@@ -1,35 +1,48 @@
 #include "lm/usbd/msc.hpp"
 
+#include <tusb.h>
+
+#if CFG_TUD_MSC == 0
+
+    #include "lm/log.hpp"
+    auto lm::usbd::msc::do_configuration_descriptor(
+        configuration_descriptor_builder_state_t& state,
+        cfg_t& cfg,
+        std::span<ep_t> eps
+    ) -> void {
+        cfg.msc = false;
+        log::debug("MSC disabled via CFG_TUD_MSC=0\n");
+    }
+
+#else
+
 #include "lm/config.hpp"
 #include "lm/log.hpp"
 
-/// TODO: abstract.
-#include <esp_partition.h>
-// #include <sdmmc_cmd.h> // Later - for SD card.
+#include "lm/chip/memory.hpp"
 
-#include <tusb.h>
-
-static const esp_partition_t* s_static_partition = nullptr;
+static lm::chip::memory::storage* static_storage = nullptr;
 void init_msc_partition() {
-    lm::log::debug("Listing all partitions...\n");
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    auto storages = lm::chip::memory::get_storages();
 
-    bool found_any = false;
-    while (it != NULL) {
-        const esp_partition_t* p = esp_partition_get(it);
-        lm::log::debug("Found: [%s] Type: 0x%02x Subtype: 0x%02x Size: %lu\n",
-                 p->label, p->type, p->subtype, p->size);
-        it = esp_partition_next(it);
-        found_any = true;
-    }
-    esp_partition_iterator_release(it);
-
-    if (!found_any) {
-        lm::log::debug("No partition table found at all! Check your flash settings.\n");
+    if (storages.empty()) {
+        lm::log::error("No storages found! Check flash/HAL settings.\n");
+        return;
     }
 
-    // Now try the specific find again
-    s_static_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "static");
+    lm::log::debug("Listing all storages...\n");
+    for(auto& s : storages)
+    {
+        lm::log::debug(
+            "Found: [%.*s] Type: 0x%02x Subtype: 0x%02x Size: %zu bytes\n",
+            (int)s.label.size, s.label.data,
+            s.type, s.subtype, s.size
+        );
+
+        if (s.label == "static") {
+            static_storage = &s;
+        }
+    }
 }
 
 auto lm::usbd::msc::do_configuration_descriptor(
@@ -42,19 +55,33 @@ auto lm::usbd::msc::do_configuration_descriptor(
 
     auto msc_itf = state.lowest_free_itf_idx++;
 
-    /// --- Securing endpoints ---
-    // NOTE: EP IN and EP OUT share interfaces
-    auto [ep_out_idx, ep_out]    = lm::usbd::find_unassigned_ep(eps, dir_t::OUT, dir_t::INOUT);
-    ep_out->configured_direction = ep_t::direction_t::OUT;
-    ep_out->interface_type       = ep_t::interface_type_t::msc;
-    ep_out->interface            = msc_itf;
-    ep_out->type                 = ept_t::msc_bulk_out;
-
-    auto [ep_in_idx, ep_in]     = lm::usbd::find_unassigned_ep(eps, dir_t::IN, dir_t::INOUT);
-    ep_in->configured_direction = ep_t::direction_t::IN;
-    ep_in->interface_type       = ep_t::interface_type_t::msc;
-    ep_in->interface            = msc_itf;
-    ep_in->type                 = ept_t::msc_bulk_in;
+    auto ep_out_idx = 0_u8;
+    auto ep_in_idx  = 0_u8;
+    if(cfg.cdc_strict_endpoints)
+    {
+        auto [ep_inout_idx, ep_inout] = lm::usbd::find_unassigned_ep_inout(eps);
+        ep_inout->out_itf_idx = msc_itf;
+        ep_inout->out_itf     = ep_t::interface_type_t::msc;
+        ep_inout->out         = ept_t::msc_bulk_out;
+        ep_inout->in_itf_idx  = msc_itf;
+        ep_inout->in_itf      = ep_t::interface_type_t::msc;
+        ep_inout->in          = ept_t::msc_bulk_in;
+        ep_in_idx             = ep_inout_idx;
+        ep_out_idx            = ep_inout_idx;
+    }
+    else
+    {
+        auto [_ep_out_idx, ep_out] = lm::usbd::find_unassigned_ep_out(eps);
+        ep_out->out_itf_idx = msc_itf;
+        ep_out->out_itf     = ep_t::interface_type_t::msc;
+        ep_out->out         = ept_t::msc_bulk_out;
+        ep_out_idx          = _ep_out_idx;
+        auto [_ep_in_idx, ep_in] = lm::usbd::find_unassigned_ep_in(eps);
+        ep_in->in_itf_idx = msc_itf;
+        ep_in->in_itf     = ep_t::interface_type_t::msc;
+        ep_in->in         = ept_t::msc_bulk_in;
+        ep_in_idx         = _ep_in_idx;
+    }
 
     state.append_desc({ TUD_MSC_DESCRIPTOR(
         msc_itf,
@@ -65,7 +92,7 @@ auto lm::usbd::msc::do_configuration_descriptor(
     )});
 
     init_msc_partition();
-    lm::log::info("Initialized MSC partition with %p\n", s_static_partition);
+    lm::log::info("Initialized MSC partition with %p\n", static_storage);
 }
 
 extern "C" {
@@ -86,34 +113,34 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 
 // Mandatory: Test Unit Ready
 bool tud_msc_test_unit_ready_cb(uint8_t lun) {
-    return (s_static_partition != nullptr);
+    return (static_storage != nullptr);
 }
 
 // Mandatory: Capacity
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
     (void) lun;
-    if (s_static_partition) {
+    if (static_storage) {
         // ESP32 flash sectors are typically 4096 bytes,
         // but USB MSC usually expects 512-byte logical blocks.
-        *block_size = 4096;
-        *block_count = s_static_partition->size / (*block_size);
+        *block_size  = static_storage->sector_size;
+        *block_count = static_storage->size / (*block_size);
     } else {
         *block_count = 0;
-        *block_size = 0;
+        *block_size  = 0;
     }
 }
 
 // Mandatory: Read10
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
     (void) lun;
-    if (!s_static_partition) return -1;
+    if (static_storage == nullptr) return -1;
 
     // Calculate the flash address: (LBA * block_size) + offset
     // TinyUSB usually gives offset=0 and bufsize as a multiple of block_size
-    uint32_t addr = (lba * 512) + offset;
+    uint32_t addr = (lba * static_storage->sector_size) + offset;
 
-    esp_err_t err = esp_partition_read(s_static_partition, addr, buffer, bufsize);
-    return (err == ESP_OK) ? (int32_t)bufsize : -1;
+    auto err = static_storage->read(addr, {buffer, bufsize});
+    return (err == lm::chip::memory::storage_op_status::ok) ? (int32_t)bufsize : -1;
 }
 
 // Optional but recommended: Mark as Write Protected
@@ -136,3 +163,5 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 }
 
 } // extern "C"
+
+#endif

@@ -67,7 +67,10 @@ auto lm::log::dispatch_immediate(chip::uart_port p, buf b, st timeout_micros, bo
         if(yield) fabric::task::sleep_ms(0); // Just yield.
     }
 
-    chip::uart::write(p, b);
+    auto tot = 0;
+    while(tot < b.size) {
+        tot += chip::uart::write(p, {(u8*)b.data + tot, b.size - tot});
+    }
 
     if (!forced) {uart_busy[p].clear(std::memory_order_release);}
 }
@@ -84,7 +87,10 @@ auto lm::log::try_dispatch_immediate(chip::uart_port p, buf b, st timeout_micros
         if(yield) fabric::task::sleep_ms(0); // Just yield.
     }
 
-    chip::uart::write(p, b);
+    auto tot = 0;
+    while(tot < b.size) {
+        tot += chip::uart::write(p, {(u8*)b.data + tot, b.size - tot});
+    }
 
     uart_busy[p].clear(std::memory_order_release);
     return true;

@@ -102,7 +102,7 @@ namespace lm::config::logging
     // If you use log() and co. instead of dispatch(), this is the size of the
     // internal buffer for formatting (snprinf), anything longer then
     // this is cutoff before submitted.
-    constexpr u16 logf_bufsize = 128;
+    constexpr u16 log_format_bufsize = 128;
 }
 
 namespace lm::config::bus
