@@ -65,14 +65,14 @@ auto lm::usbd::init(
     /// TODO: load configuration state.
 
     // NOTE: string_descriptor_idx::idx_lang is handled by the tinyusb callback.
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_manufacturer], string_descriptor_max_size, descriptors.manufacturer);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_product],      string_descriptor_max_size, descriptors.product);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_serial],       string_descriptor_max_size, "%.*s", lm::chip::info::uuid().size, lm::chip::info::uuid().data);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_midi],         string_descriptor_max_size, descriptors.midi);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_hid],          string_descriptor_max_size, descriptors.hid);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_uac],          string_descriptor_max_size, descriptors.uac);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_cdc],          string_descriptor_max_size, descriptors.cdc);
-    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_msc],          string_descriptor_max_size, descriptors.msc);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_manufacturer], string_descriptor_max_size, "%s", descriptors.manufacturer);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_product],      string_descriptor_max_size, "%s", descriptors.product);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_serial],       string_descriptor_max_size, "%.*s", (int)lm::chip::info::uuid().size, lm::chip::info::uuid().data);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_midi],         string_descriptor_max_size, "%s", descriptors.midi);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_hid],          string_descriptor_max_size, "%s", descriptors.hid);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_uac],          string_descriptor_max_size, "%s", descriptors.uac);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_cdc],          string_descriptor_max_size, "%s", descriptors.cdc);
+    snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_msc],          string_descriptor_max_size, "%s", descriptors.msc);
     // Add some more string descriptors for each extra MIDI cable.
     for(u8 i = 0; i < configuration_t::midi_max_cable_count; ++i) {
         snprintf(string_descriptor_arr[(u8)string_descriptor_idxs::idx_max + i],  string_descriptor_max_size, "%s - Jack %i", descriptors.midi, i);
@@ -103,7 +103,7 @@ auto lm::usbd::init(
     };
 
     // Configuration Header
-    auto headerlen = 0;
+    auto headerlen = 0_u16;
     state.append_desc({ 0x09, TUSB_DESC_CONFIGURATION, 0, 0, 0, 1, 0, 0x80, 0x64 });
     headerlen = state.desc_curr_len;
 
@@ -129,16 +129,16 @@ auto lm::usbd::init(
     configuration_descriptor[3] = (uint8_t)((state.desc_curr_len >> 8) & 0xFF);
     configuration_descriptor[4] = state.lowest_free_itf_idx;
 
-    char fmtbuf[268];
+    char fmtbuf[128 * 3];
     auto outbuf = log::fmt(
         {fmtbuf, sizeof(fmtbuf)},
         log::fmt_t(
             "Config descriptor len report.\n"
-            "> +--------+-----+-----+------+-----+------+-------+\n"
-            "> | Header | CDC | HID | MIDI | MSC | UAC2 | Total |\n"
-            "> +--------+-----+-----+------+-----+------+-------+\n"
-            "> | %-6zu | %-3zu | %-3zu | %-4zu | %-3zu | %-4zu | %-5zu |\n"
-            "> +--------+-----+-----+------+-----+------+-------+\n",
+            "\t+--------+-----+-----+------+-----+------+-------+\n"
+            "\t| Header | CDC | HID | MIDI | MSC | UAC2 | Total |\n"
+            "\t+--------+-----+-----+------+-----+------+-------+\n"
+            "\t| %-6u | %-3u | %-3u | %-4u | %-3u | %-4u | %-5u |\n"
+            "\t+--------+-----+-----+------+-----+------+-------+\n",
             { .severity = log::severity_debug }
         ),
         headerlen, cdclen, hidlen, midilen, msclen, uac2len, state.desc_curr_len

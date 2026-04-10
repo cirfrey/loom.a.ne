@@ -11,7 +11,7 @@
 [x] Implement Logging Task (RingBuffer + Worker Task).
     [x] Fix HID + CDC logging problems.
     [x] Reimplement HID logs.
-[~] Implement Healthmon - RAM Health Monitor (Heap tracking) / CPU Load Monitor / Task Monitor. ~Only ram for now.
+[~] Implement Healthmon - RAM Health Monitor (Heap tracking) / CPU Load Monitor / Task Monitor. ~Missing CPU load.
 [x] Implement Event Bus.
 [x] Implement Task lifetime and monitoring via statuses and commands from the Event Bus
 [x] Implement Busmon.

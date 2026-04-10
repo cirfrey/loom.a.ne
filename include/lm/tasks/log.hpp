@@ -91,6 +91,8 @@ namespace lm::tasks
     struct log
     {
         static auto dispatch(text t) -> bool;
+        static auto capacity() -> st;
+        static auto occupancy()  -> st;
 
         log(fabric::task_runtime_info& info);
         auto on_ready()     -> fabric::managed_task_status;

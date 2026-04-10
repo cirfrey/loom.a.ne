@@ -1,7 +1,6 @@
 #pragma once
 
 #include "lm/core/helpers.hpp"
-#include "lm/chip/types.hpp"
 
 namespace lm::version
 {
@@ -26,19 +25,41 @@ namespace lm::version
 
     */
 
-    using write_t = void(*)(text);
+    struct banner_data
+    {
+        u8 ver_major = 0;
+        u8 ver_minor = 0;
+
+        text banner = {nullptr, 0};
+
+        text uuid = {"--:--:--:--:--:--", 17};
+
+        text chip_name  = {"Unkown chip name", 16};
+        st total_ram   = 0;
+        st free_ram    = 0;
+
+        u64 uptime_us   = 0; // In micros.
+        f32 temp        = 0; // In celcius.
+
+        text arch       = {"arch", 4};
+        text board      = {"board", 5};
+        text git_hash   = {"githash", 7};
+        text build_date = {"dd-mm-yyThh:mm:dd", 17};
+    };
+    using writer_t = void(*)(text);
+    using sleeper_t = void(*)();
     auto write_banner(
-        write_t, // Where to write this.
-        u8 major, u8 minor,
-        text git_hash, text build_date,
+        writer_t writer, // How to write this.
+        sleeper_t sleeper = nullptr,
+        // u8 write_interval_ms = 1, // How much to sleep for between characters. 0 disables this feature.
+        //                           // Cmon, if we're printing a banner we might as well make it look cool.
+        //                           // Also, if we're on a boot loop for whatever reason this helps to not
+        //                           // absolutely flood the terminal every time we restart (assuming you)
+        //                           // are printing the banner during the boot sequence.
         text prefix = to_text("\n"), // Appended to the start of the banner. Useful if you want
                                      // a little space or some extra info/branding before printing
                                      // the chip banner and specs.
-        u8 interval = 1 // How much to sleep for between characters. 0 disables this feature.
-                        // Cmon, if we're printing a banner we might as well make it look cool.
-                        // Also, if we're on a boot loop for whatever reason this helps to not
-                        // absolutely flood the terminal every time we restart (assuming you)
-                        // are printing the banner during the boot sequence.
+        banner_data data = {}
     ) -> void;
 
     constexpr const char* adjectives[32] = {

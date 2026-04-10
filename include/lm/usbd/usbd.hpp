@@ -185,18 +185,18 @@ inline auto lm::usbd::debug::eps_to_table(std::span<endpoint_info_t> eps, mut_te
 
     out_buf.size += std::snprintf(
         out_buf.data + out_buf.size, in_buf.size - out_buf.size,
-        "%.*s%s", prefix.size, prefix.data, sep
+        "%.*s%s", (int)prefix.size, prefix.data, sep
     );
     out_buf.size = clamp(out_buf.size, 0, in_buf.size);
     out_buf.size += std::snprintf(
         out_buf.data + out_buf.size, in_buf.size - out_buf.size,
         "%.*s| EP | (itf id:itf type ) IN                | (itf id:itf type ) OUT               |\n",
-        prefix.size, prefix.data
+        (int)prefix.size, prefix.data
     );
     out_buf.size = clamp(out_buf.size, 0, in_buf.size);
     out_buf.size += std::snprintf(
         out_buf.data + out_buf.size, in_buf.size - out_buf.size,
-        "%.*s%s", prefix.size, prefix.data, sep
+        "%.*s%s", (int)prefix.size, prefix.data, sep
     );
     out_buf.size = clamp(out_buf.size, 0, in_buf.size);
 
@@ -212,18 +212,18 @@ inline auto lm::usbd::debug::eps_to_table(std::span<endpoint_info_t> eps, mut_te
 
         out_buf.size += std::snprintf(
             out_buf.data + out_buf.size, in_buf.size - out_buf.size,
-            "%.*s|  %zu | (%zu:%-14.*s) %-17.*s | (%zu:%-14.*s) %-17.*s |\n",
-            prefix.size, prefix.data,
+            "%.*s|  %zu | (%u:%-14.*s) %-17.*s | (%u:%-14.*s) %-17.*s |\n",
+            (int)prefix.size, prefix.data,
             i,
-            ep.in_itf_idx,  in_itf.size,  in_itf.data,  in.size, in.data,
-            ep.out_itf_idx, out_itf.size, out_itf.data, out.size, out.data
+            ep.in_itf_idx,  (int)in_itf.size,  in_itf.data,  (int)in.size, in.data,
+            ep.out_itf_idx, (int)out_itf.size, out_itf.data, (int)out.size, out.data
         );
         out_buf.size = clamp(out_buf.size, 0, in_buf.size);
     }
 
     out_buf.size += std::snprintf(
         out_buf.data + out_buf.size, in_buf.size - out_buf.size,
-        "%.*s%s", prefix.size, prefix.data, sep
+        "%.*s%s", (int)prefix.size, prefix.data, sep
     );
     out_buf.size = clamp(out_buf.size, 0, in_buf.size);
     return out_buf;

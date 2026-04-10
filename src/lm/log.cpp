@@ -25,7 +25,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 
     if(f.args.timestamp == timestamp_ms_6) {
         out.size += std::snprintf(
-            out.data + out.size, in.size - out.size, "[%6llu]",
+            out.data + out.size, in.size - out.size, "[%6lu]",
             chip::time::uptime()/1000
         );
         out.size = clamp(out.size, 0, in.size);

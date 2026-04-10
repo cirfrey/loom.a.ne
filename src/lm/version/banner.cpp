@@ -1,13 +1,5 @@
 #include "lm/version/banner.hpp"
 
-#include "lm/chip/info.hpp"
-#include "lm/chip/uart.hpp"
-#include "lm/chip/memory.hpp"
-#include "lm/chip/time.hpp"
-#include "lm/chip/sensor.hpp"
-#include "lm/fabric/task.hpp"
-#include "lm/board.hpp"
-
 #include <cstdio>
 #include <cstring>
 #include <cinttypes>
@@ -39,22 +31,21 @@ namespace lm
 
 // The code is split up by printing the prefix -> header -> art -> footer.
 auto lm::version::write_banner(
-    write_t writer,
-    u8 major, u8 minor,
-    text git_hash, text build_date,
+    writer_t writer,
+    sleeper_t sleeper,
     text prefix,
-    u8 interval
+    banner_data data
 ) -> void
 {
     auto write = [&](char const* data, u32 size){
-        if(!interval) {
+        if(!sleeper) {
             writer({data, size});
             return;
         }
 
         while(size--) {
             writer({data++, 1});
-            fabric::task::sleep_ms(interval);
+            sleeper();
         }
     };
 
@@ -69,8 +60,9 @@ auto lm::version::write_banner(
     auto versionlen = std::snprintf(
         version, 64,
         " Loom Audio Nexus (loom.a.ne) v%u.%u - %s %s",
-        major, minor,
-        get_version_adjective(major, minor),  get_version_subject(major, minor)
+        data.ver_major, data.ver_minor,
+        get_version_adjective(data.ver_major, data.ver_minor),
+        get_version_subject(data.ver_major, data.ver_minor)
     );
     // Copy it to the end of the header (but don't overwrite the '\n').
     std::memcpy(header + headerlen - versionlen - 2, version, versionlen);
@@ -87,31 +79,42 @@ auto lm::version::write_banner(
 >  //  /    /  /    /  /    /  /    /    //  /    /  /    /  /    /  /
 > //  /    // /   //  /   //  /   //    /   //   /  //   /  //   /  /
 )" | to_text | trans([](auto b){ return text{b.data+1, b.size-1}; }); // Drop the first '\n'
-    auto art = chip::info::banner();
+    auto art = data.banner;
     if(!art.data || !art.size) art = default_banner;
     write(art.data, art.size);
 
     // --- Footer ---
-    auto uuid = chip::info::uuid();
     char chip[36];
-    std::snprintf(chip, 36, "%s", chip::info::full_name());
-    uint32_t total_ram = chip::memory::total() / 1024;
-    uint32_t free_ram  = chip::memory::free() / 1024;
-    uint32_t used_ram  = total_ram - free_ram;
+    auto full_name = data.chip_name;
+    std::snprintf(chip, sizeof(chip), "%.*s", (int)full_name.size, full_name.data);
     char uptime[64];
-    lm::format_uptime(chip::time::uptime(), uptime, 64);
+    lm::format_uptime(data.uptime_us, uptime, sizeof(uptime));
 
     char footer[320];
     auto footer_size = std::snprintf(
-        footer, 320,
+        footer, sizeof(footer),
         "> ------------------------------------------------- [%.*s]\n"
-        ">  [CHIP  ] %-36s [RAM ] %ukb / %ukb\n"
-        ">  [UPTIME] %-36s [TEMP] %.1fC\n"
-        "> --------------------------------------- [%.*s:%.*s]\n",
-        uuid.size, uuid.data,
-        chip, used_ram, total_ram,
-        uptime, chip::sensor::internal_temperature(),
-        git_hash.size, git_hash.data, build_date.size, build_date.data
+        ">  [CHIP  ] %-36s [RAM ] %lukb / %lukb\n"
+        ">  [UPTIME] %-36s [TEMP] %.1fC\n",
+        (int)data.uuid.size, data.uuid.data,
+        chip, data.total_ram - data.free_ram, data.total_ram,
+        uptime, data.temp
     );
     write(footer, footer_size);
+
+    char final_line[100];
+    auto final_line_size = std::snprintf(
+        final_line, sizeof(final_line),
+        "> --------------------------------------- [%.*s:%.*s]\n",
+        (int)data.git_hash.size, data.git_hash.data,
+        (int)data.build_date.size, data.build_date.data
+    );
+    auto archboard_size = std::snprintf(
+        &final_line[2], 32,
+        "[%.*s:%.*s] ",
+        (int)data.arch.size, data.arch.data,
+        (int)data.board.size, data.board.data
+    );
+    final_line[archboard_size + 2] = '-'; // Override the '\0'
+    write(final_line, final_line_size);
 }

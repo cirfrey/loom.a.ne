@@ -1,0 +1,1 @@
+ESP32-S2 XTensa LX7 32bit 1c@240MHz

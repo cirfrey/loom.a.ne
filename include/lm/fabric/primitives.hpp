@@ -28,6 +28,9 @@ struct lm::fabric::bytebuf
     auto receive(u32 timeout) const -> buf;
     auto free(void* data) const -> void;
 
+    auto capacity() const -> st;
+    auto occupancy() const -> st;
+
     auto initialized() const -> bool;
 
 private:

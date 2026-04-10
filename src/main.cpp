@@ -1,8 +1,6 @@
 #include "lm/board.hpp"
 
-#include "lm/chip/uart.hpp"
-#include "lm/chip/system.hpp"
-#include "lm/chip/time.hpp"
+#include "lm/chip.hpp"
 
 #include "lm/build.hpp"
 #include "lm/version/banner.hpp"
@@ -18,6 +16,9 @@
 #include "lm/config.hpp"
 
 #include <cstdio>
+
+#include "lm/core.hpp"
+#include "lm/usbip.hpp"
 
 // app_main is only the entrypoint/launcher to the application, their responsibilities are
 // - Init the hardware.
@@ -39,13 +40,27 @@ extern "C" auto app_main() -> void
     char bootstrbuf[17];
     auto bootstr = text{
         .data = bootstrbuf,
-        .size = (st)std::snprintf(bootstrbuf, 17, "\n%s[%2llu] Boot\n", log::color_of[log::severity_debug], chip::time::uptime()/1000)
+        .size = (st)std::snprintf(bootstrbuf, 17, "\n%s[%2lu] Boot\n", log::color_of[log::severity_debug], chip::time::uptime()/1000)
     };
     version::write_banner(
         [](text t){ log::dispatch_immediate(board::uart_trace, t, 0, true); },
-        build::version_major, build::version_minor,
-        build::git_hash, build::build_date,
-        bootstr
+        [](){ fabric::task::sleep_ms(1); },
+        bootstr,
+        {
+            .ver_major = build::version_major,
+            .ver_minor = build::version_minor,
+            .banner = chip::info::banner(),
+            .uuid = chip::info::uuid(),
+            .chip_name = chip::info::name(),
+            .total_ram = chip::memory::total(),
+            .free_ram = chip::memory::free(),
+            .uptime_us = chip::time::uptime(),
+            .temp = chip::sensor::internal_temperature(),
+            .arch = build::arch,
+            .board = build::board,
+            .git_hash = build::git_hash,
+            .build_date = build::build_date,
+        }
     );
     fabric::task::sleep_ms(500); // Take a moment to appreciate the banner, it's pretty.
 
@@ -84,3 +99,42 @@ extern "C" auto app_main() -> void
         }}
     );
 }
+
+
+#ifdef LOOMANE_NATIVE
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+    // Native Windows (MSVC, MinGW, Clang-cl)
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include <atomic>
+
+    std::atomic<bool> quit = false;
+    BOOL WINAPI console_ctrl_handler(DWORD dwCtrlType) {
+        if (dwCtrlType == CTRL_C_EVENT || dwCtrlType == CTRL_CLOSE_EVENT) {
+            quit = true;
+            // Returning TRUE tells Windows we handled it
+            return TRUE;
+        }
+        return FALSE;
+    }
+    auto main() -> int
+    {
+        SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+        app_main();
+        while(!quit.load()) lm::fabric::task::sleep_ms(1000);
+        return 0;
+    }
+
+#else
+
+    auto main() -> int
+    {
+        app_main();
+        while(1) lm::fabric::task::sleep_ms(10000);
+        return 0;
+    }
+
+#endif
+
+#endif

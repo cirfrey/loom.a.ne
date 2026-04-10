@@ -19,21 +19,15 @@
 
 /* --- chip::info --- */
 
-auto lm::chip::info::name() -> text
+auto lm::chip::info::codename() -> text
 {
     return "Adam" | to_text;
 }
 
-auto lm::chip::info::full_name() -> text
+auto lm::chip::info::name() -> text
 {
-    static const auto chip_model = [](){
-        esp_chip_info_t info;
-        esp_chip_info(&info);
-        return info.model;
-    }();
-
-    if(chip_model == CHIP_ESP32S2) return "ESP32-S2 XTensa LX7 32bit 1c@240MHz" | to_text;
-    /*else*/                       return "ESP32-S3 XTensa LX7 32bit 2c@240MHz" | to_text;
+    #include "lm/arch/esp32s2/name.hpp"
+    return {name, sizeof(name)};
 }
 
 auto lm::chip::info::uuid() -> text
@@ -56,20 +50,8 @@ auto lm::chip::info::uuid() -> text
 
 auto lm::chip::info::banner() -> text
 {
-    static constexpr text banner = R"(
-> .    . ___  .         ___   .        ___      .     ___
->       /\  \     .    /\  \       .  /\  \          /\  \         .
->    . /::\  \ .      /::\  \        /::\  \   .    /::\  \
->     /:/\:\  \   .  /:/\:\  \      /:/\:\  \      /:/\:\  \
->    /:/  \:\  \    /:/  \:\  \ .  /:/  \:\  \    /:/  \:\  \
->   /:/  / \:\  \  /:/  / \:\  \  /:/  / \:\  \  /:/  / \:\  \    .
->   \:\  \ /:/  / .\:\  \ /:/  /  \:\  \ /:/  /  \:\  \ /:/  /
->   .\:\  /:/  /    \:\  /:/  /    \:\  /:/  /    \:\  /:/  / .
->     \:\/:/  /  .   \:\/:/  /      \:\/:/  /  .   \:\/:/  /         .
->    . \::/  / .    . \::/  /   .    \::/  /        \::/  /
-> .     \/__/   .     .\/__/          \/__/          \/__/
-)" | to_text | trans([](auto b){ return text{b.data+1, b.size-1}; }); // Drop the first '\n'
-    return banner;
+    #include "lm/arch/esp32s2/banner.hpp"
+    return {banner, sizeof(banner)};
 }
 
 

@@ -4,9 +4,10 @@
 
 namespace lm::chip::info
 {
-    auto name() -> text;
+    // Internal, for funsies.
+    auto codename() -> text;
     // Most likely what's going to be used in the boot banner.
-    auto full_name() -> text;
+    auto name() -> text;
     auto uuid() -> text;
 
     // Custom banner art per-chip for funsies.

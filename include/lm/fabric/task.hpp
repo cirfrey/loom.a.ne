@@ -123,11 +123,11 @@ constexpr auto lm::fabric::task::managed() -> task_function_t
             );
             wait_for_start(signal_queue, info.id);
 
-            if(task.on_ready() == managed_task_status::exit) return;
+            if(task.on_ready() == managed_task_status::want_to_exit) return;
             auto start = chip::time::uptime();
             while (!should_stop(signal_queue, info.id))
             {
-                if(task.before_sleep() == managed_task_status::exit) return;
+                if(task.before_sleep() == managed_task_status::want_to_exit) return;
 
                 auto end = chip::time::uptime();
                 bus::publish(fabric::event{
@@ -138,7 +138,7 @@ constexpr auto lm::fabric::task::managed() -> task_function_t
                 sleep_ms(info.sleep_ms);
                 start = chip::time::uptime();
 
-                if(task.on_wake() == managed_task_status::exit) return;
+                if(task.on_wake() == managed_task_status::want_to_exit) return;
             }
         }();
 

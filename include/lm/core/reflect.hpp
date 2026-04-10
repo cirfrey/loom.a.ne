@@ -150,8 +150,19 @@ namespace lm
             return detail::view{"INVALID_ENUM", 12};
         }
         static constexpr auto qualified(Enum const& e)      -> text { return get(e).qualified(); }
-        static constexpr auto unqualified(Enum const& e)    -> text { return get(e).unqualified(); }
         static constexpr auto semi_qualified(Enum const& e) -> text { return get(e).semi_qualified(); }
+        static constexpr auto unqualified(Enum const& e)    -> text { return get(e).unqualified(); }
+
+        static constexpr auto from(text str, Enum default_value) -> Enum 
+        {
+            for(auto _v : values) {
+                auto v = (Enum)_v;
+                if(str == qualified(v)) return v;
+                else if(str == semi_qualified(v)) return v;
+                else if(str == unqualified(v)) return v;
+            }
+            return default_value;
+        }
 
         struct value_iterator_v { I value; detail::view view; };
         template <bool IsValue> struct iterator {

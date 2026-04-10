@@ -66,7 +66,7 @@ namespace lm::fabric
             reserved_topic_max = busmon_teach,
 
             free_topic_min = 16,
-            free_topic_max = (u8)-1,
+            free_topic_max = 255,
         };
     }
     using topic = topic_versions::v0;
@@ -93,6 +93,6 @@ namespace lm::fabric
     enum managed_task_status
     {
         ok,
-        exit,
+        want_to_exit,
     };
 }

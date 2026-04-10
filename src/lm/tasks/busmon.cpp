@@ -25,7 +25,7 @@ auto lm::tasks::busmon::on_ready() -> fabric::managed_task_status
         .type  = fabric::topic::any,
     }.with_payload( teach_topic{ .stringify = [](auto e, auto buf) -> st {
         return std::snprintf(
-            buf.data, buf.size, "unkown_event{ .topic=%zu, .type=%zu, .payload=%p }",
+            buf.data, buf.size, "unkown_event{ .topic=%u, .type=%u, .payload=%p }",
             e.topic, e.type, e.payload
         );
     }}));
@@ -35,7 +35,7 @@ auto lm::tasks::busmon::on_ready() -> fabric::managed_task_status
         .type  = fabric::topic::busmon_teach,
     }.with_payload( teach_topic{ .stringify = [](auto e, auto buf) -> st {
         return std::snprintf(
-            buf.data, buf.size, "busmon::teach_topic{ .topic=%zu }",
+            buf.data, buf.size, "busmon::teach_topic{ .topic=%u }",
             e.type
         );
     }}));

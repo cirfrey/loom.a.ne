@@ -2,6 +2,8 @@
 
 #include "lm/fabric/task.hpp"
 
+#include "lm/tasks/log.hpp"
+
 #include "lm/config.hpp"
 #include "lm/chip/memory.hpp"
 #include "lm/board.hpp"
@@ -48,13 +50,16 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     auto free_heap = chip::memory::free();
 
     // TODO: monitor log ringbuf total and avail.
-
-    log::log(
-        free_heap < 1500 ? log::severity_warn : log::severity_debug,
-        "RAM: %zu/%zukb [%.1f%%] | Peak: %zukb | MaxBlock: %zukb\n",
+    auto logbuf_cap = log::capacity();
+    auto logbuf_ocu = log::occupancy();
+    lm::log::log(
+        free_heap < 1500 ? lm::log::severity_warn : lm::log::severity_debug,
+        "RAM: %zu/%zukb [%.1f%%] | Peak: %zukb | MaxBlock: %zukb | logbuf: %zub/%zub [%.1f%%]\n",
         (total - free_heap)/1024, total/1024, (total-free_heap)/(total | to<f32>)*100,
-        chip::memory::peak_used()/1024, chip::memory::largest_free_block()/1024
+        chip::memory::peak_used()/1024, chip::memory::largest_free_block()/1024,
+        logbuf_ocu, logbuf_cap, logbuf_ocu/(logbuf_cap | to<f32>) * 100
     );
+
 
     return fabric::managed_task_status::ok;
 
@@ -85,8 +90,8 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
             return a.usStackHighWaterMark < b.usStackHighWaterMark;
         });
 
-    log::debug("%-16s | %-3s | %-3s | %s\n", "Task Name", "St", "Pri", "Stack (Bytes Left)");
-    log::debug("--------------------------------------------------\n");
+    lm::log::debug("%-16s | %-3s | %-3s | %s\n", "Task Name", "St", "Pri", "Stack (Bytes Left)");
+    lm::log::debug("--------------------------------------------------\n");
 
     bool alert_triggered = false;
 
@@ -96,7 +101,7 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
         // On ESP-IDF, usStackHighWaterMark is in BYTES.
         uint32_t stack_left = t.usStackHighWaterMark;
 
-        log::debug("%-16s |  %c  | %3u | %u\n",
+        lm::log::debug("%-16s |  %c  | %3u | %u\n",
             t.pcTaskName,
             get_state_char(t.eCurrentState),
             t.uxCurrentPriority,
@@ -110,7 +115,7 @@ auto lm::tasks::healthmon::before_sleep() -> fabric::managed_task_status
     }
 
     if (alert_triggered) {
-        log::error("[!!!] CRITICAL: One or more tasks are near stack overflow (<256B)!\n");
+        lm::log::error("[!!!] CRITICAL: One or more tasks are near stack overflow (<256B)!\n");
     }
 
     return fabric::managed_task_status::ok;

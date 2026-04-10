@@ -89,6 +89,12 @@ namespace lm
             while (b[i] != '\0' && i < size && data[i] == b[i]) ++i;
             return size == i && b[i] == '\0';
         }
+        constexpr auto operator==(text const& b) const -> bool
+        {
+            st i = 0;
+            while (i <= b.size && i < size && data[i] == b.data[i]) ++i;
+            return size == i && b.size == i;
+        }
     };
     // Non-owning, mutable view of a character string, NOT null-terminated (.size is law).
     struct mut_buf {

@@ -28,6 +28,25 @@ auto lm::tasks::log::dispatch(text t) -> bool
     return dispatched;
 }
 
+auto lm::tasks::log::capacity() -> st
+{
+    st ret = 0;
+    logging::logbuf.read([&](auto& buf){
+        if(buf.initialized()) ret = buf.capacity();
+    });
+    return ret;
+}
+
+auto lm::tasks::log::occupancy() -> st
+{
+    st ret = 0;
+    logging::logbuf.read([&](auto& buf){
+        if(buf.initialized()) ret = buf.occupancy();
+    });
+    return ret;
+}
+
+
 lm::tasks::log::log(fabric::task_runtime_info& info)
 {
     //     // Forwards ESP_LOG* to uart.

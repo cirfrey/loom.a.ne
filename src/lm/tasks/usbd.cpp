@@ -110,8 +110,9 @@ lm::tasks::usbd::usbd(fabric::task_runtime_info& info)
     lm::usbd::init(cfg, endpoints, { .product_id=0x2015 });
     chip::usb::phy::power_up();
 
-    char ept_buf[lm::usbd::debug::ep_table_size<7>];
-    auto ept = lm::usbd::debug::eps_to_table(endpoints, {ept_buf, sizeof(ept_buf)}, {"> ", 2});
+    constexpr auto ep_count = 7;
+    char ept_buf[lm::usbd::debug::ep_table_size<ep_count> + (ep_count + 4 ) * sizeof("\t" - 1)];
+    auto ept = lm::usbd::debug::eps_to_table(endpoints, {ept_buf, sizeof(ept_buf)}, {"\t", 1});
     log::debug("Final ep table \n");
     log::dispatch({ept.data, ept.size});
 }

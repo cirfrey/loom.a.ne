@@ -1,13 +1,56 @@
+# TODO: Label the partitions according to the name of the folder.
+
 Import("env")
 import os
 import csv
 import shutil
+from pathlib import Path
+
+builtin_print = print
+def log(*args, **kwargs):
+    import inspect
+    cf = inspect.currentframe()
+    builtin_print(f"[{inspect.stack()[1][1]}:{cf.f_back.f_lineno}] ", end="")
+    builtin_print(*args, **kwargs)
+print = log
 
 # 1. Define paths
 project_dir = env.subst("$PROJECT_DIR")
 assets_dir = os.path.join(project_dir, "assets")
 partitions_csv = env.GetProjectOption("board_build.partitions", default=None)
 build_dir = env.subst("$BUILD_DIR")
+
+def generate_banner_action(*args, **kwargs):
+    print("--- Executing generate_banner Target ---")
+    generated_dir = Path(build_dir)/"generated"
+
+    banner_out_txt = generated_dir / "banner.txt"
+    banner_defs_ini = generated_dir / "banner_defs.ini"
+
+    # TODO: get uuid from esptool if environtment is esp32.
+
+    arch = "unknown_mcu"
+    try: arch = env.BoardConfig().get("build.mcu", "unknown_mcu")
+    except: pass
+    archdir = Path(project_dir)/"include"/"lm"/"arch"/arch
+    name_txt = archdir/"name.txt"
+    banner_txt = archdir/"banner.txt"
+
+    env.Execute(
+        'pio run -e banner -t exec ' +
+        f'--program-arg "{banner_out_txt}" ' +
+        f'--program-arg "{banner_defs_ini}" ' +
+        f'--program-arg "{name_txt}" ' +
+        f'--program-arg "{banner_txt}" '
+    )
+generate_banner_target = env.AddCustomTarget(
+    name="generate_banner",
+    dependencies=None,
+    actions=[generate_banner_action],
+    title="Generate build Info banner",
+    description="Compiles the native generator and runs it to create generated/banner.txt"
+)
+
 
 # 2. Grab tools from the PlatformIO environment
 mkfatfs_tool = env.subst("$PROJECT_PACKAGES_DIR/tool-mkfatfs/mkfatfs")
@@ -114,12 +157,6 @@ def build_and_upload_assets(*args, **kwargs):
         print(f"No assets directory found at {assets_dir}!")
         return
 
-    # 1. Trigger the Native CMake target to generate the info artifact
-    print("\n--- Generating Native Build Artifacts ---")
-    # This runs the 'native' env and calls your custom CMake target
-    env.Execute("pio run -e native")
-    # env.Execute("pio run -e native -t gen_build_info")
-
     upload_port = env.get("UPLOAD_PORT", "")
     port_arg = f"--port {upload_port}" if upload_port else ""
 
@@ -188,19 +225,8 @@ def build_and_upload_assets(*args, **kwargs):
 # Register the custom target in PlatformIO
 env.AddCustomTarget(
     name="upload_assets",
-    dependencies=None,
+    dependencies=[generate_banner_target],
     actions=[build_and_upload_assets],
     title="Upload Asset Folders",
     description="Builds and flashes FAT images from assets/ to their matching partitions"
-)
-
-def run_cmake_target(*args, **kwargs):
-    print("--- Executing CMake Target: gen_build_info ---")
-    env.Execute(f"cmake --build {build_dir} --target gen_build_info_tgt")
-env.AddCustomTarget(
-    name="gen_build_info",
-    dependencies=None,
-    actions=[run_cmake_target],
-    title="Generate build Info",
-    description="Compiles the native generator and runs it to create build_info.txt"
 )
