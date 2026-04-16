@@ -9,15 +9,15 @@ list(APPEND app_sources
     "lm/arch/${LOOMANE_MCU_TYPE}/dcd_dwc2.cpp"
 
     "lm/fabric/bus.cpp"
-    "lm/fabric/task.cpp"
+    "lm/fabric/strand.cpp"
 
-    "lm/tasks/example.cpp"
-    "lm/tasks/blink.cpp"
-    "lm/tasks/busmon.cpp"
-    "lm/tasks/healthmon.cpp"
-    "lm/tasks/usbd.cpp"
-    "lm/tasks/tman.cpp"
-    "lm/tasks/log.cpp"
+    "lm/strands/example.cpp"
+    "lm/strands/blink.cpp"
+    "lm/strands/busmon.cpp"
+    "lm/strands/healthmon.cpp"
+    "lm/strands/usbd.cpp"
+    "lm/strands/tman.cpp"
+    "lm/strands/log.cpp"
 
     "lm/usbd/cdc.cpp"
     "lm/usbd/dcd_usbip.cpp"

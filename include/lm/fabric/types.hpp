@@ -59,7 +59,7 @@ namespace lm::fabric
                      // Used by busmon or whoever wants to spy on the bus.
             /// TODO: Collapse as many of these topics together as we can and use the event type filter of the bus.
             ///       This makes it so we can give the users more playroom by setting a lower free_topic_min.
-            task,
+            strand,
             blink,
             usbd,
             busmon_teach, // Use this topic to "teach" busmon how to print messages of arbitrary topics.
@@ -71,28 +71,28 @@ namespace lm::fabric
     }
     using topic = topic_versions::v0;
 
-    struct task_constants
+    struct strand_constants
     {
         char const* name;
         st priority;
         st stack_size;
         st core_affinity; // What core it should run at.
 
-        // The task can run at any core.
+        // The strand can run at any core.
         static constexpr auto no_affinity = (st)-1;
     };
 
-    struct task_runtime_info
+    struct strand_runtime_info
     {
         u8 id;
         u16 sleep_ms;
     };
-    struct task_runtime_info_pun { union { task_runtime_info raw; void* dummy; }; };
-    static_assert(sizeof(task_runtime_info) <= sizeof(void*), "task_runtime_info needs to fit in a void* to be smuggled across the backend");
+    struct strand_runtime_info_pun { union { strand_runtime_info raw; void* dummy; }; };
+    static_assert(sizeof(strand_runtime_info) <= sizeof(void*), "strand_runtime_info needs to fit in a void* to be smuggled across the backend");
 
-    enum managed_task_status
+    enum managed_strand_status
     {
         ok,
-        want_to_exit,
+        suicidal,
     };
 }

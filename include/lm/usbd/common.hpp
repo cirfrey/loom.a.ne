@@ -5,7 +5,7 @@
 #include <span>
 #include <cstring>
 
-#include "lm/tasks/usbd.hpp"
+#include "lm/strands/usbd.hpp"
 
 namespace lm::usbd
 {

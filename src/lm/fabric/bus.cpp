@@ -24,7 +24,7 @@ namespace lm::fabric::bus
     };
 
     static guarded<
-        std::array<subscriber, lm::config::bus::max_subscribers>
+        std::array<subscriber, config_t::bus_t::max_subscribers>
     > bus_subs;
 
     // Not exposed to the general public, they just get the token system.

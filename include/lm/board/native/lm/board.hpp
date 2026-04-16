@@ -19,4 +19,10 @@ namespace lm::board
 
         uart_port_count,
     };
+
+
+    enum rhport : u8
+    {
+        rhport_usbip = 0,
+    };
 }

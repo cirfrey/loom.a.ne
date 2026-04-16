@@ -141,12 +141,12 @@ auto lm::fabric::semaphore::initialized() const -> bool
 #include <utility>
 #include <memory>
 
-auto lm::fabric::task::create(
+auto lm::fabric::strand::create(
     task_constants const& cfg,
     task_runtime_info const& info,
-    task_function_t task,
+    function_t task,
     void* taskarg
-) -> task_handle_t
+) -> handle_t
 {
     auto core_count = chip::system::core_count();
     auto core_id = cfg.core_affinity == task_constants::no_affinity
@@ -177,11 +177,11 @@ auto lm::fabric::task::create(
     return handle;
 }
 
-auto lm::fabric::task::get_handle() -> task_handle_t { return xTaskGetCurrentTaskHandle(); }
+auto lm::fabric::strand::get_handle() -> handle_t { return xTaskGetCurrentTaskHandle(); }
 
-auto lm::fabric::task::reap(task_handle_t handle) -> void { vTaskDelete((TaskHandle_t)handle); }
+auto lm::fabric::strand::reap(handle_t handle) -> void { vTaskDelete((TaskHandle_t)handle); }
 
-auto lm::fabric::task::sleep_ms(unsigned long ms) -> void
+auto lm::fabric::strand::sleep_ms(unsigned long ms) -> void
 {
     if(ms == 0) portYIELD();
     else { vTaskDelay(pdMS_TO_TICKS(ms)); }

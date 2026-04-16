@@ -92,6 +92,9 @@ namespace lm
     template <typename To> inline constexpr auto bc = cvt::make_custom<cvt::mode_fncall, cvt::mode_pipe>( [](auto&& from) constexpr { return bit_cast<To>(veil::forward<decltype(from)>(from)); });
     // You probably want to use this one for most cases, it just wraps to static_cast.
     template <typename To> inline constexpr auto to = sc<To>;
+    // Cast to the underlying type.
+    inline constexpr auto tou           = cvt::make_custom<cvt::mode_fncall, cvt::mode_pipe>( [](auto&& from) constexpr { return sc< veil::underlying< veil::bare<decltype(from)> > >(from); });
+    inline constexpr auto to_underlying = tou;
 
     // Very funny haha.
     // Use this for type punning and playing a joke on the type system.

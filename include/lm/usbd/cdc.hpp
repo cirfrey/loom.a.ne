@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/tasks/usbd.hpp"
+#include "lm/strands/usbd.hpp"
 #include "lm/usbd/common.hpp"
 
 namespace lm::usbd::cdc

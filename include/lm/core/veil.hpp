@@ -30,6 +30,9 @@ namespace lm::veil
     using std::remove_cvref;
     using std::remove_cvref_t;
 
+    template <typename T>
+    using bare = remove_cvref_t<T>;
+
     using std::decay;
     using std::decay_t;
 
@@ -71,4 +74,7 @@ namespace lm::veil
     };
     template <bool v, typename... Ts>
     constexpr auto assert_helper = assert_helper_t<v, Ts...>::value;
+
+    template <typename Enum>
+    using underlying = std::underlying_type_t<Enum>;
 }

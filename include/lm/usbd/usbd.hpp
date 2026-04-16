@@ -160,7 +160,7 @@ namespace lm::usbd
     enum class event : u8
     {
         // Requests for usbd to reply with the stuff below, as appropriate.
-        // Don't flood the usbd task with these requests.
+        // Don't flood the usbd strand with these requests.
         get_status,
 
         cdc_enabled,

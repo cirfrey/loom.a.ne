@@ -1,16 +1,19 @@
 // Defaults for the externs.
 #include "lm/usbd/dcd.hpp"
 
+#include <device/dcd.h>
+
 namespace lm::usbd::dcd
 {
     [[gnu::weak]] dcd_vtable* phy_vtable = nullptr;
-    [[gnu::weak]] dcd_vtable* usbip_vtable = nullptr;
 
     dcd_vtable* port_routing[max_ports] = {nullptr, nullptr};
-    auto bind_port(u8 rhport, dcd_vtable* vtable) -> bool
+    auto bind_port(u8 rhport, dcd_vtable* vtable, tusb_speed_t speed, bool in_isr) -> bool
     {
-        if (rhport < max_ports) {
+        if (rhport < max_ports)
+        {
             port_routing[rhport] = vtable;
+            dcd_event_bus_reset(rhport, speed, in_isr);
             return true;
         }
         return false;
@@ -24,13 +27,13 @@ extern "C" {
 
 #define DISPATCH(func, fallback, ...) \
     if (rhport < max_ports && port_routing[rhport] && port_routing[rhport]->func) { \
-        return port_routing[rhport]->func(rhport, ##__VA_ARGS__); \
+        return port_routing[rhport]->func(port_routing[rhport]->userdata, rhport, ##__VA_ARGS__); \
     } \
     return fallback;
 
 #define DISPATCH_VOID(func, ...) \
     if (rhport < max_ports && port_routing[rhport] && port_routing[rhport]->func) { \
-        port_routing[rhport]->func(rhport, ##__VA_ARGS__); \
+        port_routing[rhport]->func(port_routing[rhport]->userdata, rhport, ##__VA_ARGS__); \
     }
 
 // Initialize controller to device mode

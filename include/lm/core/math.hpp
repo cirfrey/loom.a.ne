@@ -26,12 +26,12 @@ namespace lm
         return scale_unsafe(clamp(value, from_lo, from_hi), from_lo, from_hi, to_lo, to_hi);
     }
 
-    template <u16 bits>
-    constexpr u64 unsigned_max = (1ULL << bits) - 1;
-    template <u16 bits>
+    template <u8 bits>
+    constexpr u64 unsigned_max = (bits == 64) ? ~0ULL : (1ULL << bits) - 1;
+    template <u8 bits>
     constexpr i64 signed_max   = (1ULL << (bits - 1)) - 1;
-    template <u16 bits> // TODO: fixme.
-    constexpr i64 signed_min   = 1ULL << bits;
+    template <u8 bits>
+    constexpr i64 signed_min   = -signed_max<bits> - 1;
 
     template <u8 bits_from, u8 bits_to, typename V>
     constexpr auto scale_bits(V value) -> V
@@ -42,7 +42,7 @@ namespace lm
     }
 
     template <st Bits>
-    constexpr auto clip_bits = [](auto value) constexpr {
+    constexpr auto clip_bits_after(auto value) {
         // Create the mask at compile-time: (1 << 4) - 1 = 0x0F
         constexpr auto mask = (1ULL << Bits) - 1;
         return static_cast<decltype(value)>(value & mask);

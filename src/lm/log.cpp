@@ -4,22 +4,35 @@
 #include "lm/chip/uart.hpp"
 #include "lm/board.hpp"
 
-#include "lm/fabric/task.hpp"
+#include "lm/fabric/strand.hpp"
 #include "lm/core/math.hpp"
 
-#include "lm/tasks/log.hpp"
+#include "lm/strands/log.hpp"
 
 #include <atomic>
 #include <cstdio>
 #include <cstdarg>
 
+static constexpr auto get_short_filename(lm::log::fmt_t f) -> char const*
+{
+    auto start = f.loc.file_name();
+    auto end = start;
+    while(*++end != '\0'); // Find the end of the string.
+
+    // Move back until we hit a slash OR the start of the string
+    while(end > start && *(end - 1) != '\\' && *(end - 1) != '/') {
+        --end;
+    }
+    return end;
+}
+
 auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 {
     auto out = mut_text{.data = in.data, .size = 0};
 
-    char const* color = color_of[f.args.severity];
+    auto ansi = config.logging.level_ansi[f.args.loglevel];
     out.size += std::snprintf(
-        out.data + out.size, in.size - out.size, "%s", color
+        out.data + out.size, in.size - out.size, "%.*s", (int)ansi.size, ansi.data
     );
     out.size = clamp(out.size, 0, in.size);
 
@@ -34,7 +47,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
     if(f.args.filename != no_filename) {
         out.size += std::snprintf(
             out.data + out.size, in.size - out.size, "[%s:%-3d] ",
-            f.args.filename == short_filename ? f.get_short_filename() : f.loc.file_name(),
+            f.args.filename == short_filename ? get_short_filename(f) : f.loc.file_name(),
             f.loc.line()
         );
         out.size = clamp(out.size, 0, in.size);
@@ -42,7 +55,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 
     va_list args;
     va_start(args, f);
-    out.size += std::vsnprintf(out.data + out.size, in.size - out.size, f.fmt, args);
+    out.size += std::vsnprintf(out.data + out.size, in.size - out.size, f.args.fmt, args);
     out.size = clamp(out.size, 0, in.size);
     va_end(args);
 
@@ -50,7 +63,13 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 }
 
 auto lm::log::dispatch(text t) -> bool
-{ return lm::tasks::log::dispatch(t); }
+{
+    if(config.logging.toggle == config_t::feature::off) return false;
+
+    return config.logging.custom_dispatcher != nullptr
+        ? config.logging.custom_dispatcher(t)
+        : lm::strands::log::dispatch(t);
+}
 
 static std::atomic_flag uart_busy[lm::board::uart_port_count] = ATOMIC_FLAG_INIT;
 auto lm::log::dispatch_immediate(chip::uart_port p, buf b, st timeout_micros, bool yield) -> void
@@ -64,7 +83,7 @@ auto lm::log::dispatch_immediate(chip::uart_port p, buf b, st timeout_micros, bo
             forced = true;
             break; // Emergency: We've waited too long, proceed anyway
         }
-        if(yield) fabric::task::sleep_ms(0); // Just yield.
+        if(yield) fabric::strand::sleep_ms(0); // Just yield.
     }
 
     auto tot = 0;
@@ -84,7 +103,7 @@ auto lm::log::try_dispatch_immediate(chip::uart_port p, buf b, st timeout_micros
         if ((chip::time::uptime() - start) > timeout_micros) {
             return false;
         }
-        if(yield) fabric::task::sleep_ms(0); // Just yield.
+        if(yield) fabric::strand::sleep_ms(0); // Just yield.
     }
 
     auto tot = 0;
