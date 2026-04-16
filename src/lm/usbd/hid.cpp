@@ -2,26 +2,12 @@
 
 #include "tusb.h"
 
-#if CFG_TUD_HID == 0
-
-    #include "lm/log.hpp"
-    auto lm::usbd::hid::do_configuration_descriptor(
-        configuration_descriptor_builder_state_t& state,
-        cfg_t& cfg,
-        std::span<ep_t> eps
-    ) -> void {
-        cfg.hid = false;
-        log::debug("HID disabled via CFG_TUD_HID=0\n");
-    }
-
-#else
-
 namespace lm::usbd::hid
 {
     static u8 const report_descriptor[] = {
-        TUD_HID_REPORT_DESC_MOUSE( HID_REPORT_ID( (u8)hid_reportid::mouse) ),
-        TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID( (u8)hid_reportid::keyboard) ),
-        TUD_HID_REPORT_DESC_GAMEPAD( HID_REPORT_ID( (u8)hid_reportid::gamepad) ),
+        TUD_HID_REPORT_DESC_MOUSE(    HID_REPORT_ID( hid_reportid::mouse) ),
+        TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID( hid_reportid::keyboard) ),
+        TUD_HID_REPORT_DESC_GAMEPAD(  HID_REPORT_ID( hid_reportid::gamepad) ),
 
         // --- VENDOR-DEFINED LOGGING ---
         HID_USAGE_PAGE_N ( 0xFFAB, 2 ), // Vendor-defined page
@@ -39,36 +25,37 @@ namespace lm::usbd::hid
 }
 
 auto lm::usbd::hid::do_configuration_descriptor(
-    configuration_descriptor_builder_state_t& state,
-    cfg_t& cfg,
-    std::span<ep_t> eps
-) -> void
+    usb::configuration_descriptor_builder_state_t& state,
+    std::span<usb::ep_t> eps,
+    u8 pool_interval_ms
+) -> st
 {
-    if (!cfg.hid) return;
+    using namespace usb;
 
     auto hid_itf = state.lowest_free_itf_idx++;
 
-    auto [ep_in_idx, ep_in] = lm::usbd::find_unassigned_ep_in(eps);
+    auto [ep_in_idx, ep_in] = find_unassigned_ep_in(eps);
     ep_in->in_itf_idx = hid_itf;
-    ep_in->in_itf     = ep_t::interface_type_t::hid;
+    ep_in->in_itf     = itf_t::hid;
     ep_in->in         = ept_t::hid_interrupt_in;
 
-    state.append_desc({ TUD_HID_DESCRIPTOR(
+    return state.append_desc({ TUD_HID_DESCRIPTOR(
         hid_itf,
-        (u8)string_descriptor_idxs::idx_hid,
+        string_descriptor::hid,
         HID_ITF_PROTOCOL_NONE,
         sizeof(lm::usbd::hid::report_descriptor),
         (u8)(EP_DIR_IN | ep_in_idx), // epin.
         64, // epsize.
-        1) // epinterval (poolin interval in ms).
-    });
+        pool_interval_ms
+    )});
 }
 
+// TODO: moveme!
 extern "C"
 {
     uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf) {
         (void) itf;
-        return lm::usbd::hid::report_descriptor; // Replace with your descriptor array name
+        return lm::usbd::hid::report_descriptor;
     }
 
     uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) {
@@ -85,4 +72,3 @@ extern "C"
         return true;
     }
 }
-#endif

@@ -2,17 +2,25 @@
 
 #include "lm/core/math.hpp"
 
-#include "lm/strands/usbd.hpp"
-#include "lm/usbd/common.hpp"
+#include "lm/usb/common.hpp"
+
 
 namespace lm::usbd::midi
 {
+    enum class mode {
+        in,
+        out,
+        inout,
+    };
     auto do_configuration_descriptor(
-        configuration_descriptor_builder_state_t& s,
-        cfg_t& cfg,
-        std::span<ep_t> eps
-    ) -> void;
+        usb::configuration_descriptor_builder_state_t& state,
+        std::span<usb::ep_t> eps,
+        u8 cable_count,
+        mode midi_mode,
+        bool strict_eps
+    ) -> st;
 
+    // TODO: refactor me to dedicated midi.hpp somewhere else.
     enum class cin : u8 {
         note_off      = 0x08,
         note_on       = 0x09,

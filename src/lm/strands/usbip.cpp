@@ -2,16 +2,62 @@
 
 #include "lm/chip/net.hpp"
 #include "lm/core/endian.hpp"
+#include "lm/core/cvt.hpp"
 #include "lm/board.hpp"
 #include "lm/log.hpp"
-#include "lm/core/cvt.hpp"
 
 #include <cstdio>
 
+#include "lm/usb/backend.hpp"
+#include "lm/usb/debug.hpp"
+
+namespace lm::strands::usbip_backend
+{
+    static std::array<
+        usb::ep_t,
+        config_t::usbip_t::max_endpoints
+    > endpoints = {{
+        // Only init the first as control, the rest are defalt-initialized as unassigned.
+        usb::ep_t{
+            .in      = usb::ept_t::control,
+            .in_itf  = usb::itf_t::control,
+            .out     = usb::ept_t::control,
+            .out_itf = usb::itf_t::control
+        }
+    }};
+}
 
 lm::strands::usbip::usbip(fabric::strand_runtime_info&)
 {
     state_data.initializing = state_data_t::initializing_t{};
+
+    config.usbip.endpoints = usbip_backend::endpoints;
+
+    auto lens = usb::backend::setup_descriptors(
+        config_descriptor,
+        string_descriptors,
+        device_descriptor,
+        config.usbip,
+        config.audio.backend.usbip,
+        config.cdc.backend.usbip,
+        config.hid.backend.usbip,
+        config.midi.backend.usbip,
+        config.msc.backend.usbip
+    );
+    log::debug<128 * 3>(
+        "Config descriptor len && endpoint map report.\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n"
+        "\t| Header | CDC | HID | MIDI | MSC | AUDIO | Total |\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n"
+        "\t| %-6u | %-3u | %-3u | %-4u | %-3u | %-5u | %-5u |\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n",
+        lens.header, lens.cdc, lens.hid, lens.midi, lens.msc, lens.audio, lens.total
+    );
+    auto printer = [](auto fmt, auto... args){ log::debug<128>(
+        log::fmt_t({ .fmt = fmt, .timestamp = log::no_timestamp, .filename = log::no_filename }),
+        veil::forward<decltype(args)>(args)...
+    ); };
+    usb::debug::print_ep_table(config.usb.endpoints, printer, {"\t", 1});
 }
 
 auto lm::strands::usbip::on_ready() -> fabric::managed_strand_status

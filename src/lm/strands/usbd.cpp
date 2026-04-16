@@ -1,12 +1,21 @@
 #include "lm/strands/usbd.hpp"
 
+#include "lm/core/veil.hpp"
+
 #include "lm/chip/usb.hpp"
-#include "lm/usbd/esp32.hpp" // TODO: abstract
 
 #include "lm/config.hpp"
 #include "lm/log.hpp"
 
+#include "lm/usb/debug.hpp"
+#include "lm/usb/backend.hpp"
+
 #include <tusb.h>
+
+namespace lm::strands
+{
+    static lm::strands::usbd* usbd_instance = nullptr;
+}
 
 #ifdef TUP_USBIP_DWC2
 #include "portable/synopsys/dwc2/dwc2_common.h"
@@ -89,6 +98,8 @@ auto apply_dynamic_fifo_allocation(std::span<lm::usbd::ep_t> eps) -> lm::st {
 
 lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
 {
+    usbd_instance = this;
+
     get_status_q = fabric::queue<fabric::event>(1);
     get_status_q_tok = fabric::bus::subscribe(
         get_status_q,
@@ -96,24 +107,33 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
         { event::get_status }
     );
 
-    cfg = {
-        .cdc  = false,
-        .uac  = lm::usbd::cfg_t::no_uac,
-        .hid  = true,
-        .midi = lm::usbd::cfg_t::midi_inout,
-        .midi_cable_count = 1,
-        .msc  = true,
-    };
-    endpoints = lm::usbd::esp32_endpoints;
+    auto lens = usb::backend::setup_descriptors(
+        config_descriptor,
+        string_descriptors,
+        device_descriptor,
+        config.usb,
+        config.audio.backend.usb,
+        config.cdc.backend.usb,
+        config.hid.backend.usb,
+        config.midi.backend.usb,
+        config.msc.backend.usb
+    );
+    log::debug<128 * 3>(
+        "Config descriptor len && endpoint map report.\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n"
+        "\t| Header | CDC | HID | MIDI | MSC | AUDIO | Total |\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n"
+        "\t| %-6u | %-3u | %-3u | %-4u | %-3u | %-5u | %-5u |\n"
+        "\t+--------+-----+-----+------+-----+-------+-------+\n",
+        lens.header, lens.cdc, lens.hid, lens.midi, lens.msc, lens.audio, lens.total
+    );
+    auto printer = [](auto fmt, auto... args){ log::debug<128>(
+        log::fmt_t({ .fmt = fmt, .timestamp = log::no_timestamp, .filename = log::no_filename }),
+        veil::forward<decltype(args)>(args)...
+    ); };
+    usb::debug::print_ep_table(config.usb.endpoints, printer, {"\t", 1});
 
-    /// TODO: refactor all usbd internal state into this strand.
-    lm::usbd::init(cfg, endpoints, { .product_id=0x2015 });
     chip::usb::phy::power_up();
-
-    constexpr auto ep_count = 7;
-    char ept_buf[lm::usbd::debug::ep_table_size<ep_count> + (ep_count + 4) * sizeof("\t" - 1)];
-    auto ept = lm::usbd::debug::eps_to_table(endpoints, {ept_buf, sizeof(ept_buf)}, {"\t", 1});
-    log::debug<sizeof(ept_buf)>("Final ep table \n%.*s", (int)ept.size, ept.data);
 }
 
 auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
@@ -153,12 +173,74 @@ lm::strands::usbd::~usbd() {
 
 auto lm::strands::usbd::broadcast_status() -> void
 {
-    fabric::bus::publish({
-        .topic = fabric::topic::usbd,
-        .type  = cfg.cdc ? event::cdc_enabled : event::cdc_disabled
-    });
-    fabric::bus::publish({
-        .topic = fabric::topic::usbd,
-        .type  = cfg.hid ? event::hid_enabled : event::hid_disabled
-    });
+    // TODO:
+    // fabric::bus::publish({
+    //     .topic = fabric::topic::usbd,
+    //     .type  = cfg.cdc ? event::cdc_enabled : event::cdc_disabled
+    // });
+    // fabric::bus::publish({
+    //     .topic = fabric::topic::usbd,
+    //     .type  = cfg.hid ? event::hid_enabled : event::hid_disabled
+    // });
 }
+
+extern "C" {
+
+// Device Descriptor.
+auto tud_descriptor_device_cb() -> lm::u8 const*
+{
+    if(!lm::strands::usbd_instance) return nullptr;
+    return (lm::u8 const*) &lm::strands::usbd_instance->device_descriptor;
+}
+
+// Configuration Descriptor.
+auto tud_descriptor_configuration_cb(uint8_t index) -> lm::u8 const*
+{
+    if(!lm::strands::usbd_instance) return nullptr;
+    return lm::strands::usbd_instance->config_descriptor;
+}
+
+// String Descriptors.
+auto tud_descriptor_string_cb(lm::u8 index, lm::u16 langid) -> lm::u16 const*
+{
+    using namespace lm;
+
+    if(!strands::usbd_instance) return nullptr;
+
+    // Shared buffer for string descriptors
+    static u16 _desc_str[config_t::usbcommon::string_descriptor_max_len];
+
+    // --- Index 0 is NOT a string, it's the Language ID list ---
+    if (index == (u8)usb::string_descriptor::lang)
+    {
+        static u16 const lang_id[] = { (u16)((TUSB_DESC_STRING << 8) | 0x04), 0x0409 };
+        return lang_id;
+    }
+
+    // Helper to convert UTF-8 (char*) to UTF-16 (uint16_t)
+    auto utf8_to_utf16 = [](const char* str) -> u16* {
+        if (!str) str = "";
+
+        u16 chr_count = strlen(str);
+        if (chr_count > 31) chr_count = 31;
+
+        // First byte is Length (Total bytes including header), Second is Type (0x03)
+        // In TinyUSB, we return this as a uint16_t array where the first element
+        // packs these two bytes: (0x03 << 8) | (Length)
+        _desc_str[0] = (uint16_t)((0x03 << 8) | (2 * chr_count + 2));
+
+        // Convert ASCII/UTF8 chars to UTF16 (simple cast for standard ASCII)
+        for (uint8_t i = 0; i < chr_count; i++) { _desc_str[1 + i] = str[i]; }
+
+        return _desc_str;
+    };
+    // Return the UTF-16 string for the given index
+    return utf8_to_utf16( strands::usbd_instance->string_descriptors[index] );
+}
+
+void tud_mount_cb(void) {}
+void tud_umount_cb(void) {}
+void tud_suspend_cb(bool remote_wakeup_en) {}
+void tud_resume_cb(void) {}
+
+} // extern "C"

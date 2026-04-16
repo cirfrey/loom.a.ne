@@ -1,21 +1,23 @@
 #pragma once
 
-#include "lm/strands/usbd.hpp"
-#include "lm/usbd/common.hpp"
+#include "lm/usb/common.hpp"
 
 namespace lm::usbd::hid
 {
     auto do_configuration_descriptor(
-        configuration_descriptor_builder_state_t& s,
-        cfg_t& cfg,
-        std::span<ep_t> eps
-    ) -> void;
+        usb::configuration_descriptor_builder_state_t& state,
+        std::span<usb::ep_t> eps,
+        u8 pool_interval_ms
+    ) -> st;
 
-    enum class hid_reportid : u8
+    namespace hid_reportid
     {
-        mouse    = 1,
-        keyboard = 2,
-        gamepad  = 3, // Standard 16-button, 2-joystick, 8-way hat gamepad.
-        vendor   = 4  // See configuration_t::logging_t::hid_vendor_logging.
-    };
+        enum hid_reportid_t : u8
+        {
+            mouse    = 1,
+            keyboard = 2,
+            gamepad  = 3, // Standard 16-button, 2-joystick, 8-way hat gamepad.
+            vendor   = 4  // See configuration_t::logging_t::hid_vendor_logging.
+        };
+    }
 }

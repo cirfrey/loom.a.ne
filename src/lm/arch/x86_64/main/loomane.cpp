@@ -22,8 +22,7 @@
     auto main() -> int
     {
         SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
-        if(loomane_entrypoint) loomane_entrypoint();
-        else                   loomane_default_entrypoint();
+        lm::entrypoint::launcher();
         while(!quit.load()) lm::fabric::strand::sleep_ms(1000);
         return 0;
     }
@@ -32,8 +31,7 @@
 
     auto main() -> int
     {
-        if(loomane_entrypoint) loomane_entrypoint();
-        else                   loomane_default_entrypoint();
+        lm::entrypoint::launcher();
         while(1) lm::fabric::strand::sleep_ms(10000);
         return 0;
     }

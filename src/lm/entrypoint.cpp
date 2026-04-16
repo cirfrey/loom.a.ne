@@ -1,15 +1,9 @@
 #include "lm/entrypoint.hpp"
 
 #include "lm/core.hpp"
-#include "lm/chip.hpp"
-#include "lm/board.hpp"
 #include "lm/config.hpp"
-#include "lm/build.hpp"
-#include "lm/log.hpp"
-#include "lm/banner.hpp"
 
 #include "lm/fabric/strand.hpp"
-
 #include "lm/strands/strandman.hpp"
 #include "lm/strands/log.hpp"
 #include "lm/strands/healthmon.hpp"
@@ -19,46 +13,14 @@
 #include "lm/strands/usbip.hpp"
 #include "lm/strands/apply_config.hpp"
 
-#include <cstdio>
-
-#include "lm/ini.hpp"
-
-extern "C" auto loomane_default_entrypoint() -> void
+auto lm::entrypoint::launcher() -> void
 {
-    using namespace lm;
+    if(lm::entrypoint::launcher_override != nullptr) {
+        lm::entrypoint::launcher_override();
+        return;
+    }
 
-    chip::system::init();
-    chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);
-
-    // By printing the banner we make sure that things like the mac address are
-    // initialized and can be used by the rest of the code.
-    char bootstrbuf[64];
-    auto bootstr = log::fmt(
-        {bootstrbuf, sizeof(bootstrbuf)},
-        log::fmt_t({ .fmt = "%s\n", .loglevel = log::level::debug }),
-        "Welcome to Loomane :)"
-    );
-    write_banner(
-        [](text t){ log::dispatch_immediate(board::uart_trace, t, 0, true); },
-        [](){ fabric::strand::sleep_ms(1); },
-        {bootstr.data, bootstr.size},
-        {
-            .ver_major = build::version_major,
-            .ver_minor = build::version_minor,
-            .banner = chip::info::banner(),
-            .uuid = chip::info::uuid(),
-            .chip_name = chip::info::name(),
-            .total_ram = chip::memory::total(),
-            .free_ram = chip::memory::free(),
-            .uptime_us = chip::time::uptime(),
-            .temp = chip::sensor::internal_temperature(),
-            .arch = build::arch,
-            .board = build::board,
-            .git_hash = build::git_hash,
-            .build_date = build::build_date,
-        }
-    );
-    fabric::strand::sleep_ms(500); // Take a moment to appreciate the banner, it's pretty.
+    lm::entrypoint::arch_init();
 
     using info = strands::strandman::strand_info_t;
     auto logging_ready = info::depends_t {

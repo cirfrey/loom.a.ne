@@ -50,14 +50,17 @@ namespace lm::log
     // All of these use dispatch() and not dispatch_immediate().
     // If you want formatting for your dispatch_immediate() then you do it yourself using fmt().
     template<u16 Bufsize = config_t::logging_t::format_bufsize, typename... Args> constexpr auto log(fmt_t f, Args&&...) -> bool;
+
     // Use this if you define your own level shorthands. Don't forget to namespace it appropriately.
     #define LM_LOG_DECLARE_LEVEL_SHORTHAND(LEVEL)                                                                    \
         template<lm::u16 BufSize = config_t::logging_t::format_bufsize, typename... Args>                            \
         constexpr auto LEVEL(fmt_t f, Args&&... args) -> bool                                                        \
         { f.args.loglevel = level::LEVEL; return lm::log::log<BufSize>(f, veil::forward<decltype(args)>(args)...); }
-    // Then the shorthands for the default loom.a.ne levels.
-    // Now you can do lm::log::debug("my fmt str %s\n", "and args");
+
+    // The shorthands for the default loom.a.ne levels.
+    // With them you can do lm::log::debug("my fmt str %s\n", "and args");
     // Intead of calling lm::log::log directly with annoying syntax
+
     LM_LOG_DECLARE_LEVEL_SHORTHAND(debug)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(info)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(regular)

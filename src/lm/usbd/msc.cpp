@@ -2,20 +2,6 @@
 
 #include <tusb.h>
 
-#if CFG_TUD_MSC == 0
-
-    #include "lm/log.hpp"
-    auto lm::usbd::msc::do_configuration_descriptor(
-        configuration_descriptor_builder_state_t& state,
-        cfg_t& cfg,
-        std::span<ep_t> eps
-    ) -> void {
-        cfg.msc = false;
-        log::debug("MSC disabled via CFG_TUD_MSC=0\n");
-    }
-
-#else
-
 #include "lm/config.hpp"
 #include "lm/log.hpp"
 
@@ -46,51 +32,52 @@ void init_msc_partition() {
 }
 
 auto lm::usbd::msc::do_configuration_descriptor(
-    configuration_descriptor_builder_state_t& state,
-    cfg_t& cfg,
-    std::span<ep_t> eps
-) -> void
+    usb::configuration_descriptor_builder_state_t& state,
+    std::span<usb::ep_t> eps,
+    bool strict_eps
+) -> st
 {
-    if(!cfg.msc) return;
+    using namespace usb;
 
     auto msc_itf = state.lowest_free_itf_idx++;
 
     auto ep_out_idx = 0_u8;
     auto ep_in_idx  = 0_u8;
-    if(cfg.cdc_strict_endpoints)
+    if(strict_eps)
     {
-        auto [ep_inout_idx, ep_inout] = lm::usbd::find_unassigned_ep_inout(eps);
+        auto [ep_inout_idx, ep_inout] = find_unassigned_ep_inout(eps);
         ep_inout->out_itf_idx = msc_itf;
-        ep_inout->out_itf     = ep_t::interface_type_t::msc;
+        ep_inout->out_itf     = itf_t::msc;
         ep_inout->out         = ept_t::msc_bulk_out;
         ep_inout->in_itf_idx  = msc_itf;
-        ep_inout->in_itf      = ep_t::interface_type_t::msc;
+        ep_inout->in_itf      = itf_t::msc;
         ep_inout->in          = ept_t::msc_bulk_in;
         ep_in_idx             = ep_inout_idx;
         ep_out_idx            = ep_inout_idx;
     }
     else
     {
-        auto [_ep_out_idx, ep_out] = lm::usbd::find_unassigned_ep_out(eps);
+        auto [_ep_out_idx, ep_out] = find_unassigned_ep_out(eps);
         ep_out->out_itf_idx = msc_itf;
-        ep_out->out_itf     = ep_t::interface_type_t::msc;
+        ep_out->out_itf     = itf_t::msc;
         ep_out->out         = ept_t::msc_bulk_out;
         ep_out_idx          = _ep_out_idx;
-        auto [_ep_in_idx, ep_in] = lm::usbd::find_unassigned_ep_in(eps);
+        auto [_ep_in_idx, ep_in] = find_unassigned_ep_in(eps);
         ep_in->in_itf_idx = msc_itf;
-        ep_in->in_itf     = ep_t::interface_type_t::msc;
+        ep_in->in_itf     = itf_t::msc;
         ep_in->in         = ept_t::msc_bulk_in;
         ep_in_idx         = _ep_in_idx;
     }
 
-    state.append_desc({ TUD_MSC_DESCRIPTOR(
+    return state.append_desc({ TUD_MSC_DESCRIPTOR(
         msc_itf,
-        (u8)string_descriptor_idxs::idx_msc,
+        string_descriptor::msc,
         ep_out_idx,
         (u8)(EP_DIR_IN | ep_in_idx),
         CFG_TUD_MSC_EP_BUFSIZE
     )});
 
+    // TODO: move me to lm::entrypoint::arch_config.
     init_msc_partition();
     lm::log::info("Initialized MSC partition with %p\n", static_storage);
 }
@@ -163,5 +150,3 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 }
 
 } // extern "C"
-
-#endif

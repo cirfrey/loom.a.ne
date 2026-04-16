@@ -1,34 +1,23 @@
-#include "lm/usbd/uac2.hpp"
+#include "lm/usbd/audio.hpp"
 
 #include "tusb.h"
 
-#if CFG_TUD_AUDIO == 0
-
-    #include "lm/log.hpp"
-    auto lm::usbd::uac2::do_configuration_descriptor(
-        configuration_descriptor_builder_state_t& state,
-        cfg_t& cfg,
-        std::span<ep_t> eps
-    ) -> void {
-        cfg.uac = cfg.no_uac;
-        log::debug("UAC disabled via CFG_TUD_AUDIO=0\n");
-    }
-
-#else
-
 auto audio_state_init() -> void;
 
-auto lm::usbd::uac2::do_configuration_descriptor(
-    configuration_descriptor_builder_state_t& state,
-    cfg_t& cfg,
-    std::span<ep_t> eps
-) -> void
+auto lm::usbd::audio::do_configuration_descriptor(
+    usb::configuration_descriptor_builder_state_t& state,
+    std::span<usb::ep_t> eps,
+    u8 microphone_channels,
+    u8 speaker_channels
+) -> st
 {
-    if (cfg.uac == configuration_t::microphone) {
+    using namespace usb;
+
+    if (microphone_channels) {
         auto const control_itf = state.lowest_free_itf_idx++;
         auto const streaming_itf = state.lowest_free_itf_idx++;
 
-        auto [ep_in_idx, ep_in] = lm::usbd::find_unassigned_ep_in(eps);
+        auto [ep_in_idx, ep_in] = find_unassigned_ep_in(eps);
         ep_in->in_itf     = itf_t::uac2_streaming;
         ep_in->in_itf_idx = streaming_itf;
         ep_in->in         = ept_t::uac2_iso_in;
@@ -38,9 +27,9 @@ auto lm::usbd::uac2::do_configuration_descriptor(
         // TUD_AUDIO_DESC_CONTROL(itfnum, str_idx, revision)
         // TUD_AUDIO_DESC_ST_IN(itf_stream, str_idx, n_channels, resolution, ep_in)
         auto num_itfs = state.lowest_free_itf_idx - streaming_itf;
-        state.append_desc({ TUD_AUDIO20_MIC_ONE_CH_DESCRIPTOR(
+        return state.append_desc({ TUD_AUDIO20_MIC_ONE_CH_DESCRIPTOR(
             control_itf,
-            (u8)string_descriptor_idxs::idx_uac,
+            string_descriptor::uac,
             CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX,
             CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX*8,
             (u8)(EP_DIR_IN | ep_in_idx),
@@ -49,7 +38,15 @@ auto lm::usbd::uac2::do_configuration_descriptor(
 
         audio_state_init();
     }
+
+    return 0;
 }
+
+#if CFG_TUD_AUDIO == 0
+
+auto audio_state_init() -> void {}
+
+#else
 
 // Audio controls
 // Current states

@@ -3,9 +3,14 @@
 #include "lm/core/types.hpp"
 #include "lm/core/ansi.hpp"
 #include "lm/fabric/types.hpp"
+#include "lm/usb/common.hpp"
+
+#include "lm/chip/memory.hpp"
 
 // TODO: #include "loomane_config.h"
 //       user overrides.
+
+#include <span>
 
 namespace lm
 {
@@ -125,32 +130,51 @@ namespace lm
             static constexpr u16 max_subscribers = LM_CONFIG_BUS_MAX_SUBSCRIBERS;
         } bus;
 
+        // Common between usb_t and usbip_t.
+        struct usbcommon
+        {
+            struct device_descriptor
+            {
+                u8 device_class    = 0xEF;  // TUSB_CLASS_MISC.
+                u8 device_subclass = 2;     // MISC_CLASS_COMMON.
+                u8 device_protocol = 1;     // MISC_PROTOCOL_UAD.
+                u16 vendor_id  = 0x0000;
+                u16 product_id = 0x0000;
+                u16 bcd_device = 0x0000;
+            };
+
+            #ifndef LM_CONFIG_USBCOMMON_STRING_DESCRIPTOR_MAX_LEN
+            #define LM_CONFIG_USBCOMMON_STRING_DESCRIPTOR_MAX_LEN 32
+            #endif
+            static constexpr u8 string_descriptor_max_len = LM_CONFIG_USBCOMMON_STRING_DESCRIPTOR_MAX_LEN;
+
+            using string_descriptor = char[string_descriptor_max_len];
+            struct string_descriptors
+            {
+                string_descriptor manufacturer = "Cirfrey Inc.";
+                string_descriptor product      = "loom.a.ne";
+                string_descriptor midi         = "loom.a.ne MIDI";
+                string_descriptor hid          = "loom.a.ne HID";
+                string_descriptor uac          = "loom.a.ne UAC";
+                string_descriptor cdc          = "loom.a.ne CDC";
+                string_descriptor msc          = "loom.a.ne MSC";
+            };
+        };
+
         struct usb_t
         {
+            // Generally set in lm::entrypoint::arch_config.
+            std::span<usb::ep_t> endpoints;
+
             #ifndef LM_CONFIG_USB_CONFIG_DESCRIPTOR_MAX_SIZE
-            #define LM_CONFIG_USB_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
-            #endif
             // The descriptor can get very large when you enable multiple things.
             // This should be able to handle UAC + HID + MIDI (16 cables)
+            #define LM_CONFIG_USB_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
+            #endif
             static constexpr u16 config_descriptor_max_size = LM_CONFIG_USB_CONFIG_DESCRIPTOR_MAX_SIZE;
 
-            struct device_descriptor_t
-            {
-                u16 vendor_id  = 0x303A; // The primary USB Vendor ID (VID) for Espressif Systems.
-                u16 product_id = 0x80C4; // Lolin S2 Mini - UF2 Bootloader
-                u16 bcd_device = 0x0100; // Device Release Number (1.0)
-            } device_descriptor = {};
-
-            struct string_descriptors_t
-            {
-                char manufacturer[32] = "Cirfrey Inc.";
-                char product[32]      = "loom.a.ne Multidevice";
-                char midi[32]         = "loom.a.ne MIDI";
-                char hid[32]          = "loom.a.ne HID";
-                char uac[32]          = "loom.a.ne UAC";
-                char cdc[32]          = "loom.a.ne CDC";
-                char msc[32]          = "loom.a.ne MSC";
-            } string_descriptors = {};
+            usbcommon::device_descriptor  device_descriptor;
+            usbcommon::string_descriptors string_descriptors;
         } usb = {};
 
         struct usbip_t
@@ -159,61 +183,28 @@ namespace lm
             bool close_conn_after_devlist = true;
 
             #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
-            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 7
+            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 10
             #endif
             static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
+            // Generally set in strands::usbip::usbip().
+            std::span<usb::ep_t> endpoints;
+
 
             #ifndef LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE
-            #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
-            #endif
             // The descriptor can get very large when you enable multiple things.
             // This should be able to handle UAC + HID + MIDI (16 cables)
+            #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
+            #endif
             static constexpr u16 config_descriptor_max_size = LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE;
 
-            struct device_descriptor_t
-            {
-                u16 vendor_id  = 0x303A; // The primary USB Vendor ID (VID) for Espressif Systems.
-                u16 product_id = 0x80C4; // Lolin S2 Mini - UF2 Bootloader
-                u16 bcd_device = 0x0100; // Device Release Number (1.0)
-            } device_descriptor = {};
-
-            struct string_descriptors_t
-            {
-                char manufacturer[32] = "Cirfrey Inc.";
-                char product[32]      = "loom.a.ne Multidevice";
-                char midi[32]         = "loom.a.ne MIDI";
-                char hid[32]          = "loom.a.ne HID";
-                char uac[32]          = "loom.a.ne UAC";
-                char cdc[32]          = "loom.a.ne CDC";
-                char msc[32]          = "loom.a.ne MSC";
-            } string_descriptors = {};
+            usbcommon::device_descriptor  device_descriptor;
+            usbcommon::string_descriptors string_descriptors;
         } usbip;
-
-        struct cdc_t {
-            struct backend_t {
-                // Used for identifying the backend on events.
-                enum class ids : u8{
-                    usb, usbip, mesh,
-                    count
-                };
-
-                struct usb_t {
-                    feature toggle = feature::off;
-                    feature strict = feature::off;
-                } usb;
-                struct usbip_t {
-                    feature toggle = feature::off;
-                } usbip;
-                struct mesh_t {
-                    feature toggle = feature::off;
-                } mesh;
-            } backend;
-        } cdc;
 
         struct audio_t
         {
             struct backend_t {
-                enum class ids : u8 {
+                enum class id : u8 {
                     usb, usbip, mesh,
                     count
                 };
@@ -235,11 +226,33 @@ namespace lm
             } backend;
         } audio;
 
+        struct cdc_t {
+            struct backend_t {
+                // Used for identifying the backend on events.
+                enum class id : u8{
+                    usb, usbip, mesh,
+                    count
+                };
+
+                struct usb_t {
+                    feature toggle = feature::off;
+                    feature strict_eps = feature::off;
+                } usb;
+                struct usbip_t {
+                    feature toggle = feature::off;
+                    feature strict_eps = feature::off;
+                } usbip;
+                struct mesh_t {
+                    feature toggle = feature::off;
+                } mesh;
+            } backend;
+        } cdc;
 
         struct hid_t {
             struct backend_t {
-                enum class ids : u8 {
-                    usb, usbip, mesh
+                enum class id : u8 {
+                    usb, usbip, mesh,
+                    count
                 };
                 struct usb_t {
                     feature toggle = feature::off;
@@ -247,6 +260,7 @@ namespace lm
                 } usb;
                 struct usbip_t {
                     feature toggle = feature::off;
+                    u8      pooling_interval_ms = 5;
                 } usbip;
                 struct mesh_t {
                     feature toggle = feature::off;
@@ -254,23 +268,77 @@ namespace lm
             } backend;
         } hid;
 
-        // TODO: refactor me.
-        enum midi_t : u8 {
-            midi_off,    // 0 EP.
-            midi_in,     // 1 EP.
-            midi_out,    // 1 EP.
-            midi_inout,  // 2 EP.
-            midi_inout_strict,
-        } midi = midi_off;
-        u8 midi_cable_count = 1;
-        static const u8 midi_max_cable_count = 16;
+        struct midi_t
+        {
+            enum mode_t
+            {
+                in,
+                out,
+                inout
+            };
 
-        // TODO: refactor me.
-        enum msc_t : u8 {
-            msc_off,
-            msc_on,
-            msc_on_strict,
-        } msc = msc_off;
+            static const u8 max_cables = 16;
+
+            struct backend_t {
+                enum class id : u8 {
+                    usb, usbip, mesh, serial, rtp_midi, ble_midi,
+                    count
+                };
+                struct usb_t {
+                    u8 cable_count     = 0;
+                    mode_t mode        = mode_t::inout;
+                    feature strict_eps = feature::off;
+                } usb;
+                struct usbip_t {
+                    u8 cable_count     = 0;
+                    mode_t mode        = mode_t::inout;
+                    feature strict_eps = feature::off;
+                } usbip;
+            } backend;
+        } midi;
+
+        struct msc_t
+        {
+            // NOTE: these must be space-padded.
+            struct partition_desc_t
+            {
+                u8 vendor_id[8]   = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+                u8 product_id[16] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+                                     ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+                u8 product_rev[4] = {' ', ' ', ' ', ' '};
+            };
+
+            // If storage == nullptr this is considered unused.
+            struct partition_t
+            {
+                u8 lun                            = 0;
+                partition_desc_t       descriptor = {};
+                chip::memory::storage* storage    = nullptr;
+            };
+
+            // NOTE: these are the maximum amount of partitions EXPOSED to msc, not
+            // the maximum partitions on the device itself.
+            #ifndef LM_CONFIG_MSC_MAX_PARTITIONS
+            #define LM_CONFIG_MSC_MAX_PARTITIONS 4
+            #endif
+            // Generally set by lm::entrypoint::arch_config.
+            partition_t partitions[LM_CONFIG_MSC_MAX_PARTITIONS] = {};
+
+            struct backend_t {
+                enum class id : u8 {
+                    usb, usbip,
+                    count
+                };
+                struct usb_t {
+                    feature toggle     = feature::off;
+                    feature strict_eps = feature::off;
+                } usb;
+                struct usbip_t {
+                    feature toggle     = feature::off;
+                    feature strict_eps = feature::off;
+                } usbip;
+            } backend;
+        } msc;
     };
 
     extern config_t config;
