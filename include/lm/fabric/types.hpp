@@ -9,8 +9,9 @@ namespace lm::fabric
 {
     namespace event_versions {
         struct [[gnu::packed]] v0 {
+            static constexpr auto protocol_version = 0;
             // Protocol metadata.
-            u8 version = 0;
+            u8 version = protocol_version;
             u8 size    = sizeof(v0); // Useful if you receive an event with
                                      // a version you don't even know about and just want to step over it.
                                      // Also used for event extensions, must always be multiple of sizeof(v0),
@@ -64,7 +65,7 @@ namespace lm::fabric
             ///       This makes it so we can give the users more playroom by setting a lower free_topic_min.
             strand,
             input, // Input events, like a button or some data from another loom. As in, something inputted INTO this loom.
-            output, // Output events, like writing to uart or somewhere else. As in, output something OUT of this loom; 
+            output, // Output events, like writing to uart or somewhere else. As in, output something OUT of this loom;
             busmon_teach, // Use this topic to "teach" busmon how to print messages of arbitrary topics.
             reserved_topic_max = busmon_teach,
 

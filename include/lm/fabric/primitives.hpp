@@ -98,8 +98,8 @@ template <typename As> struct lm::fabric::queue_t::consume_as<As>::iterator
     auto operator*() -> As& { return current_element; }
     auto operator++() -> iterator&
     {
-        if(max_items > 0) --max_items;
         if(max_items == 0 || !q || !q->receive(&current_element, 0)) is_done = true;
+        if(max_items > 0) --max_items;
         return *this;
     }
     auto operator!=(const iterator& o) const -> bool { return !is_done; }
