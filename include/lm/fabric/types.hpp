@@ -11,20 +11,23 @@ namespace lm::fabric
         struct [[gnu::packed]] v0 {
             // Protocol metadata.
             u8 version = 0;
-            u8 size    = sizeof(v0); // For avoiding version drift.
-                                     // Useful if you receive an event with
+            u8 size    = sizeof(v0); // Useful if you receive an event with
                                      // a version you don't even know about and just want to step over it.
-                                     // to the next event in line.
+                                     // Also used for event extensions, must always be multiple of sizeof(v0),
+                                     // but this is handled by the bus.
 
             // Event metadata.
             u8 topic;
             u8 type;
-            u16 sender_id;
-            u16 sequence_id;
-            alignas(8) u64 timestamp = 0;
+            u8 loom_id = 0;
+            u8 strand_id;
+            alignas(8) u64 timestamp = 0; // In microseconds.
 
             // Payload (what is actually being sent).
             alignas(8) u8 payload[8] = {0};
+
+            constexpr auto is_local()        const -> bool { return loom_id == 1; }
+            constexpr auto extension_count() const -> st   { return (size / sizeof(v0)) - 1; }
 
             template <typename As>
             auto get_payload() const -> const As& {
@@ -60,8 +63,8 @@ namespace lm::fabric
             /// TODO: Collapse as many of these topics together as we can and use the event type filter of the bus.
             ///       This makes it so we can give the users more playroom by setting a lower free_topic_min.
             strand,
-            blink,
-            usbd,
+            input, // Input events, like a button or some data from another loom. As in, something inputted INTO this loom.
+            output, // Output events, like writing to uart or somewhere else. As in, output something OUT of this loom; 
             busmon_teach, // Use this topic to "teach" busmon how to print messages of arbitrary topics.
             reserved_topic_max = busmon_teach,
 

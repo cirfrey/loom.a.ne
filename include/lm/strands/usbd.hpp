@@ -32,11 +32,9 @@ namespace lm::strands
         auto on_wake()      -> fabric::managed_strand_status;
         ~usbd();
 
-        auto broadcast_status() -> void;
-
         std::array<
             config_t::usbcommon::string_descriptor,
-            usb::string_descriptor::count + config_t::midi_t::max_cables
+            usb::string_descriptor::count
         > string_descriptors;
         tusb_desc_device_t device_descriptor = {
             .bLength            = sizeof(tusb_desc_device_t),
@@ -55,9 +53,7 @@ namespace lm::strands
             .bNumConfigurations = 0x01         // We only have 1 "floor plan"
         };
         u8 config_descriptor[config_t::usb_t::config_descriptor_max_size] = {0};
-
-        fabric::queue_t get_status_q;
-        fabric::bus::subscribe_token get_status_q_tok;
+        u16 config_descriptor_size = 0; // The actual size of the descriptor.
 
         fabric::strand::handle_t tud_strand_handle = nullptr;
     };

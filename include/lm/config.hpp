@@ -14,6 +14,14 @@
 
 namespace lm
 {
+    // For config stuff, use this instead of bools (it'll make the intent in code more clear and
+    // interop with ini parsing via feature_ini.
+    enum class feature : u8
+    {
+        disabled = 0, off = 0, no  = 0,
+        enabled = 1,  on = 1,  yes = 1,
+    };
+
     // The config object.
     // It has:
     // - Static fields (memory allocation stuff, or things that must be known
@@ -21,32 +29,15 @@ namespace lm
     // - Dynamic fields (runtime stuff) customizable by regular assignment.
     struct config_t
     {
-        // Use this instead of bools, it'll the intent in code more clear.
-        enum class feature : u8
+        struct ini_t
         {
-            disabled = 0, off = 0, no  = 0,
-            enabled = 1,  on = 1,  yes = 1,
-        };
-        // The ini-facing version, use this for parsing and normalize into config_t::feature.
-        // If we don't do this the end-user can only use [off] and [on], and the end-user is king so...
-        // NOTE: If modifying, keep the [0, 1] in the first two fields,
-        //       otherwise end-user will get nonsense output during parsing.
-        // NOTE: it's very important both of the enums have the same size and alignment.
-        enum class feature_ini : u8
-        {
-            disabled, enabled,
-            no, yes,
-            off, on,
-        };
-        static constexpr auto normalize_feature_ini(feature_ini f) -> feature
-        {
-            if(
-                f == feature_ini::off ||
-                f == feature_ini::disabled ||
-                f == feature_ini::no
-            ) return feature::off;
-            return feature::on;
-        }
+            #ifndef LM_CONFIG_INI_MAX_FIELDS
+            // Controls how many fields it will allocate for config_ini.hpp.
+            // This way you can have more at a later time if you extend config_t.
+            #define LM_CONFIG_INI_MAX_FIELDS 64
+            #endif
+            static constexpr u16 max_fields = LM_CONFIG_INI_MAX_FIELDS;
+        } ini;
 
         struct logging_t
         {
@@ -99,7 +90,6 @@ namespace lm
                     LM_CONFIG_LOGGING_EXTRA_SEVERITIES_ENABLED
                 #endif
             };
-
 
             // Overridable log color.
             text level_ansi[level_count] = {
@@ -163,7 +153,11 @@ namespace lm
 
         struct usb_t
         {
-            // Generally set in lm::entrypoint::arch_config.
+            struct strand_t {
+                feature spawn = feature::on;
+            } strand;
+
+            // Generally set in lm::hook::arch_config.
             std::span<usb::ep_t> endpoints;
 
             #ifndef LM_CONFIG_USB_CONFIG_DESCRIPTOR_MAX_SIZE
@@ -179,14 +173,28 @@ namespace lm
 
         struct usbip_t
         {
+            struct strand_t {
+                feature spawn = feature::on;
+            } strand;
+
             u16 port = 3240;
-            bool close_conn_after_devlist = true;
+            feature close_conn_after_devlist = feature::on;
+
+            char path[64]  = "/sys/bus/usb/devices/1-1";
+            char busid[16] = "1-1";
+
+            // How many events it can take before it starts dropping.
+            // Remember this is includes extensions and all output events.
+            u16 out_event_queue_size = 256;
 
             #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
-            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 10
+            // Since this is virtual and doens't connect to real hardware, we
+            // can have as many endpoints as we need. Just know each endpoint
+            // takes some memory. 8 is more than enough for all features.
+            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 8
             #endif
             static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
-            // Generally set in strands::usbip::usbip().
+            // Generally set in lm::hook::arch_config.
             std::span<usb::ep_t> endpoints;
 
 
@@ -210,12 +218,12 @@ namespace lm
                 };
                 struct usb_t {
                     // Enable just by setting the channels.
-                    u8 speaker_channels    = 0;
                     u8 microphone_channels = 0;
+                    u8 speaker_channels    = 0;
                 } usb;
                 struct usbip_t {
-                    u8 speaker_channels    = 0;
                     u8 microphone_channels = 0;
+                    u8 speaker_channels    = 0;
                 } usbip;
                 struct mesh_t {
                     // Don't need to setup channels, each message
@@ -256,11 +264,11 @@ namespace lm
                 };
                 struct usb_t {
                     feature toggle = feature::off;
-                    u8      pooling_interval_ms = 5;
+                    u8      pool_ms = 5;
                 } usb;
                 struct usbip_t {
                     feature toggle = feature::off;
-                    u8      pooling_interval_ms = 5;
+                    u8      pool_ms = 5;
                 } usbip;
                 struct mesh_t {
                     feature toggle = feature::off;
@@ -321,7 +329,7 @@ namespace lm
             #ifndef LM_CONFIG_MSC_MAX_PARTITIONS
             #define LM_CONFIG_MSC_MAX_PARTITIONS 4
             #endif
-            // Generally set by lm::entrypoint::arch_config.
+            // Generally set by lm::hook::arch_config.
             partition_t partitions[LM_CONFIG_MSC_MAX_PARTITIONS] = {};
 
             struct backend_t {

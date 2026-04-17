@@ -1,5 +1,5 @@
 
-#include "lm/entrypoint.hpp"
+#include "lm/hooks.hpp"
 
 #include "lm/fabric/strand.hpp"
 #include "lm/port.hpp"
@@ -22,7 +22,7 @@
     auto main() -> int
     {
         SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
-        lm::entrypoint::launcher();
+        lm::hook::launcher();
         while(!quit.load()) lm::fabric::strand::sleep_ms(1000);
         return 0;
     }
@@ -31,7 +31,7 @@
 
     auto main() -> int
     {
-        lm::entrypoint::launcher();
+        lm::hook::launcher();
         while(1) lm::fabric::strand::sleep_ms(10000);
         return 0;
     }

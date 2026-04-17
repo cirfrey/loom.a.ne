@@ -81,6 +81,8 @@ lm::fabric::queue_t::~queue_t()
 auto lm::fabric::queue_t::send(void const* item, u32 timeout) -> bool { return xQueueSend((QueueHandle_t)impl, item, timeout) == pdTRUE; }
 auto lm::fabric::queue_t::receive(void* into, u32 timeout) -> bool    { return xQueueReceive((QueueHandle_t)impl, into, timeout) == pdTRUE; }
 
+auto lm::fabric::queue_t::slots() const -> st { return uxQueueSpacesAvailable(QueueHandle_t)impl); }
+
 auto lm::fabric::queue_t::capacity() const     -> st { return max_elements; }
 auto lm::fabric::queue_t::element_size() const -> st { return element_size_in_bytes; }
 
@@ -171,7 +173,7 @@ auto lm::fabric::strand::create(
     bus::publish(fabric::event{
         .topic = topic::task,
         .type = event::created,
-        .sender_id = info.id,
+        .strand_id = info.id,
     }.with_payload<status_event>({ .handle = handle }));
 
     return handle;

@@ -8,8 +8,10 @@ namespace lm::ini
     enum class parse_result
     {
         ok,
+        empty_key,
         empty_input,
         empty_output,
+        none_type,
         unknown_type,
 
         number_unallowed_base,      // E.g: 0b when number_data.allow_binary == false.
@@ -33,15 +35,16 @@ namespace lm::ini
     {
         [[nodiscard]] auto parse(text, parse_args = parse_args{}) -> parse_result;
 
-        text key;
-        void* output;
+        text key = {nullptr, 0};
+        void* output = nullptr;
 
         enum type_t {
+            none,   // Mark as unused/not-initialized.
             number, // Make sure to set number_data.variable_size and number_data.variable_is_signed,
                     // otherwise your memory WILL get corrupted.
             string, // Expects .variable to be a char[string_data.max_len], null terminated.
             enumeration,
-        } type;
+        } type = none;
 
         struct number_data_t {
             u8   output_bits      = 8;
@@ -99,21 +102,24 @@ namespace lm::ini
 
     //constexpr auto string_field()
 
-    template <typename Enum, int Lo = -128, int Hi = 128>
-    constexpr auto enumeration_field(
+    template <
+        typename EnumPretend,
+        typename EnumActual,
+        field::enumeration_data_t::normalize_t Normalizer,
+        int Lo = -128,
+        int Hi = 128
+    >
+    constexpr auto normalized_enumeration_field(
         text key,
-        auto& val,
-        field::enumeration_data_t::normalize_t normalizer = nullptr,
-        field::enumeration_data_t::parse_t parser =
-            field::default_enum_parser_for<Enum, Lo, Hi>()
+        EnumActual& val
     ) -> field
     {
         auto ret = field{};
         ret.key = key;
         ret.output = &val;
         ret.type = field::enumeration;
-        ret.enumeration_data.normalize = normalizer;
-        ret.enumeration_data.parse     = parser;
+        ret.enumeration_data.normalize = Normalizer;
+        ret.enumeration_data.parse     = field::default_enum_parser_for<EnumPretend, Lo, Hi>();
         return ret;
     }
 

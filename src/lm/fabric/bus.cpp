@@ -1,5 +1,7 @@
 #include "lm/fabric/bus.hpp"
 
+#include "lm/chip/time.hpp"
+
 #include "lm/fabric/primitives.hpp"
 #include "lm/utils/guarded.hpp"
 #include "lm/config.hpp"
@@ -73,27 +75,75 @@ auto lm::fabric::bus::unsubscribe(void* subscriber) -> void
     });
 }
 
-#include "lm/log.hpp"
-#include "lm/core.hpp"
-auto lm::fabric::bus::publish(event const& e) -> publish_result
+
+namespace lm::fabric::bus
+{
+    static auto publish_impl(
+        decltype(bus_subs)::value_type& bus_subs,
+        publish_result* res,
+        std::span<event> events
+    )
+    {
+        if(!events.size()) return;
+
+        auto& header = events[0];
+        header.size  = events.size() * sizeof(event);
+        // TODO: works for now, will break when mesh is implemented.
+        header.timestamp = chip::time::uptime();
+
+        for (auto const& sub : bus_subs) {
+            auto const not_interested_in_topic = !(sub.topic == topic::any || sub.topic == header.topic);
+            auto const not_interested_in_type  = !(sub.wants_type(header.type));
+            auto const bad_queue               = sub.queue == nullptr;
+
+            if(not_interested_in_topic)
+            {
+                ++res->ignored;
+                continue;
+            }
+            else if(not_interested_in_type)
+            {
+                ++res->filtered;
+                continue;
+            }
+            else if(bad_queue)
+            {
+                ++res->dropped;
+                continue;
+            }
+
+            auto const not_enough_slots = sub.queue->slots() < events.size();
+            if(not_enough_slots)
+            {
+                ++res->dropped;
+                continue;
+            }
+
+            // All good. Go ahead and publish.
+            ++res->published;
+            for(auto& e : events) { sub.queue->send(&e, 0); }
+        }
+    }
+}
+
+auto lm::fabric::bus::publish(event& e) -> publish_result
 {
     auto res = publish_result{};
 
     // NOTE: We take the mutex to iterate the list safely,
     //       but we do NOT block on queue->send.
-    bus_subs.read([&](auto const& bus_subs){
-        for (auto const& sub : bus_subs) {
+    bus_subs.write(publish_impl, &res, std::span<event>{&e, 1});
 
-            if (!(sub.topic == fabric::topic::any || sub.topic == e.topic))
-                ++res.ignored;
-            else if(!(sub.wants_type(e.type)))
-                ++res.filtered;
-            else if(sub.queue == nullptr || !sub.queue->send(&e, 0))
-                ++res.dropped;
-            else
-                ++res.published;
-        }
-    });
+    return res;
+}
+
+auto lm::fabric::bus::publish(std::span<event> extended_event) -> publish_result
+{
+    auto res = publish_result{};
+
+    // NOTE: We take the mutex to iterate the list safely,
+    //       but we do NOT block on queue->send.
+    bus_subs.write(publish_impl, &res, extended_event);
 
     return res;
 }

@@ -114,7 +114,7 @@ constexpr auto lm::fabric::strand::managed() -> function_t
                 bus::publish(fabric::event{
                     .topic = topic::strand,
                     .type  = event::loop_timing,
-                    .sender_id = info.id,
+                    .strand_id = info.id,
                 }.with_payload(timing_event{ .time = end - start }));
                 sleep_ms(info.sleep_ms);
                 start = chip::time::uptime();

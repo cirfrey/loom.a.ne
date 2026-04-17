@@ -64,60 +64,15 @@ lm::strands::log::log(fabric::strand_runtime_info& info)
     consumers[0].type = logging::consumer::type_t::uart;
     for(auto i = 1; i < consumer_count; ++i)
         consumers[i].type = logging::consumer::type_t::disabled;
-
-    usbd_status_q = fabric::queue<fabric::event>(4);
-    usbd_status_q_tok = fabric::bus::subscribe(
-        usbd_status_q,
-        fabric::topic::usbd,
-        {
-            usbd::event::cdc_enabled, usbd::event::cdc_disabled,
-            usbd::event::hid_enabled, usbd::event::hid_disabled,
-        }
-    );
 }
 
 auto lm::strands::log::on_ready() -> fabric::managed_strand_status
 {
-    usbd_status_timer.start();
     return fabric::managed_strand_status::ok;
 }
 
 auto lm::strands::log::before_sleep() -> fabric::managed_strand_status
 {
-    // 0. Request consumer update if necessary.
-    if(usbd_status_timer.is_done()) {
-        usbd_status_timer.restart();
-        fabric::bus::publish({
-            .topic = fabric::topic::usbd,
-            .type  = usbd::event::get_status,
-        });
-    }
-
-    // 1. Update consumers if necessary.
-    for(auto& e : usbd_status_q.consume<fabric::event>()) { switch((usbd::event::event_t)e.type){
-        case usbd::event::cdc_enabled:
-            if(consumers[1].type == logging::consumer::type_t::cdc) break;
-            consumers[1].type = logging::consumer::type_t::cdc;
-            lm::log::debug("Enabled CDC consumer\n");
-            break;
-        case usbd::event::hid_enabled:
-            if(consumers[2].type == logging::consumer::type_t::hid) break;
-            consumers[2].type = logging::consumer::type_t::hid;
-            lm::log::debug("Enabled HID consumer\n");
-            break;
-        case usbd::event::cdc_disabled:
-            if(consumers[1].type == logging::consumer::type_t::disabled) break;
-            consumers[1].type = logging::consumer::type_t::disabled;
-            lm::log::debug("Disabled CDC consumer\n");
-            break;
-        case usbd::event::hid_disabled:
-            if(consumers[2].type == logging::consumer::type_t::disabled) break;
-            consumers[2].type = logging::consumer::type_t::disabled;
-            lm::log::debug("Disabled HID consumer\n");
-            break;
-        default: break;
-    }}
-
     // 2. Consume.
     for(auto i = 0; i < consumer_count; ++i)
     {

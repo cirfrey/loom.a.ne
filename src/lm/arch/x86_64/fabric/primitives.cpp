@@ -222,6 +222,12 @@ auto queue_t::receive(void* into, u32 timeout) -> bool {
     return true;
 }
 
+auto queue_t::slots() const -> st
+{
+    auto* nq = static_cast<native_queue*>(impl);
+    return capacity() - nq->items.size(); // TODO: multithread me.
+}
+
 auto queue_t::capacity() const -> st { return max_elements; }
 auto queue_t::element_size() const -> st { return element_size_in_bytes; }
 

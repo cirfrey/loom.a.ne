@@ -1,4 +1,4 @@
-#include "lm/entrypoint.hpp"
+#include "lm/hooks.hpp"
 
 #include "lm/board.hpp"
 #include "lm/chip.hpp"
@@ -7,7 +7,7 @@
 #include "lm/build.hpp"
 #include "lm/banner.hpp"
 
-auto lm::entrypoint::arch_init() -> void
+auto lm::hook::arch_init() -> void
 {
     chip::system::init();
     chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);
@@ -46,8 +46,13 @@ auto lm::entrypoint::arch_init() -> void
 
 
 #include "lm/arch/x86_64/endpoints.hpp"
+#include "lm/strands/usbip.hpp"
 
-auto lm::entrypoint::arch_config() -> void
+auto lm::hook::arch_config() -> void
 {
-    config.usb.endpoints = arch::x86_64::endpoints;
+    lm::config.usb.endpoints   = arch::x86_64::endpoints;
+    lm::config.usbip.endpoints = lm::strands::usbip_backend::endpoints;
+
+    // Hardcoded for now, until I get ini parsing up and running.
+    lm::config.hid.backend.usbip.toggle = feature::on;
 }

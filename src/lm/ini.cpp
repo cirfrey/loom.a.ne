@@ -156,13 +156,17 @@ static constexpr auto parse_enumeration(
 
 auto lm::ini::field::parse(text in, parse_args args) -> parse_result
 {
-    if (!output) return parse_result::empty_output;
+    if(key.data == nullptr || key.size == 0)
+        return parse_result::empty_key;
+    if(!output)
+        return parse_result::empty_output;
 
     switch (type)
     {
-        case string: return parse_string(*this, in, args);
-        case number: return parse_number(*this, in, args);
+        case none:        return parse_result::none_type;
+        case string:      return parse_string(*this, in, args);
+        case number:      return parse_number(*this, in, args);
         case enumeration: return parse_enumeration(*this, in, args);
-        default: return parse_result::unknown_type;
+        default:          return parse_result::unknown_type;
     }
 }

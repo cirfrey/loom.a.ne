@@ -33,7 +33,7 @@ auto lm::strands::strandman::process_events(std::span<strand_info_t>& strands) -
     for (auto const& e : status_q.consume<fabric::event>()) {
         strand_info_t* info = nullptr;
         for(auto& t : strands) {
-            if(t.runtime.id != e.sender_id) continue;
+            if(t.runtime.id != e.strand_id) continue;
 
             info = &t;
             break;
@@ -132,7 +132,7 @@ auto lm::strands::strandman::set_running_strands(std::span<strand_info_t>& stran
         fabric::bus::publish(fabric::event{
             .topic = fabric::topic::strand,
             .type  = fabric::strand::event::signal_start,
-            .sender_id = strands[0].runtime.id,
+            .strand_id = strands[0].runtime.id,
         }.with_payload(fabric::strand::signal_event{ .strand_id = strand.runtime.id }));
     }
 }

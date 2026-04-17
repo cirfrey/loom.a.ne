@@ -88,15 +88,34 @@ namespace lm::usb
     // What idx each string descriptor should have.
     // This is reused across backends.
     namespace string_descriptor { enum idx : u8 {
-        lang = 0,
-        manufacturer = 1,
-        product = 2,
-        serial = 3,
-        midi = 4,
-        hid = 5,
-        uac = 6,
-        cdc = 7,
-        msc = 8,
+        lang,
+        manufacturer,
+        product,
+        serial,
+        midi,
+        hid,
+        uac,
+        cdc,
+        msc,
+
+        midi_cable_start,
+        midi_cable_1 = midi_cable_start,
+        midi_cable_2,
+        midi_cable_3,
+        midi_cable_4,
+        midi_cable_5,
+        midi_cable_6,
+        midi_cable_7,
+        midi_cable_8,
+        midi_cable_9,
+        midi_cable_10,
+        midi_cable_11,
+        midi_cable_12,
+        midi_cable_13,
+        midi_cable_14,
+        midi_cable_15,
+        midi_cable_16,
+        midi_cable_end = midi_cable_16,
 
         count
     }; }

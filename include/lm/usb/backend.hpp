@@ -76,7 +76,7 @@ constexpr auto lm::usb::backend::setup_descriptors(
     write_strdsc(string_descriptor::msc,          "%s", cfg.string_descriptors.msc);
     // Add some more string descriptors for each extra MIDI cable.
     for(u8 i = 0; i < config_t::midi_t::max_cables; ++i) {
-        write_strdsc(string_descriptor::count + i, "%s - Cable %i", cfg.string_descriptors.midi, i);
+        write_strdsc(string_descriptor::midi_cable_start + i, "%s - Cable %i", cfg.string_descriptors.midi, i);
     }
 
     device_descriptor.bDeviceClass    = cfg.device_descriptor.device_class;
@@ -114,12 +114,12 @@ constexpr auto lm::usb::backend::setup_descriptors(
 
     // The composite classes.
 
-    lens.cdc = cdc.toggle == config_t::feature::on
-        ? lm::usbd::cdc::do_configuration_descriptor(state,  cfg.endpoints, cdc.strict_eps == config_t::feature::on)
+    lens.cdc = cdc.toggle == feature::on
+        ? lm::usbd::cdc::do_configuration_descriptor(state,  cfg.endpoints, cdc.strict_eps == feature::on)
         : 0;
 
-    lens.hid = hid.toggle == config_t::feature::on
-        ? lm::usbd::hid::do_configuration_descriptor(state,  cfg.endpoints, hid.pooling_interval_ms)
+    lens.hid = hid.toggle == feature::on
+        ? lm::usbd::hid::do_configuration_descriptor(state,  cfg.endpoints, hid.pool_ms)
         : 0;
 
     constexpr auto map_midi_mode = [](config_t::midi_t::mode_t m) -> lm::usbd::midi::mode {
@@ -133,12 +133,12 @@ constexpr auto lm::usb::backend::setup_descriptors(
             cfg.endpoints,
             midi.cable_count,
             map_midi_mode(midi.mode),
-            midi.strict_eps == config_t::feature::on
+            midi.strict_eps == feature::on
         )
         : 0;
 
-    lens.msc = msc.toggle == config_t::feature::on
-        ? lm::usbd::msc::do_configuration_descriptor(state,  cfg.endpoints, msc.strict_eps == config_t::feature::on)
+    lens.msc = msc.toggle == feature::on
+        ? lm::usbd::msc::do_configuration_descriptor(state,  cfg.endpoints, msc.strict_eps == feature::on)
         : 0;
 
     lens.audio = audio.microphone_channels > 0 || audio.speaker_channels > 0

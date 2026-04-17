@@ -59,7 +59,10 @@ auto lm::usbd::midi::do_configuration_descriptor(
         appended += state.append_desc({ TUD_MIDI_DESC_HEAD(audio_control_itf, string_descriptor::midi, cable_count) });
         // Jacks.
         for(u8 i = 1; i <= cable_count; i++)
-            appended += state.append_desc({ TUD_MIDI_DESC_JACK_DESC(i, (u8)(string_descriptor::count + i)) });
+            // TODO: make it so the string index of these descriptors can be a custom value instead of the default
+            //       'expect theres a section for midi jack string descriptors after the main ones'.
+            // TODO: should the -1 be here? (u8)(string_descriptor::midi_cable_start + i - 1
+            appended += state.append_desc({ TUD_MIDI_DESC_JACK_DESC(i, (u8)(string_descriptor::midi_cable_start + i - 1)) });
         // OUT EP + Mapping.
         appended += state.append_desc({ TUD_MIDI_DESC_EP(ep_out_idx, CFG_TUD_MIDI_EP_BUFSIZE, cable_count) });
         for(u8 i = 1; i <= cable_count; i++)

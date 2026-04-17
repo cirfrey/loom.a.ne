@@ -100,13 +100,6 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
 {
     usbd_instance = this;
 
-    get_status_q = fabric::queue<fabric::event>(1);
-    get_status_q_tok = fabric::bus::subscribe(
-        get_status_q,
-        fabric::topic::usbd,
-        { event::get_status }
-    );
-
     auto lens = usb::backend::setup_descriptors(
         config_descriptor,
         string_descriptors,
@@ -118,6 +111,8 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
         config.midi.backend.usb,
         config.msc.backend.usb
     );
+    config_descriptor_size = lens.total;
+
     log::debug<128 * 3>(
         "Config descriptor len && endpoint map report.\n"
         "\t+--------+-----+-----+------+-----+-------+-------+\n"
@@ -148,8 +143,6 @@ auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
         while(1) tud_task();
     }, this);
 
-    broadcast_status();
-
     return fabric::managed_strand_status::ok;
 }
 
@@ -158,9 +151,6 @@ auto lm::strands::usbd::before_sleep() -> fabric::managed_strand_status
 
 auto lm::strands::usbd::on_wake() -> fabric::managed_strand_status
 {
-    for(auto& e : get_status_q.consume<fabric::event>())
-    { broadcast_status(); }
-
     return fabric::managed_strand_status::ok;
 }
 
@@ -169,19 +159,6 @@ lm::strands::usbd::~usbd() {
         fabric::strand::reap(tud_strand_handle);
         tusb_deinit(0);
     }
-}
-
-auto lm::strands::usbd::broadcast_status() -> void
-{
-    // TODO:
-    // fabric::bus::publish({
-    //     .topic = fabric::topic::usbd,
-    //     .type  = cfg.cdc ? event::cdc_enabled : event::cdc_disabled
-    // });
-    // fabric::bus::publish({
-    //     .topic = fabric::topic::usbd,
-    //     .type  = cfg.hid ? event::hid_enabled : event::hid_disabled
-    // });
 }
 
 extern "C" {

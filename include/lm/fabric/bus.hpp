@@ -6,6 +6,7 @@
 #include "lm/fabric/primitives.hpp"
 
 #include <initializer_list>
+#include <span>
 
 namespace lm::fabric::bus
 {
@@ -39,6 +40,23 @@ namespace lm::fabric::bus
         st ignored   = 0; // How many subscribers simply aren't interested in the topic.
     };
     // Automatically fills in the timestamp (if set to zero) for you, how nice.
-    auto publish(event const&) -> publish_result;
+    auto publish(event&) -> publish_result;
+    // Assumes event 1 is the header and the rest are the bodies.
+    auto publish(std::span<event> extended_event) -> publish_result;
+    // Same as above.
+    // Just a convenience wrapper.
+    template<typename... Events>
+    requires (std::same_as<event, Events> && ...)
+    auto publish(Events... events) -> publish_result;
+
     /// TODO: void publish_from_isr(const Event&);
+}
+
+// Impls.
+
+template <typename... Events>
+auto lm::fabric::bus::publish(Events... events) -> publish_result
+{
+    event es[] = { events... };
+    return publish(es);
 }

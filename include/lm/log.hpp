@@ -81,7 +81,7 @@ namespace lm::log
 template<lm::u16 BufSize, typename... Args>
 constexpr auto lm::log::log(fmt_t f, Args&&... args) -> bool
 {
-    if(config.logging.level_enabled[f.args.loglevel] == config_t::feature::off) return false;
+    if(config.logging.level_enabled[f.args.loglevel] == feature::off) return false;
 
     char buf[BufSize];
     auto in  = mut_text{.data = buf, .size = sizeof(buf)};

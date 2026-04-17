@@ -50,7 +50,7 @@ auto strand::create(
     bus::publish(fabric::event{
         .topic = topic::strand,
         .type  = event::created,
-        .sender_id = info.id,
+        .strand_id = info.id,
     }.with_payload<status_event>({ .handle = nt }));
 
     return nt;

@@ -64,7 +64,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 
 auto lm::log::dispatch(text t) -> bool
 {
-    if(config.logging.toggle == config_t::feature::off) return false;
+    if(config.logging.toggle == feature::off) return false;
 
     return config.logging.custom_dispatcher != nullptr
         ? config.logging.custom_dispatcher(t)

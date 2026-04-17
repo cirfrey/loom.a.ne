@@ -13,7 +13,7 @@ auto lm::fabric::strand::wait_for_start(queue_t& q, st strand_id) -> void
         bus::publish(fabric::event{
             .topic     = topic::strand,
             .type      = event::ready,
-            .sender_id = strand_id | toe,
+            .strand_id = strand_id | toe,
         }.with_payload<status_event>({ .handle = handle }));
 
         for(auto const& e : q.consume<fabric::event>()) {
@@ -36,7 +36,7 @@ auto lm::fabric::strand::should_stop(queue_t& q, st strand_id) -> bool
     bus::publish(fabric::event{
         .topic     = topic::strand,
         .type      = event::running,
-        .sender_id = strand_id | toe,
+        .strand_id = strand_id | toe,
     }.with_payload<status_event>({ .handle = get_handle() }));
     return false;
 }
@@ -47,7 +47,7 @@ auto lm::fabric::strand::wait_for_shutdown(st strand_id) -> void
         bus::publish(fabric::event{
             .topic     = topic::strand,
             .type      = event::waiting_for_reap,
-            .sender_id = strand_id | toe,
+            .strand_id = strand_id | toe,
         }.with_payload<status_event>({ .handle = get_handle() }));
         sleep_ms(1000);
     }

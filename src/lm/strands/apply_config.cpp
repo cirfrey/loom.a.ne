@@ -3,10 +3,10 @@
 #include "lm/log.hpp"
 #include "lm/fabric/strand.hpp"
 
-#include "lm/entrypoint.hpp"
+#include "lm/hooks.hpp"
 
 #include "lm/config.hpp"
-#include "lm/ini.hpp"
+#include "lm/config_ini.hpp"
 
 lm::strands::apply_config::apply_config(fabric::strand_runtime_info& info)
 {
@@ -17,14 +17,21 @@ lm::strands::apply_config::apply_config(fabric::strand_runtime_info& info)
 //       goes wrong.
 auto lm::strands::apply_config::on_ready() -> fabric::managed_strand_status
 {
-    log::debug("Applying arch config\n");
-    lm::entrypoint::arch_config();
+    log::debug("Applying lm::hook::arch_config()\n");
+    lm::hook::arch_config();
+    if(lm::hook::config != nullptr)
+    {
+       log::debug("Applying lm::hook::config()\n");
+       lm::hook::config();
+    }
 
     log::debug("Parsing ini\n");
     // TODO: parse the damn ini.
+    // TODO: configurable ini string?
+    //       Something like config.ini.data (overriden by arch_config or config()).
 
     // Our work here is done.
-    log::debug("apply_config done, exiting\n");
+    log::debug("apply_config done, exiting!\n");
     return fabric::managed_strand_status::suicidal;
 }
 

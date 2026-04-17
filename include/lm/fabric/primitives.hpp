@@ -53,18 +53,21 @@ struct lm::fabric::queue_t
     struct consume_as
     {
         queue_t* q;
+        int max_items;
 
         struct iterator;
         auto begin() -> iterator;
         auto end()   -> iterator;
     };
-    // Allows you to iterate over typed elements in a forloop.
+    // Allows you to iterate over typed elements in a for-each loop.
     template <typename As>
-    auto consume() -> consume_as<As>;
+    auto consume(int max_items = -1) -> consume_as<As>;
 
     /// TODO: Document what unit is this timeout in.
     auto send(void const* item, u32 timeout) -> bool;
     auto receive(void* into, u32 timeout) -> bool;
+
+    auto slots() const -> st;
 
     auto capacity() const -> st;
     auto element_size() const -> st;
@@ -86,6 +89,7 @@ auto lm::fabric::queue(st max_elements) -> queue_t
 template <typename As> struct lm::fabric::queue_t::consume_as<As>::iterator
 {
     queue_t* q;
+    int max_items;
 
     As current_element;
     bool is_done;
@@ -94,20 +98,21 @@ template <typename As> struct lm::fabric::queue_t::consume_as<As>::iterator
     auto operator*() -> As& { return current_element; }
     auto operator++() -> iterator&
     {
-        if(!q || !q->receive(&current_element, 0)) is_done = true;
+        if(max_items > 0) --max_items;
+        if(max_items == 0 || !q || !q->receive(&current_element, 0)) is_done = true;
         return *this;
     }
-    auto operator!=(const iterator& o) const -> bool { return is_done != o.is_done; }
+    auto operator!=(const iterator& o) const -> bool { return !is_done; }
 };
 template <typename As>
-auto lm::fabric::queue_t::consume() -> consume_as<As>
-{ return consume_as<As>{this}; }
+auto lm::fabric::queue_t::consume(int max_items) -> consume_as<As>
+{ return consume_as<As>{this, max_items}; }
 template <typename As>
 auto lm::fabric::queue_t::consume_as<As>::begin() -> iterator
-{ return iterator{q, {}, false}.operator++(); }
+{ return iterator{q, max_items, {}, false}.operator++(); }
 template <typename As>
 auto lm::fabric::queue_t::consume_as<As>::end()   -> iterator
-{ return {nullptr, {}, true}; }
+{ return {nullptr, 0, {}, true}; }
 
 /* --- semaphore --- */
 

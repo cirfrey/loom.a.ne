@@ -77,7 +77,7 @@ auto lm::usbd::msc::do_configuration_descriptor(
         CFG_TUD_MSC_EP_BUFSIZE
     )});
 
-    // TODO: move me to lm::entrypoint::arch_config.
+    // TODO: move me to lm::hook::arch_config.
     init_msc_partition();
     lm::log::info("Initialized MSC partition with %p\n", static_storage);
 }

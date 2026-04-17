@@ -1,7 +1,9 @@
-#include "lm/entrypoint.hpp"
+#include "lm/hooks.hpp"
 
 #include "lm/core.hpp"
+#include "lm/board.hpp"
 #include "lm/config.hpp"
+#include "lm/log.hpp"
 
 #include "lm/fabric/strand.hpp"
 #include "lm/strands/strandman.hpp"
@@ -13,14 +15,17 @@
 #include "lm/strands/usbip.hpp"
 #include "lm/strands/apply_config.hpp"
 
-auto lm::entrypoint::launcher() -> void
+
+auto lm::hook::launcher() -> void
 {
-    if(lm::entrypoint::launcher_override != nullptr) {
-        lm::entrypoint::launcher_override();
+    if(lm::hook::launcher_override != nullptr) {
+        lm::hook::launcher_override();
         return;
     }
 
-    lm::entrypoint::arch_init();
+    lm::hook::arch_init();
+    if(lm::hook::init != nullptr)
+        lm::hook::init();
 
     using info = strands::strandman::strand_info_t;
     auto logging_ready = info::depends_t {
@@ -84,14 +89,14 @@ auto lm::entrypoint::launcher() -> void
             .constants = _config::strand::usbd,
             .runtime   = { .id = 6, .sleep_ms = 1000 },
             .depends   = {config_applied},
-            .should_be_running = true,
+            .should_be_running = lm::config.usb.strand.spawn == feature::on,
         },
         info{
             .code      = fabric::strand::managed<strands::usbip>(),
             .constants = _config::strand::usbip,
-            .runtime   = { .id = 7, .sleep_ms = 1000 },
+            .runtime   = { .id = 7, .sleep_ms = 1 },
             .depends   = {config_applied},
-            .should_be_running = true,
+            .should_be_running = lm::config.usbip.strand.spawn == feature::on,
         },
     };
 
