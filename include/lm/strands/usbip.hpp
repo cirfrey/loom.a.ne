@@ -175,6 +175,8 @@ namespace lm::strands
                 fabric::queue_t              out_event_q   = {};
                 fabric::bus::subscribe_token out_event_tok = {};
 
+                u8 address = 0;
+
                 transmitting_t() {
                     out_event_q   = fabric::queue<fabric::event>(config.usbip.out_event_queue_size);
                     out_event_tok = fabric::bus::subscribe(out_event_q, fabric::topic::output);

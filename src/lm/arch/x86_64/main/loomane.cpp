@@ -23,6 +23,7 @@
     {
         SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
         lm::hook::launcher();
+        // Check for ctrl+c every second.
         while(!quit.load()) lm::fabric::strand::sleep_ms(1000);
         return 0;
     }
@@ -32,7 +33,8 @@
     auto main() -> int
     {
         lm::hook::launcher();
-        while(1) lm::fabric::strand::sleep_ms(10000);
+        // Linux doesnt need all that fancy ctrl+c every second thing apparently.
+        while(1) lm::fabric::strand::sleep_ms(unsigned long {-1});
         return 0;
     }
 

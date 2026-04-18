@@ -2,25 +2,14 @@
 
 #include "lm/core/math.hpp"
 
-#include "lm/usb/common.hpp"
+#include "lm/config.hpp"
 
+#include <bitset>
 
-namespace lm::usbd::midi
+namespace lm::midi
 {
-    enum class mode {
-        in,
-        out,
-        inout,
-    };
-    auto do_configuration_descriptor(
-        usb::configuration_descriptor_builder_state_t& state,
-        std::span<usb::ep_t> eps,
-        u8 cable_count,
-        mode midi_mode,
-        bool strict_eps
-    ) -> st;
+    using backend = config_t::midi_t::backend_t::id::id_t;
 
-    // TODO: refactor me to dedicated midi.hpp somewhere else.
     enum class cin : u8 {
         note_off      = 0x08,
         note_on       = 0x09,
@@ -59,10 +48,10 @@ namespace lm::usbd::midi
         data_byte   velocity;
 
         struct constructor {
-            u8  cable;
+            u8  cable = 0;
             cin code;
-            u8  channel;
-            midi::status type;
+            u8  channel = 0;
+            status type;
             u8 note;
             u8 velocity;
             bool note_msb = 0;
@@ -76,4 +65,16 @@ namespace lm::usbd::midi
         {}
     };
     static_assert(sizeof(packet) == 4, "The midi packet must be 4 bytes.");
+
+    struct payload
+    {
+        std::bitset<backend::count> backend = 0;
+        packet pkt;
+
+        static constexpr auto note_on(packet::constructor c) -> payload
+        { c.code = cin::note_on; c.type = status::note_on; return payload(0, c); }
+
+        auto to(std::initializer_list<midi::backend> target_backends) -> payload&
+        { backend.reset() ; for(auto b : target_backends) backend.set(b); return *this; }
+    };
 }

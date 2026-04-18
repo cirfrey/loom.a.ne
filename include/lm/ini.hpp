@@ -31,6 +31,7 @@ namespace lm::ini
         bool log_ignored = true;
     };
 
+    // TODO: sure would be nice to have a printable description on error.
     struct field
     {
         [[nodiscard]] auto parse(text, parse_args = parse_args{}) -> parse_result;

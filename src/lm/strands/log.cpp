@@ -8,9 +8,8 @@
 #include "lm/core/math.hpp"
 
 #include "lm/strands/usbd.hpp"
-#include "lm/usbd/hid.hpp"
 
-#include "lm/utils/stopwatch.hpp"
+#include "lm/lib/hid.hpp"
 
 #include <tusb.h>
 
@@ -183,7 +182,7 @@ auto lm::strands::logging::consumer::consume(buf b) -> status
 
         int chunk_size = clamp(b.size - offset, 0, max_chunk_size);
         memcpy(report, (u8*)b.data + offset, chunk_size);
-        if(tud_hid_report((u8)lm::usbd::hid::hid_reportid::vendor, report, max_chunk_size)) {
+        if(tud_hid_report((u8)lm::hid::reportid::vendor, report, max_chunk_size)) {
             offset += chunk_size;
             failed_chunks = 0; // Reset failure count on success
             if(offset >= b.size) return mark_as_done();

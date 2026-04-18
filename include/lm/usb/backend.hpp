@@ -3,15 +3,10 @@
 #pragma once
 
 #include "lm/core/types.hpp"
-#include "lm/chip/info.hpp"
 
 #include "lm/config.hpp"
 
-#include "lm/usbd/audio.hpp"
-#include "lm/usbd/cdc.hpp"
-#include "lm/usbd/hid.hpp"
-#include "lm/usbd/midi.hpp"
-#include "lm/usbd/msc.hpp"
+#include "lm/usbd/descriptors.hpp"
 
 #include <cstdio>
 
@@ -68,7 +63,7 @@ constexpr auto lm::usb::backend::setup_descriptors(
     // NOTE: string_descriptor::lang is handled by the tinyusb callback.
     write_strdsc(string_descriptor::manufacturer, "%s", cfg.string_descriptors.manufacturer);
     write_strdsc(string_descriptor::product,      "%s", cfg.string_descriptors.product);
-    write_strdsc(string_descriptor::serial,       "%.*s", (int)chip::info::uuid().size, chip::info::uuid().data);
+    write_strdsc(string_descriptor::serial,       "%s", cfg.string_descriptors.serial);
     write_strdsc(string_descriptor::midi,         "%s", cfg.string_descriptors.midi);
     write_strdsc(string_descriptor::hid,          "%s", cfg.string_descriptors.hid);
     write_strdsc(string_descriptor::uac,          "%s", cfg.string_descriptors.uac);
@@ -76,7 +71,7 @@ constexpr auto lm::usb::backend::setup_descriptors(
     write_strdsc(string_descriptor::msc,          "%s", cfg.string_descriptors.msc);
     // Add some more string descriptors for each extra MIDI cable.
     for(u8 i = 0; i < config_t::midi_t::max_cables; ++i) {
-        write_strdsc(string_descriptor::midi_cable_start + i, "%s - Cable %i", cfg.string_descriptors.midi, i);
+        write_strdsc(string_descriptor::midi_cable_start + i, "%s - Cable %i", cfg.string_descriptors.midi, i + 1);
     }
 
     device_descriptor.bDeviceClass    = cfg.device_descriptor.device_class;
@@ -115,20 +110,20 @@ constexpr auto lm::usb::backend::setup_descriptors(
     // The composite classes.
 
     lens.cdc = cdc.toggle == feature::on
-        ? lm::usbd::cdc::do_configuration_descriptor(state,  cfg.endpoints, cdc.strict_eps == feature::on)
+        ? lm::usbd::descriptor::cdc(state,  cfg.endpoints, cdc.strict_eps == feature::on)
         : 0;
 
     lens.hid = hid.toggle == feature::on
-        ? lm::usbd::hid::do_configuration_descriptor(state,  cfg.endpoints, hid.pool_ms)
+        ? lm::usbd::descriptor::hid(state, cfg.endpoints, hid.pool_ms)
         : 0;
 
-    constexpr auto map_midi_mode = [](config_t::midi_t::mode_t m) -> lm::usbd::midi::mode {
-        if     (m == config_t::midi_t::in)  return lm::usbd::midi::mode::in;
-        else if(m == config_t::midi_t::out) return lm::usbd::midi::mode::out;
-        else                                return lm::usbd::midi::mode::inout;
+    constexpr auto map_midi_mode = [](config_t::midi_t::mode_t m) -> lm::usbd::descriptor::midi_mode {
+        if     (m == config_t::midi_t::in)  return lm::usbd::descriptor::midi_mode::in;
+        else if(m == config_t::midi_t::out) return lm::usbd::descriptor::midi_mode::out;
+        else                                return lm::usbd::descriptor::midi_mode::inout;
     };
     lens.midi = midi.cable_count > 0
-        ? lm::usbd::midi::do_configuration_descriptor(
+        ? lm::usbd::descriptor::midi(
             state,
             cfg.endpoints,
             midi.cable_count,
@@ -138,11 +133,11 @@ constexpr auto lm::usb::backend::setup_descriptors(
         : 0;
 
     lens.msc = msc.toggle == feature::on
-        ? lm::usbd::msc::do_configuration_descriptor(state,  cfg.endpoints, msc.strict_eps == feature::on)
+        ? lm::usbd::descriptor::msc(state,  cfg.endpoints, msc.strict_eps == feature::on)
         : 0;
 
     lens.audio = audio.microphone_channels > 0 || audio.speaker_channels > 0
-        ? lm::usbd::audio::do_configuration_descriptor(
+        ? lm::usbd::descriptor::audio(
             state,
             cfg.endpoints,
             audio.microphone_channels,

@@ -39,7 +39,7 @@ lm::strands::usbip::usbip(fabric::strand_runtime_info& info) : info{info}
         log::fmt_t({ .fmt = fmt, .timestamp = log::no_timestamp, .filename = log::no_filename }),
         veil::forward<decltype(args)>(args)...
     ); };
-    usb::debug::print_ep_table(config.usb.endpoints, printer, {"\t", 1});
+    usb::debug::print_ep_table(config.usbip.endpoints, printer, {"\t", 1});
 }
 
 auto lm::strands::usbip::on_ready() -> fabric::managed_strand_status
@@ -374,8 +374,9 @@ auto lm::strands::usbip::do_exported_state() -> desired_strand_action
 
 auto lm::strands::usbip::do_transmitting_state() -> desired_strand_action
 {
-    auto disconnect_and_listen = [&](){
-        log::warn("[usbip] Connection lost — returning to listening\n");
+    auto disconnect_and_listen = [&](bool detached = false){
+        if(!detached) log::warn("[usbip] Connection lost - returning to listening\n");
+        else          log::debug("[usbip] Detached - returning to listening\n");
         transition_state(listening);
         return desired_strand_action::loop;
     };
@@ -414,6 +415,7 @@ auto lm::strands::usbip::do_transmitting_state() -> desired_strand_action
     // Step 3: read an URB from the socket if enough bytes are available.
     if(chip::net::avail(conn_sock) >= sizeof(lm::usbip::usbip_header_basic))
     {
+        // TODO: handle OP_REQ_UNIMPORT.
         if (transmitting_read_urb()) return desired_strand_action::loop;
         else return disconnect_and_listen();
     }
@@ -554,6 +556,8 @@ auto lm::strands::usbip::transmitting_flush_inbound_events() -> bool
 auto lm::strands::usbip::transmitting_handle_setup(
     const lm::usbip::usbip_cmd_submit& cmd, u32 seqnum, u8 ep_num) -> bool
 {
+    auto& data = state_data.transmitting;
+
     const u32 xfer_len  = ntoh32(cmd.transfer_buffer_length);
     const u32 direction = ntoh32((u32)cmd.header.direction);
 
@@ -566,6 +570,7 @@ auto lm::strands::usbip::transmitting_handle_setup(
         if (!chip::net::recv_exact(conn_sock, data_stage_buffer, to_read)) return false;
 
         // Drain remaining if host sent more than our stack can handle
+        // TODO: Ignoring the data is widely regarded as a bad move (tm).
         if (xfer_len > to_read) {
             u8 drain[64];
             u32 remaining = xfer_len - to_read;
@@ -584,22 +589,34 @@ auto lm::strands::usbip::transmitting_handle_setup(
     // Determine request type (Standard = 0, Class = 1, Vendor = 2)
     const u8 type = (bmRequestType >> 5) & 0x03;
 
+    using req = usb::standard_setup_request::standard_setup_request_t;
     if (type == 0) { // Standard Request
         switch (bRequest) {
-            case 0x06: // GET_DESCRIPTOR
+            case req::get_descriptor:
                 return setup_handle_get_descriptor(cmd.setup, seqnum);
 
-            case 0x05: // SET_ADDRESS
+            case req::set_address:
                 // USBIP/Linux handles addressing, but we must ACK.
+                data.address = cmd.setup[2];
                 return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 0, nullptr, 0);
 
-            case 0x09: // SET_CONFIGURATION
+            case req::set_configuration:
                 // We only have 1 configuration, just ACK.
                 return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 0, nullptr, 0);
 
-            default:
-                log::warn("[usbip] Unhandled Standard Request: 0x%02x\n", bRequest);
+            case req::set_interface:
+                // We'll just ACK for now.
+                // TODO: This will be important for UAC2, CDC and maybe HID, revisit later.
+                return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 0, nullptr, 0);
+
+            default: {
+                auto re = renum<req>::unqualified((req)bRequest);
+                log::warn(
+                    "[usbip] Unhandled Standard Request: %.*s(0x%02x)\n",
+                    (int)re.size, re.data, bRequest
+                );
                 break;
+            }
         }
     }
     else if (type == 1) { // Class Request (HID, MIDI, CDC, etc.)
@@ -610,7 +627,7 @@ auto lm::strands::usbip::transmitting_handle_setup(
     // If we get here, it's an unhandled setup or we need to STALL.
     // Return a RET_SUBMIT with status 0 and 0 length to avoid hanging the host,
     // or return a non-zero status to simulate a STALL.
-    return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 32 /*EPIPE*/, nullptr, 0);
+    return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
 }
 
 auto lm::strands::usbip::transmitting_handle_in(
@@ -771,12 +788,12 @@ auto lm::strands::usbip::setup_handle_get_descriptor(const u8 setup[8], u32 seqn
             }
 
             // String not found: STALL
-            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 32 /*EPIPE*/, nullptr, 0);
+            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
         }
 
         default: {
             // STALL — descriptor type not supported
-            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, 32 /*EPIPE*/, nullptr, 0);
+            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
         }
     }
 }

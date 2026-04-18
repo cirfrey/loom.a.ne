@@ -91,7 +91,7 @@ template <typename Strand>
 constexpr auto lm::fabric::strand::managed() -> function_t
 {
     return [](void* param){
-        auto info = (param | smuggle<strand_runtime_info_pun>).raw;
+        auto info = param | unsmuggle<strand_runtime_info>;
 
         [&]{
             Strand strand{info};

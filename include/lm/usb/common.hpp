@@ -98,8 +98,8 @@ namespace lm::usb
         cdc,
         msc,
 
-        midi_cable_start,
-        midi_cable_1 = midi_cable_start,
+        midi_cable_1,
+        midi_cable_start = midi_cable_1, // We do it inverted (this instead of midi_cable_1 = midi_cable_start), this way we get nicer reflection.
         midi_cable_2,
         midi_cable_3,
         midi_cable_4,
@@ -115,7 +115,7 @@ namespace lm::usb
         midi_cable_14,
         midi_cable_15,
         midi_cable_16,
-        midi_cable_end = midi_cable_16,
+        midi_cable_end = midi_cable_16, // Same as midi_cable_start.
 
         count
     }; }
@@ -151,4 +151,19 @@ namespace lm::usb
                 return ret_t{ .idx = i, .ep = eps.data() + i };
         return ret_t {};
     };
+
+    // Thigies for low-level usb bitbangin' n stuff.
+    namespace standard_setup_request { enum standard_setup_request_t {
+        get_status        = 0x00, // Returns status for a device, interface, or endpoint.
+        clear_feature     = 0x01, // Clears a specific feature (e.g., halting an endpoint).
+        set_feature       = 0x03, // Enables a specific feature (e.g., remote wakeup).
+        set_address       = 0x05, // Assigns a unique address to the device during enumeration.
+        get_descriptor    = 0x06, // Requests device descriptors (Device, Configuration, String).
+        set_descriptor    = 0x07, // Updates existing descriptors.
+        get_configuration = 0x08, // Returns the current device configuration value.
+        set_configuration = 0x09, // Sets the device configuration.
+        get_interface     = 0x0a, // Returns the selected alternate setting for an interface.
+        set_interface     = 0x0b, // Allows the host to select an alternate setting for an interface.
+        synch_frame       = 0x0c, // Used for isochronous endpoints to synchronize frame patterns.
+    }; }
 }

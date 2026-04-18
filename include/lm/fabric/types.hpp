@@ -91,7 +91,6 @@ namespace lm::fabric
         u8 id;
         u16 sleep_ms;
     };
-    struct strand_runtime_info_pun { union { strand_runtime_info raw; void* dummy; }; };
     static_assert(sizeof(strand_runtime_info) <= sizeof(void*), "strand_runtime_info needs to fit in a void* to be smuggled across the backend");
 
     enum managed_strand_status

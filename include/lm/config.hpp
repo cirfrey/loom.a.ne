@@ -143,6 +143,10 @@ namespace lm
             {
                 string_descriptor manufacturer = "Cirfrey Inc.";
                 string_descriptor product      = "loom.a.ne";
+                // Usually overriden in lm::hook::arch_config(), since the ini parsing and lm::hook::config()
+                // run after that, it means you can actually override what the arch_config puts here.
+                // If for whatever reason you were so inclined...
+                string_descriptor serial       = "00:00:00:00:00:00";
                 string_descriptor midi         = "loom.a.ne MIDI";
                 string_descriptor hid          = "loom.a.ne HID";
                 string_descriptor uac          = "loom.a.ne UAC";
@@ -180,6 +184,10 @@ namespace lm
             u16 port = 3240;
             feature close_conn_after_devlist = feature::on;
 
+            // You most likely will never want to touch this.
+            // Its for the gross nasty internals of USB/IP.
+            u32 stall_status_code = 32; /*EPIPE*/
+
             char path[64]  = "/sys/bus/usb/devices/1-1";
             char busid[16] = "1-1";
 
@@ -212,10 +220,10 @@ namespace lm
         struct audio_t
         {
             struct backend_t {
-                enum class id : u8 {
+                struct id { enum id_t : u8 {
                     usb, usbip, mesh,
                     count
-                };
+                }; };
                 struct usb_t {
                     // Enable just by setting the channels.
                     u8 microphone_channels = 0;
@@ -237,11 +245,10 @@ namespace lm
         struct cdc_t {
             struct backend_t {
                 // Used for identifying the backend on events.
-                enum class id : u8{
+                struct id { enum id_t : u8{
                     usb, usbip, mesh,
                     count
-                };
-
+                }; };
                 struct usb_t {
                     feature toggle = feature::off;
                     feature strict_eps = feature::off;
@@ -258,10 +265,10 @@ namespace lm
 
         struct hid_t {
             struct backend_t {
-                enum class id : u8 {
+                struct id { enum id_t : u8 {
                     usb, usbip, mesh,
                     count
-                };
+                }; };
                 struct usb_t {
                     feature toggle = feature::off;
                     u8      pool_ms = 5;
@@ -288,10 +295,10 @@ namespace lm
             static const u8 max_cables = 16;
 
             struct backend_t {
-                enum class id : u8 {
+                struct id { enum id_t : u8 {
                     usb, usbip, mesh, serial, rtp_midi, ble_midi,
                     count
-                };
+                }; };
                 struct usb_t {
                     u8 cable_count     = 0;
                     mode_t mode        = mode_t::inout;
@@ -333,10 +340,10 @@ namespace lm
             partition_t partitions[LM_CONFIG_MSC_MAX_PARTITIONS] = {};
 
             struct backend_t {
-                enum class id : u8 {
+                struct id { enum id_t : u8 {
                     usb, usbip,
                     count
-                };
+                }; };
                 struct usb_t {
                     feature toggle     = feature::off;
                     feature strict_eps = feature::off;

@@ -48,11 +48,29 @@ auto lm::hook::arch_init() -> void
 #include "lm/arch/x86_64/endpoints.hpp"
 #include "lm/strands/usbip.hpp"
 
+#include <cstdio>
+
 auto lm::hook::arch_config() -> void
 {
-    lm::config.usb.endpoints   = arch::x86_64::endpoints;
-    lm::config.usbip.endpoints = lm::strands::usbip_backend::endpoints;
+    auto uuid = chip::info::uuid();
+
+    std::snprintf(
+        lm::config.usb.string_descriptors.serial,
+        config_t::usbcommon::string_descriptor_max_len,
+        "%.*s",
+        (int)uuid.size, uuid.data
+    );
+    std::snprintf(
+        lm::config.usbip.string_descriptors.serial,
+        config_t::usbcommon::string_descriptor_max_len,
+        "%.*s",
+        (int)uuid.size, uuid.data
+    );
+
+    lm::config.usb.endpoints    = arch::x86_64::endpoints;
+    lm::config.usb.strand.spawn = feature::off;
+    lm::config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
 
     // Hardcoded for now, until I get ini parsing up and running.
-    lm::config.hid.backend.usbip.toggle = feature::on;
+    lm::config.midi.backend.usbip.cable_count = 4;
 }

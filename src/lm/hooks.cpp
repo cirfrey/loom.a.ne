@@ -84,6 +84,8 @@ auto lm::hook::launcher() -> void
             .depends   = {config_applied},
             .should_be_running = false,
         },
+        // TODO: somehow we need to defer these from running until configuration is parsed, otherwise
+        //       lm::config.usb.strand.spawn will always be set to the default (will not respect overrides).
         info{
             .code      = fabric::strand::managed<strands::usbd>(),
             .constants = _config::strand::usbd,

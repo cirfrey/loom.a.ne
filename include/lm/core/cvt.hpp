@@ -105,7 +105,7 @@ namespace lm
 
             static_assert(
                 veil::assert_helper<sizeof(From) <= sizeof(To), From, To>,
-                "This vessel is much to small for the smuggled goods milord."
+                "This vessel (From) is much to small for the smuggled goods (To) milord."
             );
 
             union {
@@ -119,6 +119,27 @@ namespace lm
     );
     template <typename To>
     inline constexpr auto smuggle = pun<To>;
+    template <typename To>
+    inline constexpr auto unpun = cvt::make_custom<cvt::mode_fncall, cvt::mode_pipe>(
+        [](auto&& from) constexpr -> To {
+            using From = veil::remove_cvref_t<decltype(from)>;
+
+            static_assert(
+                veil::assert_helper<sizeof(From) >= sizeof(To), From, To>,
+                "The smuggled goods (From) are much too large for this vessel (To) milord."
+            );
+
+            union {
+                From in;
+                To out;
+            } u = {};
+
+            u.in = veil::forward<decltype(from)>(from);// Designated initializer for clarity
+            return u.out;
+        }
+    );
+    template <typename To>
+    inline constexpr auto unsmuggle = unpun<To>;
 
     // Mutate something in place. Returns a mutator that you can use in pipelines
     // or just call directly on the thing you desire to mutate.
