@@ -77,6 +77,7 @@ namespace lm::log
     // Intead of calling lm::log::log directly with annoying syntax
 
     LM_LOG_DECLARE_LEVEL_SHORTHAND(debug)
+    LM_LOG_DECLARE_LEVEL_SHORTHAND(test)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(info)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(regular)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(warn)
@@ -84,7 +85,7 @@ namespace lm::log
     LM_LOG_DECLARE_LEVEL_SHORTHAND(panic)
 
     // Pushes the log to the ringbuffer so the logger strand can take care of it.
-    auto dispatch(text t) -> bool;
+    auto dispatch(text t, level loglevel) -> bool;
     // Just pushes it to UART with complete disregard for ethics and morals.
     auto dispatch_immediate(chip::uart_port, buf, st timeout_micros, bool yield) -> void;
     // Tries to push to UART with complete regard for ethics and morals (gives up if busy).
@@ -94,17 +95,13 @@ namespace lm::log
 
 /* --- log impls --- */
 
-#include "lm/chip/system.hpp"
 template<lm::u16 BufSize, typename... Args>
 constexpr auto lm::log::log(fmt_t f, Args&&... args) -> bool
 {
-    auto dispatch = f.args.loglevel != level::panic
-        ? lm::log::dispatch
-        : [](text t){ lm::chip::system::panic(t, 1); return true; };
     if(config.logging.level_enabled[f.args.loglevel] == feature::off) return false;
 
     char buf[BufSize];
     auto in  = mut_text{.data = buf, .size = sizeof(buf)};
     auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    return dispatch(text{.data = out.data, .size = out.size});
+    return dispatch(text{.data = out.data, .size = out.size}, f.args.loglevel);
 }

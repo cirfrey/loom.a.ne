@@ -152,6 +152,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         request_register_strand::extdata extdata;
         strandman_q.receive(&extdata, 0);
         if(extdata.strand == nullptr) {
+            fabric::strand::registry::unreserve(newstrand_id);
             consume(e.extension_count() - 1);
             fabric::bus::publish(fabric::event{
                 .topic     = fabric::topic::framework,
@@ -197,6 +198,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         }
 
         if(too_many_depends) {
+            fabric::strand::registry::unreserve(newstrand_id);
             fabric::bus::publish(fabric::event{
                 .topic     = fabric::topic::framework,
                 .type      = response_register_strand::type,
@@ -233,11 +235,11 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
             target_strand = &strand;
             break;
         }
-        if(!target_strand) return;
+        if(!target_strand) continue;
 
         auto new_status = e.get_payload<fabric::topic::framework_t::strand_status>().status;
         // Prevent stale messages.
-        if(target_strand->status_timestamp < e.timestamp && new_status == target_strand->status) continue;
+        if(e.timestamp < target_strand->status_timestamp || new_status == target_strand->status) continue;
 
         auto prev = renum<strand_t::status_t>::unqualified(target_strand->status);
         auto curr = renum<strand_t::status_t>::unqualified(new_status);
@@ -253,8 +255,8 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
 }
 
 auto lm::strands::strandman::dependencies_satisfied(
-    std::span<strand_t>& strands,
-    strand_t strand,
+    std::span<strand_t> strands,
+    strand_t const& strand,
     strand_t::status_t target_status
 ) -> bool
 {
@@ -312,6 +314,12 @@ auto lm::strands::strandman::manage_strands(st max_strands, std::span<strand_t>&
                 .code = strand.code,
             });
             if(h != fabric::strand::bad_handle) {
+                using status = fabric::topic::framework_t::strand_status;
+                fabric::bus::publish(fabric::event{
+                    .topic = fabric::topic::framework,
+                    .type  = status::type,
+                    .strand_id = strand.id,
+                }.with_payload(status{ .status = status::created }));
                 strand.status           = status::created;
                 strand.status_timestamp = chip::time::uptime();
                 strand.handle           = h;
@@ -346,6 +354,12 @@ auto lm::strands::strandman::manage_strands(st max_strands, std::span<strand_t>&
             // That's why we try to kill it first and then notify that it should run off (and try
             // to kill it on the next iteration if it has run off).
             if(fabric::strand::reap(strand.handle) == fabric::strand::reap_status::success) {
+                using status = fabric::topic::framework_t::strand_status;
+                fabric::bus::publish(fabric::event{
+                    .topic = fabric::topic::framework,
+                    .type  = status::type,
+                    .strand_id = strand.id,
+                }.with_payload(status{ .status = status::reaped }));
                 strand.status           = status::reaped;
                 strand.status_timestamp = chip::time::uptime();
                 strand.handle           = nullptr;

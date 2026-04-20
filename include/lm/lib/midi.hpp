@@ -51,7 +51,7 @@ namespace lm::midi
             u8  cable = 0;
             cin code;
             u8  channel = 0;
-            status type;
+            midi::status type;
             u8 note;
             u8 velocity;
             bool note_msb = 0;

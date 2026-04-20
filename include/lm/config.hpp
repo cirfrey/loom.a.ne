@@ -91,6 +91,7 @@ namespace lm
             // Log level customization.
             enum level {
                 debug,
+                test, // Used for unit tests, assertions and stuff like that.
                 info,
                 regular,
                 warn,
@@ -105,12 +106,13 @@ namespace lm
 
             feature level_enabled[level_count] = {
                 [debug]   = feature::on,
+                [test]    = feature::on,
                 [info]    = feature::on,
                 [regular] = feature::on,
                 [warn]    = feature::on,
                 [error]   = feature::on,
-                [panic]   = feature::on, // NOTE: If you disable panic, then the program won't call chip::system::panic
-                                         //       when you do log::panic(). Make sure to call it yourself then.
+                [panic]   = feature::on, // NOTE: If you disable panic OR logging in general, then the program won't call
+                                         // chip::system::panic when you do log::panic(). Make sure to call it yourself then.
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
                 #endif
@@ -119,6 +121,7 @@ namespace lm
             // Overridable log color.
             text level_ansi[level_count] = {
                 [debug]   = ansi::code<ansi::fg::gray>,
+                [test]    = ansi::code<ansi::fg::blue>,
                 [info]    = ansi::code<ansi::fg::white>,
                 [regular] = ansi::code<ansi::style::reset>,
                 [warn]    = ansi::code<ansi::fg::yellow>,
@@ -131,6 +134,7 @@ namespace lm
 
             text level_prefix[level_count] = {
                 [debug]   = "[d]"_text,
+                [test]    = "[t]"_text,
                 [info]    = "[i]"_text,
                 [regular] = "[r]"_text,
                 [warn]    = "[W]"_text,
@@ -144,7 +148,7 @@ namespace lm
             // Also able disable logging in general.
             feature toggle = feature::on;
             // Or override with your own function.
-            using dispatcher_t = bool(*)(text);
+            using dispatcher_t = bool(*)(text, level);
             dispatcher_t custom_dispatcher = nullptr;
         } logging;
 
@@ -156,14 +160,21 @@ namespace lm
             static constexpr u16 max_subscribers = LM_CONFIG_BUS_MAX_SUBSCRIBERS;
         } bus;
 
+        struct test_t
+        {
+            feature unit = feature::on;
+            enum after_test
+            {
+                proceed,
+                proceed_if_ok,
+                halt,
+            };
+            after_test after_unit = proceed;
+        } test;
+
         // These are only valid if you are using the launcher.
         struct launcher_t
         {
-            struct test_t
-            {
-                feature unit = feature::on;
-            } test;
-
             #ifndef LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS
             #define LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS 16
             #endif

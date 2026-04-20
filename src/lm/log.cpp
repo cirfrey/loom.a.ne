@@ -1,5 +1,6 @@
 #include "lm/log.hpp"
 
+#include "lm/chip/system.hpp"
 #include "lm/chip/time.hpp"
 #include "lm/chip/uart.hpp"
 #include "lm/board.hpp"
@@ -79,12 +80,15 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
     return out;
 }
 
-auto lm::log::dispatch(text t) -> bool
+// TODO: configurable dispatch streams per loglevel?
+auto lm::log::dispatch(text t, level loglevel) -> bool
 {
     if(config.logging.custom_dispatcher != nullptr)
-        return config.logging.custom_dispatcher(t);
+        return config.logging.custom_dispatcher(t, loglevel);
     if(config.logging.toggle == feature::off)
         return false;
+    if(loglevel == level::panic)
+        chip::system::panic(t, 1);
     return lm::strands::log::dispatch(t);
 }
 

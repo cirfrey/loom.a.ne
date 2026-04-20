@@ -41,8 +41,8 @@ namespace lm::strands
         // For a given strand and a given status, checks if they are free
         // to proceed to that status.
         auto dependencies_satisfied(
-            std::span<strand_t>& strands,
-            strand_t strand,
+            std::span<strand_t> strands,
+            strand_t const& strand,
             strand_t::status_t target_status
         ) -> bool;
 

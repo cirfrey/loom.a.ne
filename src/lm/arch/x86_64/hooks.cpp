@@ -71,4 +71,6 @@ auto lm::hook::arch_config() -> void
 
     // Hardcoded for now, until I get ini parsing up and running.
     lm::config.midi.backend.usbip.cable_count = 4;
+
+    // TODO: parse the damn ini.
 }

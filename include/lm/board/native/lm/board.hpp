@@ -16,13 +16,9 @@ namespace lm::board
     {
         uart_zero  = 0,
         uart_trace = uart_zero,
+        uart_unit_test = uart_trace,
 
         uart_port_count,
     };
 
-
-    enum rhport : u8
-    {
-        rhport_usbip = 0,
-    };
 }

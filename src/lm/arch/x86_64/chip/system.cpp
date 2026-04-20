@@ -8,14 +8,19 @@ auto lm::chip::system::init() -> void
     // No-op for native OS
 }
 
-auto lm::chip::system::reboot() -> void
+auto lm::chip::system::reboot(st code) -> void
 {
-    std::exit(0);
+    halt(code);
 }
 
 auto lm::chip::system::panic(text msg, st code) -> void
 {
     std::printf("%.*s", (int)msg.size, msg.data);
+    halt(code);
+}
+
+auto lm::chip::system::halt(st code) -> void
+{
     std::exit(code);
 }
 
