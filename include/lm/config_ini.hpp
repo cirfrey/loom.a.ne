@@ -54,7 +54,6 @@ namespace lm::config_ini
         feat("logging.toggle", config.logging.toggle),
 
         /// --- Usb ---
-        feat("usb.strand.spawn",    config.usb.strand.spawn),
         numb("usb.device.class",    config.usb.device_descriptor.device_class),
         numb("usb.device.subclass", config.usb.device_descriptor.device_subclass),
         numb("usb.device.protocol", config.usb.device_descriptor.device_protocol),
@@ -71,7 +70,6 @@ namespace lm::config_ini
         //strg("usb.string.msc",          config.usb.string_descriptors.msc,          {.len = config_t::usbcommon::string_descriptor_max_len}),
 
         /// --- Usbip ---
-        feat("usbip.strand.spawn", config.usbip.strand.spawn),
         numb("usbip.port", config.usbip.port),
         feat("usbip.close_conn_after_devlist", config.usbip.close_conn_after_devlist),
         numb("usbip.stall_status_code", config.usbip.stall_status_code),

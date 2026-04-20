@@ -133,6 +133,8 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
 
 auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
 {
+  // Disabled for now.
+  #if 0
     tud_strand_handle = fabric::strand::create(_config::strand::tud, {}, [](void* p){
         auto self = (usbd*)p;
         tusb_init();
@@ -142,7 +144,7 @@ auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
         #endif
         while(1) tud_task();
     }, this);
-
+  #endif
     return fabric::managed_strand_status::ok;
 }
 
@@ -156,7 +158,9 @@ auto lm::strands::usbd::on_wake() -> fabric::managed_strand_status
 
 lm::strands::usbd::~usbd() {
     if(tud_strand_handle) {
+      #if 0
         fabric::strand::reap(tud_strand_handle);
+      #endif
         tusb_deinit(0);
     }
 }

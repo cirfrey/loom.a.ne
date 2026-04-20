@@ -3,7 +3,7 @@
 #include "lm/fabric.hpp"
 #include "lm/config.hpp"
 
-#include "lm/utils/stopwatch.hpp"
+#include "lm/core/primitives/stopwatch.hpp"
 
 #include <array>
 

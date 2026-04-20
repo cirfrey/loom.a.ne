@@ -3,7 +3,7 @@
 #include "lm/chip/time.hpp"
 
 #include "lm/fabric/primitives.hpp"
-#include "lm/utils/guarded.hpp"
+#include "lm/core/primitives/guarded.hpp"
 #include "lm/config.hpp"
 
 #include <array>
@@ -16,6 +16,9 @@ namespace lm::fabric::bus
         queue_t* queue                                   = nullptr;
         u8 topic                                         = 0;
         std::bitset<(decltype(event::type))-1> type_mask = 0;
+
+        userfilter_t userfilter;
+        void* userfilter_userdata;
 
         auto set_types(std::initializer_list<u8> ids) -> void
         {
@@ -46,7 +49,13 @@ auto lm::fabric::bus::subscribe_token::operator=(subscribe_token&& o) -> subscri
 }
 lm::fabric::bus::subscribe_token::~subscribe_token() { if(impl) unsubscribe(impl); };
 
-auto lm::fabric::bus::subscribe(queue_t& queue, st topic, std::initializer_list<u8> types) -> subscribe_token
+auto lm::fabric::bus::subscribe(
+    queue_t& queue,
+    u8 topic,
+    std::initializer_list<u8> types,
+    userfilter_t userfilter,
+    void* userfilter_userdata
+) -> subscribe_token
 {
     void* subscriber = nullptr;
     bus_subs.write([&](auto& bus_subs){
@@ -56,6 +65,8 @@ auto lm::fabric::bus::subscribe(queue_t& queue, st topic, std::initializer_list<
             sub.queue = &queue;
             sub.topic = (u8)topic;
             sub.set_types(types);
+            sub.userfilter = userfilter;
+            sub.userfilter_userdata = userfilter_userdata;
             subscriber = &sub;
             return;
         }
@@ -103,7 +114,7 @@ namespace lm::fabric::bus
             }
             else if(not_interested_in_type)
             {
-                ++res->filtered;
+                ++res->uninterested;
                 continue;
             }
             else if(bad_queue)
@@ -119,9 +130,17 @@ namespace lm::fabric::bus
                 continue;
             }
 
-            // All good. Go ahead and publish.
-            ++res->published;
-            for(auto& e : events) { sub.queue->send(&e, 0); }
+            // TODO: test against the user-defined filter.
+            if(sub.userfilter == nullptr || sub.userfilter(sub.userfilter_userdata, events) == userfilter_return::pass)
+            {
+                // All good. Go ahead and publish.
+                ++res->published;
+                for(auto& e : events) { sub.queue->send(&e, 0); }
+            }
+            else
+            {
+                ++res->filtered;
+            }
         }
     }
 }

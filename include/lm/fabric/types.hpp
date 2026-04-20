@@ -27,7 +27,7 @@ namespace lm::fabric
             // Payload (what is actually being sent).
             alignas(8) u8 payload[8] = {0};
 
-            constexpr auto is_local()        const -> bool { return loom_id == 1; }
+            constexpr auto is_local()        const -> bool { return loom_id == 0; }
             constexpr auto extension_count() const -> st   { return (size / sizeof(v0)) - 1; }
 
             template <typename As>
@@ -52,46 +52,203 @@ namespace lm::fabric
     }
     using event = event_versions::v0;
 
+    namespace framework_topic_versions
+    {
+        namespace v0 {
+            namespace types { enum types : u8
+            {
+                strand_status,
+                strand_loop_timing,
+                strand_signal,
+
+                request_manager_announce,
+                response_manager_announce,
+
+                request_register_strand, // Has extensions, refer to the payload type.
+                response_register_strand,
+
+                request_strand_running,
+                response_strand_running,
+            }; }
+
+            struct strand_status
+            {
+                static constexpr auto type = types::strand_status;
+                enum status_t : u8 { not_created, created, ready, running, stopped, reaped } status;
+            }; static_assert(sizeof(strand_status) <= sizeof(fabric::event::payload));
+
+            struct strand_loop_timing
+            {
+                static constexpr auto type = types::strand_loop_timing;
+                u64 time; // In microseconds.
+            }; static_assert(sizeof(strand_loop_timing) <= sizeof(fabric::event::payload));
+
+            struct strand_signal
+            {
+                static constexpr auto type = types::strand_signal;
+                u8 target_strand;
+                enum signal_t { start, stop, die } signal;
+            }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
+
+            struct request_manager_announce
+            {
+                static constexpr auto type = types::request_manager_announce;
+                u8 seqnum;
+            }; static_assert(sizeof(request_manager_announce) <= sizeof(fabric::event::payload));
+
+            struct response_manager_announce
+            {
+                static constexpr auto type = types::response_manager_announce;
+                u8 seqnum;
+                u16 safe_timeout; // What's a safe timeout for this manager to ensure it gets any events we throw at it.
+                u16 available_slots;
+            }; static_assert(sizeof(response_manager_announce) <= sizeof(fabric::event::payload));
+
+            // A register_strand_event is:
+            // - 1 header with general data.
+            // - 1 extension code and some depends (extdata).
+            // - 1 extension with the name (extname).
+            // - N extensions with the depends, where N >= 0 (extdepends).
+            struct request_register_strand
+            {
+                static constexpr auto type = types::request_register_strand;
+
+                static constexpr auto min_extension_count = 2;
+
+                using name_t   = char[sizeof(fabric::event)];
+                using strand_t = void(*)(void*);
+
+                u8  seqnum = 0;
+                u8  manager_id;
+                u8  id = 0; // Only used if autoassign_id is false.
+                bool autoassign_id = true;
+                u32 timeout_micros = 10000; // If the manager has taken longer than this to register it, the attempt is dropped.
+
+                struct depends_t {
+                    u32 other = 0; // If 0, this depend is ignored. The manager will use this to match against either ID or fnv1a_32(name).
+                    strand_status::status_t my_status;
+                    strand_status::status_t other_status;
+                };
+                static constexpr auto depends_per_ext = sizeof(fabric::event) / sizeof(depends_t);
+
+                static constexpr auto no_affinity = (u8)-1;
+                // TODO: move me to config_t.
+                static constexpr auto default_priority = 5;
+                struct extdata {
+                    u16 stack_size = 128;
+                    u16 sleep_ms = 0;
+                    bool request_running = false;
+                    strand_t strand;
+                    u8 priority      = default_priority;
+                    u8 core_affinity = no_affinity;
+                }; static_assert(sizeof(extdata) <= sizeof(fabric::event));
+
+                struct extname {
+                    name_t name;
+                }; static_assert(sizeof(extname) <= sizeof(fabric::event));
+
+                struct extdepends
+                {
+                    depends_t depends[depends_per_ext] = {};
+                }; static_assert(sizeof(extdepends) <= sizeof(fabric::event));
+
+            }; static_assert(sizeof(request_register_strand) <= sizeof(fabric::event::payload));
+
+            // When you request_register_strand, the manager will respond using
+            // this with the status and the same seqnum you passed.
+            struct response_register_strand
+            {
+                static constexpr auto type = types::response_register_strand;
+
+                enum result_t : u8
+                {
+                    ok,
+                    request_malformed,
+                    id_in_use,
+                    name_in_use,
+                    manager_cant_handle_more_strands,
+                    too_many_depends,
+                };
+
+                u8 requester_id;
+                u8 seqnum;
+
+                result_t result;
+                // Only valid if result = ok.
+                u8 id;
+            }; static_assert(sizeof(response_register_strand) <= sizeof(fabric::event::payload));
+
+            struct request_strand_running
+            {
+                static constexpr auto type = types::request_strand_running;
+
+                u8 seqnum;
+
+                u8 strand_id;
+                bool running_state = false;
+            }; static_assert(sizeof(request_strand_running) <= sizeof(fabric::event::payload));
+
+            struct response_strand_running
+            {
+                static constexpr auto type = types::response_strand_running;
+
+                enum result_t : u8
+                {
+                    ok,
+                    id_doesnt_exist,
+                };
+
+                u8 requester_id;
+                u8 seqnum;
+
+                result_t result;
+                // Only valid if result = ok.
+                bool running_state = false;
+            }; static_assert(sizeof(response_strand_running) <= sizeof(fabric::event::payload));
+        }
+    }
+
     namespace topic_versions
     {
         // The ids from [0, reserved_topic_max] are reserved for loomane, your application can use any id from [free_topic_min, free_topic_max].
         // The event types themselves and payload they expect are defined within each module (USBD events are probably in usbd.hpp, etc...).
         // In event::v0 each topic can have up to 256 different event types per topic, so you have lots of space to make as many different events as
         // you would ever realistically need.
-        enum v0 : u8 {
-            any = 0, // Special topic signaling that "I want to listen to every topic".
-                     // Used by busmon or whoever wants to spy on the bus.
-            /// TODO: Collapse as many of these topics together as we can and use the event type filter of the bus.
-            ///       This makes it so we can give the users more playroom by setting a lower free_topic_min.
-            strand,
-            input, // Input events, like a button or some data from another loom. As in, something inputted INTO this loom.
-            output, // Output events, like writing to uart or somewhere else. As in, output something OUT of this loom;
-            busmon_teach, // Use this topic to "teach" busmon how to print messages of arbitrary topics.
-            reserved_topic_max = busmon_teach,
+        namespace v0 {
+            enum v0_t : u8 {
+                any = 0, // Special topic signaling that "I want to listen to every topic".
+                // Used by busmon or whoever wants to spy on the bus.
+                framework, // Internals for loom.a.ne, lots of stuff regarding managed events and stuff like that.
+                input, // Input events, like a button or some data from another loom. As in, something inputted INTO this loom.
+                output, // Output events, like writing to uart or somewhere else. As in, output something OUT of this loom;
+                busmon_teach, // Use this topic to "teach" busmon how to print messages of arbitrary topics.
+                reserved_topic_max = busmon_teach,
 
-            free_topic_min = 16,
-            free_topic_max = 255,
-        };
+                free_topic_min = reserved_topic_max,
+                free_topic_max = 255,
+            };
+
+            namespace framework_t = framework_topic_versions::v0;
+        }
     }
-    using topic = topic_versions::v0;
+    namespace topic = topic_versions::v0;
 
-    struct strand_constants
-    {
-        char const* name;
-        st priority;
-        st stack_size;
-        st core_affinity; // What core it should run at.
 
-        // The strand can run at any core.
-        static constexpr auto no_affinity = (st)-1;
-    };
-
+    // Deltas and timestamps are in micros.
+    // requested_sleep_ms is in millis.
     struct strand_runtime_info
     {
-        u8 id;
-        u16 sleep_ms;
+        u64 created_timestamp = 0;
+        u64 running_timestamp = 0;
+
+        u8 id = 0;
+        u16 requested_sleep_ms = 0;
+
+        u64 actual_sleep_delta = 0;
+
+        u64 last_before_sleep_delta = 0;
+        u64 last_on_wake_delta = 0;
     };
-    static_assert(sizeof(strand_runtime_info) <= sizeof(void*), "strand_runtime_info needs to fit in a void* to be smuggled across the backend");
 
     enum managed_strand_status
     {

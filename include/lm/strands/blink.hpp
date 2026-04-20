@@ -2,7 +2,7 @@
 
 #include "lm/core/types.hpp"
 #include "lm/fabric.hpp"
-#include "lm/utils/stopwatch.hpp"
+#include "lm/core/primitives/stopwatch.hpp"
 
 #include <bitset>
 

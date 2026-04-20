@@ -29,12 +29,18 @@ namespace lm
     // - Dynamic fields (runtime stuff) customizable by regular assignment.
     struct config_t
     {
+        struct network_t
+        {
+            char ssid[64];
+            char password[64];
+        } network;
+
         struct ini_t
         {
             #ifndef LM_CONFIG_INI_MAX_FIELDS
             // Controls how many fields it will allocate for config_ini.hpp.
             // This way you can have more at a later time if you extend config_t.
-            #define LM_CONFIG_INI_MAX_FIELDS 64
+            #define LM_CONFIG_INI_MAX_FIELDS 128
             #endif
             static constexpr u16 max_fields = LM_CONFIG_INI_MAX_FIELDS;
         } ini;
@@ -115,10 +121,126 @@ namespace lm
         struct bus_t
         {
             #ifndef LM_CONFIG_BUS_MAX_SUBSCRIBERS
-            #define LM_CONFIG_BUS_MAX_SUBSCRIBERS 16
+            #define LM_CONFIG_BUS_MAX_SUBSCRIBERS 32
             #endif
             static constexpr u16 max_subscribers = LM_CONFIG_BUS_MAX_SUBSCRIBERS;
         } bus;
+
+        // These are only valid if you are using the launcher.
+        struct launcher_t
+        {
+            struct test_t
+            {
+                feature unit = feature::on;
+            } test;
+
+            #ifndef LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS
+            #define LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS 16
+            #endif
+            static constexpr u16 strandman_max_strands = LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS;
+
+            struct id { enum id_t : u8 {
+                strandman,
+                log,
+                apply_config,
+                healthmon,
+                blink,
+                busmon,
+                usbd,
+                usbip,
+
+                reserved_max = usbip,
+            }; };
+
+            struct info {
+                char name[32];
+                u8 id;
+                st stack_size;
+                feature set_running;
+
+                [[deprecated("No longer used, removeme!")]] st priority;
+                [[deprecated("No longer used, will this be necessary?")]] st core_affinity;
+
+                u16 sleep_ms = 0;
+            };
+
+            info strandman = info{
+                .name        = "lm::strand::strandman",
+                .id          = id::strandman,
+                .stack_size  = 26 * 128,
+                .set_running = feature::on,
+            };
+
+            info log = info{
+                .name        = "lm::strand::log",
+                .id          = id::log,
+                .stack_size  = 24 * 128,
+                .set_running = feature::on,
+            };
+
+            info apply_config = info{
+                .name        = "lm::strand::apply_config",
+                .id          = id::apply_config,
+                .stack_size  = 64 * 128,
+                .set_running = feature::on,
+            };
+
+            info healthmon = info{
+                .name        = "lm::strand::healthmon",
+                .id          = id::healthmon,
+                .stack_size  = 22 * 128,
+                .set_running = feature::on,
+            };
+
+            info blink = info{
+                .name        = "lm::strand::blink",
+                .id          = id::blink,
+                .stack_size  = 11 * 128,
+                .set_running = feature::on,
+            };
+
+            info busmon = info{
+                .name        = "lm::strand::busmon",
+                .id          = id::busmon,
+                .stack_size  = 18 * 128,
+                .set_running = feature::on,
+            };
+
+            info usbd = info{
+                .name        = "lm::strand::usbd",
+                .id          = id::usbd,
+                .stack_size  = 64 * 128,
+                .set_running = feature::on,
+            };
+
+            // Internal to usbd, not managed.
+            info tud = info{
+                .name        = "lm::strand::tud",
+                .id          = id::usbd,
+                .stack_size  = 64 * 128,
+                .set_running = feature::on,
+            };
+
+            info usbip = info{
+                .name        = "lm::strand::usbip",
+                .id          = id::usbip,
+                .stack_size  = 64 * 128,
+                .set_running = feature::on,
+            };
+
+        } launcher;
+
+        struct strandman_t
+        {
+            #ifndef LM_CONFIG_STRANDMAN_MAX_DEPENDS
+            #define LM_CONFIG_STRANDMAN_MAX_DEPENDS 4
+            #endif
+            static constexpr u8 max_depends = LM_CONFIG_STRANDMAN_MAX_DEPENDS;
+
+            u8 status_queue_size    = 16;
+            u8 strandman_queue_size = 64;
+        } strandman;
+
 
         // Common between usb_t and usbip_t.
         struct usbcommon
@@ -157,10 +279,6 @@ namespace lm
 
         struct usb_t
         {
-            struct strand_t {
-                feature spawn = feature::on;
-            } strand;
-
             // Generally set in lm::hook::arch_config.
             std::span<usb::ep_t> endpoints;
 
@@ -177,10 +295,6 @@ namespace lm
 
         struct usbip_t
         {
-            struct strand_t {
-                feature spawn = feature::on;
-            } strand;
-
             u16 port = 3240;
             feature close_conn_after_devlist = feature::on;
 
@@ -356,104 +470,8 @@ namespace lm
         } msc;
     };
 
+    // TODO: thread-safe, acessible by config().
     extern config_t config;
-}
-
-// TODO: refactor me!
-namespace lm::_config::strand
-{
-    constexpr auto apply_config = fabric::strand_constants{
-        .name = "lm::apply_config",
-        .priority = 2,
-        .stack_size = 64 * 128,
-        .core_affinity = 1,
-    };
-
-    // Most timing-critical strand.
-    // Must service 1ms SOF interrupts, If this lags, USB disconnects.
-    constexpr auto usbd = fabric::strand_constants{
-        .name = "lm::usbd",
-        .priority = 2,
-        .stack_size = 64 * 128,
-        .core_affinity = 1,
-    };
-
-    constexpr auto usbip = fabric::strand_constants{
-        .name = "lm::usbip",
-        .priority = 5,
-        .stack_size = 64 * 128,
-        .core_affinity = 1,
-    };
-
-    constexpr auto tud = fabric::strand_constants{
-        .name = "tinyusb(tud)",
-        .priority = 6,
-        .stack_size = 64 * 128,
-        .core_affinity = 1,
-    };
-
-    // ESPNOW / Audio Pump.
-    constexpr auto radio = fabric::strand_constants{
-        .name = "lm::radio",
-        .priority = 5,
-        .stack_size = 24 * 128,
-        .core_affinity = 0,
-    };
-
-    constexpr auto strandman = fabric::strand_constants{
-        .name = "lm::strandman",
-        .priority = 4,
-        .stack_size = 26 * 128,
-        .core_affinity = 1,
-    };
-
-    // Captive portal, MIDI mapping, debouncing, etc.
-    constexpr auto app = fabric::strand_constants{
-        .name = "lm::app",
-        .priority = 3,
-        .stack_size = 32 * 128,
-        .core_affinity = 1,
-    };
-
-    // The strand that handles flushing the log buffers to their
-    // respective sinks (CDC, HID Vendor, ESPNOW).
-    constexpr auto logging = fabric::strand_constants{
-        .name = "lm::logging",
-        .priority = 2,
-        .stack_size = 24 * 128,
-        .core_affinity = 1,
-    };
-
-    // General health monitor (RAM, Memory usage, Core usage, etc).
-    constexpr auto healthmon = fabric::strand_constants{
-        .name = "lm::healthmon",
-        .priority = 1,
-        .stack_size = 22 * 128,
-        .core_affinity = 1,
-    };
-
-    // Monitors and prints messages posted on the bus.
-    constexpr auto busmon = fabric::strand_constants{
-        .name = "lm::busmon",
-        .priority = 1,
-        .stack_size = 18 * 128,
-        .core_affinity = 1,
-    };
-
-    constexpr auto blink = fabric::strand_constants{
-        .name = "lm::blink",
-        .priority = 1,
-        .stack_size = 11 * 128,
-        .core_affinity = 1,
-    };
-
-    // Just so we have something to put in the array below.
-    constexpr auto dummy = fabric::strand_constants{
-        .name = "lm::dummy",
-        .priority = 0,
-        .stack_size = 0,
-        .core_affinity = fabric::strand_constants::no_affinity,
-    };
 }
 
 // TODO: refactor me!

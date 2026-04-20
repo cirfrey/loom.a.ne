@@ -5,50 +5,73 @@
 
 #include "lm/core/cvt.hpp"
 
-auto lm::fabric::strand::wait_for_start(queue_t& q, st strand_id) -> void
+auto lm::fabric::strand::wait_for_running(queue_t& q, u8 strand_id) -> void
 {
+    using status = topic::framework_t::strand_status;
+    using signal = topic::framework_t::strand_signal;
+
     auto handle = get_handle();
-    bool ready_to_start = false;
-    while(!ready_to_start) {
+
+    while(true) {
         bus::publish(fabric::event{
-            .topic     = topic::strand,
-            .type      = event::ready,
+            .topic     = topic::framework,
+            .type      = status::type,
             .strand_id = strand_id | toe,
-        }.with_payload<status_event>({ .handle = handle }));
+        }.with_payload<status>({ .status = status::ready }));
 
         for(auto const& e : q.consume<fabric::event>()) {
-            if(e.type == event::signal_start && e.get_payload<signal_event>().strand_id == strand_id) {
-                ready_to_start = true;
-                break;
-            }
+            if(e.type != signal::type) continue;
+
+            auto data = e.get_payload<signal>();
+            if(data.target_strand == strand_id && data.signal == signal::start) return;
         }
-        if(!ready_to_start) sleep_ms(10);
+
+        sleep_ms(10);
     }
 }
 
-
-auto lm::fabric::strand::should_stop(queue_t& q, st strand_id) -> bool
+auto lm::fabric::strand::should_stop(queue_t& q, u8 strand_id) -> bool
 {
+    using status = topic::framework_t::strand_status;
+    using signal = topic::framework_t::strand_signal;
+
     for(auto const& e : q.consume<fabric::event>())
-        if(e.type == event::signal_stop && e.get_payload<signal_event>().strand_id == strand_id)
-            return true;
+    {
+        if(e.type != signal::type) continue;
+
+        auto data = e.get_payload<signal>();
+        if(data.target_strand == strand_id && data.signal == signal::stop) return true;
+    }
 
     bus::publish(fabric::event{
-        .topic     = topic::strand,
-        .type      = event::running,
+        .topic     = topic::framework,
+        .type      = status::type,
         .strand_id = strand_id | toe,
-    }.with_payload<status_event>({ .handle = get_handle() }));
+    }.with_payload<status>({ .status = status::running }));
     return false;
 }
 
-auto lm::fabric::strand::wait_for_shutdown(st strand_id) -> void
+auto lm::fabric::strand::wait_for_shutdown(queue_t& q, u8 strand_id) -> void
 {
-    while(1) {
+    using status = topic::framework_t::strand_status;
+    using signal = topic::framework_t::strand_signal;
+
+    while(1)
+    {
+        for(auto const& e : q.consume<fabric::event>())
+        {
+            if(e.type != signal::type) continue;
+
+            auto data = e.get_payload<signal>();
+            if(data.target_strand == strand_id && data.signal == signal::die) return;
+        }
+
         bus::publish(fabric::event{
-            .topic     = topic::strand,
-            .type      = event::waiting_for_reap,
+            .topic     = topic::framework,
+            .type      = status::type,
             .strand_id = strand_id | toe,
-        }.with_payload<status_event>({ .handle = get_handle() }));
+        }.with_payload<status>({ .status = status::stopped }));
+
         sleep_ms(1000);
     }
 }

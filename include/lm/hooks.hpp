@@ -8,7 +8,7 @@
 namespace lm::hook
 {
     // The standard loom.a.ne launcher.
-    // Do NOT assume this function is [[noreturn]], it *does* return.
+    // Do NOT assume this function is [[noreturn]], it *does* return (depends on your main() really).
     auto launcher() -> void;
     // You can override it by setting this.
     [[gnu::weak]] auto launcher_override() -> void;
@@ -16,6 +16,16 @@ namespace lm::hook
     auto arch_init() -> void;
     [[gnu::weak]] auto init() -> void;
 
+    namespace test
+    {
+        // When compiled with unit tests, this is linked. Only runs if compiled AND
+        // config.test.unit == feature::on. You could override this if you want but you
+        // really should just integrate your tests into the test runner.
+        [[gnu::weak]] auto unit() -> void;
+    }
+
     auto arch_config() -> void;
     [[gnu::weak]] auto config() -> void;
+
+    [[gnu::weak]] auto main() -> void;
 }

@@ -1,6 +1,5 @@
 #include "lm/fabric/strand.hpp"
 #include "lm/fabric/types.hpp"
-#include "lm/fabric/bus.hpp"
 #include "lm/log.hpp"
 #include "lm/core/cvt.hpp"
 #include "lm/port.hpp"
@@ -26,32 +25,26 @@ struct native_strand {
 thread_local strand::handle_t s_current_strand_handle = nullptr;
 
 auto strand::create(
-    strand_constants const& cfg,
-    strand_runtime_info const& info,
-    function_t strand_func,
-    void* strandarg
+    create_strand_args const& args,
+    void* raw_params
 ) -> handle_t
 {
     // Core affinity and priority are ignored natively — the OS scheduler handles it.
     auto* nt = new native_strand();
-    void* final_arg = strandarg ? strandarg : (info | smuggle<void*>);
+    void* final_arg = raw_params
+        ? raw_params
+        : (managed_strand_params{ .id = args.id, .sleep_ms = args.sleep_ms } | smuggle<void*>);
 
-    nt->t = std::thread([nt, strand_func, final_arg]() {
+    nt->t = std::thread([nt, code = args.code, params = final_arg]() {
         s_current_strand_handle = nt;
-        strand_func(final_arg);
+        code(params);
     });
 
     if (!nt->t.joinable()) {
-        log::error("Spawn strand [%s]...ERROR natively\n", cfg.name);
+        log::error("Spawn strand [%s]...ERROR\n", args.name);
         delete nt;
-        return nullptr;
+        return bad_handle;
     }
-
-    bus::publish(fabric::event{
-        .topic = topic::strand,
-        .type  = event::created,
-        .strand_id = info.id,
-    }.with_payload<status_event>({ .handle = nt }));
 
     return nt;
 }
@@ -60,15 +53,17 @@ auto strand::get_handle() -> handle_t {
     return s_current_strand_handle;
 }
 
-auto strand::reap(handle_t handle) -> void {
-    if (!handle) return;
+auto strand::reap(handle_t handle) -> reap_status {
+    if (!handle) return reap_status::error;
+
     auto* nt = static_cast<native_strand*>(handle);
 
-    // Can't safely kill a thread natively (unlike vTaskDelete).
-    // Detach so the OS cleans it up when it exits. The strand must
-    // cooperate by listening to shutdown signals.
-    if (nt->t.joinable()) nt->t.detach();
-    delete nt;
+    if (nt->t.joinable()) {
+        nt->t.join();
+        delete nt;
+        return reap_status::success;
+    }
+    return reap_status::error;
 }
 
 auto strand::sleep_ms(unsigned long ms) -> void {

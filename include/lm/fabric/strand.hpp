@@ -10,8 +10,16 @@
 namespace lm::fabric::strand
 {
     using function_t = void (*)(void*);
-    using handle_t   = void*;
 
+    using handle_t = void*;
+    constexpr handle_t bad_handle  = nullptr;
+
+    struct managed_strand_params
+    {
+        u8 id;
+        u16 sleep_ms;
+    };
+    static_assert(sizeof(managed_strand_params) <= sizeof(void*), "managed_strand_params needs to fit in a void* to be smuggled across the backend");
     /** --- A wrapper to make tasking easy ---
      * This is the main way you might interact with the strand system.
      * Here's what it expects your strand to look like.
@@ -34,54 +42,40 @@ namespace lm::fabric::strand
      */
 
     // Assumes the queue is actually subscribed and listening to the signals.
-    auto wait_for_start(queue_t&, st strandid) -> void;
+    auto wait_for_running(queue_t&, u8 strandid) -> void;
     // Assumes the queue is actually subscribed and listening to the signals.
-    auto should_stop(queue_t&, st strandid) -> bool;
-    auto wait_for_shutdown(st strandid) -> void;
+    auto should_stop(queue_t&, u8 strandid) -> bool;
+    auto wait_for_shutdown(queue_t&, u8 strandid) -> void;
 
     auto sleep_ms(unsigned long ms) -> void;
 
+
+    struct create_strand_args
+    {
+        char const* name;
+        u8 id;
+        st priority;
+        st stack_size;
+        st core_affinity; // What core it should run at.
+        u16 sleep_ms;
+
+        function_t code;
+
+        // The strand can run at any core.
+        static constexpr auto no_affinity = (st)-1;
+    };
     // When you call lm::strand::create(lm::config::whatever, lm::whatever::strand, (void*)whateverparams).
     // void* whateverparams is forwarded to lm::whatever::strand.
-    auto create(strand_constants const& cfg, strand_runtime_info const& info, function_t strand, void* strandarg = nullptr) -> handle_t;
-    auto get_handle() -> handle_t;
+    [[nodiscard]] auto create(create_strand_args const& args, void* raw_params = nullptr) -> handle_t;
+    [[nodiscard]] auto get_handle() -> handle_t;
+
     // Deletes a strand by it's handle.
-    auto reap(handle_t handle) -> void;
-
-    enum event : u8
+    enum class reap_status
     {
-        /* --- status updates (payload = status_event) --- */
-
-        created, // Handled by lm::strand::create.
-        ready,
-        running,
-        waiting_for_reap,
-
-
-
-        loop_timing,
-
-
-        /* --- signals (payload = signal_event) --- */
-
-        signal_start,
-        signal_stop,
+        success,
+        error,
     };
-
-    struct status_event
-    {
-        void* handle;
-    }; static_assert(sizeof(status_event) <= sizeof(fabric::event::payload));
-
-    struct timing_event
-    {
-        u64 time;
-    }; static_assert(sizeof(timing_event) <= sizeof(fabric::event::payload));
-
-    struct signal_event
-    {
-        u64 strand_id;
-    }; static_assert(sizeof(signal_event) <= sizeof(fabric::event::payload));
+    [[nodiscard]] auto reap(handle_t handle) -> reap_status;
 }
 
 #include "lm/chip/time.hpp"
@@ -90,39 +84,47 @@ namespace lm::fabric::strand
 template <typename Strand>
 constexpr auto lm::fabric::strand::managed() -> function_t
 {
-    return [](void* param){
-        auto info = param | unsmuggle<strand_runtime_info>;
+    return [](void* _params){
+        auto params = _params | unsmuggle<managed_strand_params>;
+
+        strand_runtime_info info {
+            .created_timestamp = chip::time::uptime(),
+            .id = params.id,
+            .requested_sleep_ms = params.sleep_ms,
+        };
+
+        auto signal_queue = fabric::queue<fabric::event>(8);
+        auto signal_token = bus::subscribe(signal_queue, topic::framework, {topic::framework_t::strand_signal::type});
 
         [&]{
             Strand strand{info};
 
-            auto signal_queue = fabric::queue<fabric::event>(8);
-            auto signal_token = bus::subscribe(
-                signal_queue,
-                topic::strand,
-                {event::signal_start, event::signal_stop}
-            );
-            wait_for_start(signal_queue, info.id);
+            wait_for_running(signal_queue, info.id);
+            info.running_timestamp = chip::time::uptime();
 
             if(strand.on_ready() == managed_strand_status::suicidal) return;
-            auto start = chip::time::uptime();
             while (!should_stop(signal_queue, info.id))
             {
+                auto before_sleep_timestamp = chip::time::uptime();
                 if(strand.before_sleep() == managed_strand_status::suicidal) return;
+                info.last_before_sleep_delta = chip::time::uptime() - before_sleep_timestamp;
 
-                auto end = chip::time::uptime();
                 bus::publish(fabric::event{
-                    .topic = topic::strand,
-                    .type  = event::loop_timing,
+                    .topic     = topic::framework,
+                    .type      = topic::framework_t::strand_loop_timing::type,
                     .strand_id = info.id,
-                }.with_payload(timing_event{ .time = end - start }));
-                sleep_ms(info.sleep_ms);
-                start = chip::time::uptime();
+                }.with_payload(topic::framework_t::strand_loop_timing{ .time = info.last_before_sleep_delta + info.last_on_wake_delta }));
 
+                auto sleep_ms_timestamp = chip::time::uptime();
+                sleep_ms(info.requested_sleep_ms);
+                info.actual_sleep_delta = chip::time::uptime() - sleep_ms_timestamp;
+
+                auto on_wake_timestamp = chip::time::uptime();
                 if(strand.on_wake() == managed_strand_status::suicidal) return;
+                info.last_on_wake_delta = chip::time::uptime() - on_wake_timestamp;
             }
         }();
 
-        wait_for_shutdown(info.id);
+        wait_for_shutdown(signal_queue, info.id);
     };
 }

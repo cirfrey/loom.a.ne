@@ -107,4 +107,10 @@ namespace lm
         st size    = 0;
         constexpr operator mut_buf() { return { .data = data, .size = size }; }
     };
+
+    inline namespace literals
+    {
+        constexpr auto operator ""_text(char const* str, st len) { return text({str, len}); }
+    }
+
 }

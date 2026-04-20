@@ -1,6 +1,6 @@
 #include "lm/strands/log.hpp"
 
-#include "lm/utils/guarded.hpp"
+#include "lm/core/primitives/guarded.hpp"
 #include "lm/fabric/primitives.hpp"
 #include "lm/config.hpp"
 #include "lm/log.hpp"

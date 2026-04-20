@@ -53,7 +53,6 @@ auto lm::hook::arch_init() -> void
 auto lm::hook::arch_config() -> void
 {
     auto uuid = chip::info::uuid();
-
     std::snprintf(
         lm::config.usb.string_descriptors.serial,
         config_t::usbcommon::string_descriptor_max_len,
@@ -68,7 +67,6 @@ auto lm::hook::arch_config() -> void
     );
 
     lm::config.usb.endpoints    = arch::x86_64::endpoints;
-    lm::config.usb.strand.spawn = feature::off;
     lm::config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
 
     // Hardcoded for now, until I get ini parsing up and running.
