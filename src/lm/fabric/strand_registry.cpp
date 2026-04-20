@@ -12,6 +12,7 @@ namespace lm::fabric::strand::registry
     auto init() -> void
     {
         mtx = semaphore::create_binary();
+        mtx.give();
     }
 
     auto reserve(u8 id) -> reserve_result

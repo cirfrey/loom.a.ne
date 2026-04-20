@@ -13,6 +13,12 @@ auto lm::chip::system::reboot() -> void
     std::exit(0);
 }
 
+auto lm::chip::system::panic(text msg, st code) -> void
+{
+    std::printf("%.*s", (int)msg.size, msg.data);
+    std::exit(code);
+}
+
 auto lm::chip::system::core_count() -> st
 {
     st cores = std::thread::hardware_concurrency();

@@ -4,9 +4,12 @@
 #include "lm/board.hpp"
 #include "lm/config.hpp"
 #include "lm/log.hpp"
+#include "lm/chip/system.hpp"
 
 #include "lm/fabric/strand.hpp"
 #include "lm/fabric/strand_registry.hpp"
+#include "lm/fabric/register_strand.hpp"
+
 #include "lm/strands/strandman.hpp"
 #include "lm/strands/log.hpp"
 #include "lm/strands/healthmon.hpp"
@@ -16,7 +19,6 @@
 #include "lm/strands/usbip.hpp"
 #include "lm/strands/apply_config.hpp"
 
-
 auto lm::hook::launcher() -> void
 {
     if(lm::hook::launcher_override != nullptr) {
@@ -24,11 +26,20 @@ auto lm::hook::launcher() -> void
         return;
     }
 
+    // We also allocate id(0) since it has special meaning (any strand) and we don't want to have
+    // a strand running with that id.
     lm::fabric::strand::registry::init();
+    if(lm::fabric::strand::registry::reserve(0).has_error()) {
+        lm::log::panic("lm::fabric::strand::registry::reserve(0) failed, somethine is seriously wrong!\n");
+    }
 
     lm::hook::arch_init();
     if(lm::hook::init != nullptr)
         lm::hook::init();
+
+    // Doesn't start the log task, just inits the buffer so we don't lose any messages until it does
+    // actually spin up.
+    lm::log::init();
 
     if(lm::hook::test::unit != nullptr && lm::config.launcher.test.unit == feature::on)
         lm::hook::test::unit();
@@ -52,9 +63,7 @@ auto lm::hook::launcher() -> void
     //         .runtime   = { .id = 0, .sleep_ms = 10 },
     //     },
     //     info{
-    //         .code      = fabric::strand::managed<strands::log>(),
-    //         .constants = _config::strand::logging,
-    //         .runtime   = { .id = logging_ready.other_id, .sleep_ms = 10 },
+    //
     //     },
 
     //     // Then we apply config, this depends on the logbuf being created, otherwise
@@ -104,12 +113,24 @@ auto lm::hook::launcher() -> void
     auto strandman_handle = strands::strandman::spawn< config_t::launcher_t::strandman_max_strands >(
         strands::strandman::strand_t{
             .code = [](void*){}, // Dummy.
-            .id = 0,
-            .stack_size = 128 * 64,
+            .id = lm::fabric::strand::registry::reserve().id,
+            .stack_size = lm::config.launcher.strandman.stack_size,
             .sleep_ms = 0,
-            .name = "lm::strands::strandman",
+            .name = "lm.strandman",
         }
     );
+    if(!strandman_handle) {
+        lm::log::panic("Failed to spawn strandman! Nothing can be done.\n");
+    }
+
+    auto ret = fabric::register_strand({
+        .name       = "lm.log"_text,
+        .stack_size = lm::config.launcher.log.stack_size,
+        .sleep_ms   = 10,
+        .code       = fabric::strand::managed<strands::log>(),
+    });
+    if(!ret.ok()) { lm::log::panic("Failed to spawn log strand! Something very bad happened.\n"); }
+
 
     // TODO: subscribe to strandman and wait for it to boot, then send request
     //       to start all the strands we need from lm::config.

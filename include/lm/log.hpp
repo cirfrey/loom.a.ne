@@ -20,12 +20,22 @@ namespace lm::log
         short_filename,
         full_filename,
     };
+    enum color_t {
+        no_color,
+        yes_color,
+    };
+    enum prefix_t {
+        no_prefix,
+        yes_prefix,
+    };
     using level = config_t::logging_t::level;
 
     struct fmt_t_args {
         const char* fmt = "";
         timestamp_t timestamp = timestamp_ms_6;
         filename_t  filename  = short_filename;
+        color_t     color     = yes_color;
+        prefix_t    prefix    = yes_prefix;
         level       loglevel  = level::debug;
     };
 
@@ -44,6 +54,11 @@ namespace lm::log
             std::source_location l = std::source_location::current()
         ) : args(a), loc(l) {}
     };
+
+    // Forces initialization of the internal structures for logging.
+    // Useful if you dont want to miss a log before the logging strand is up.
+    // It'll only be printed once its up but atleast you won't miss it.
+    auto init() -> void;
 
     [[nodiscard]] auto fmt(mut_text in, fmt_t f, ...) -> mut_text;
 
@@ -66,6 +81,7 @@ namespace lm::log
     LM_LOG_DECLARE_LEVEL_SHORTHAND(regular)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(warn)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(error)
+    LM_LOG_DECLARE_LEVEL_SHORTHAND(panic)
 
     // Pushes the log to the ringbuffer so the logger strand can take care of it.
     auto dispatch(text t) -> bool;
@@ -78,9 +94,13 @@ namespace lm::log
 
 /* --- log impls --- */
 
+#include "lm/chip/system.hpp"
 template<lm::u16 BufSize, typename... Args>
 constexpr auto lm::log::log(fmt_t f, Args&&... args) -> bool
 {
+    auto dispatch = f.args.loglevel != level::panic
+        ? lm::log::dispatch
+        : [](text t){ lm::chip::system::panic(t, 1); return true; };
     if(config.logging.level_enabled[f.args.loglevel] == feature::off) return false;
 
     char buf[BufSize];

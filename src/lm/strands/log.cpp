@@ -18,6 +18,14 @@ namespace lm::strands::logging
     static lm::guarded<fabric::bytebuf> logbuf;
 }
 
+auto lm::strands::log::init() -> void
+{
+    logging::logbuf.write([](auto& buf){
+        if(!buf.initialized())
+            buf = fabric::bytebuf(config_t::logging_t::ringbuf_size);
+    });
+}
+
 auto lm::strands::log::dispatch(text t) -> bool
 {
     bool dispatched = false;
@@ -56,9 +64,7 @@ lm::strands::log::log(fabric::strand_runtime_info& info)
     //         return len; // Return the number of characters written
     //     });
 
-    logging::logbuf.write([](auto& buf){
-        buf = fabric::bytebuf(config_t::logging_t::ringbuf_size);
-    });
+    init();
 
     consumers[0].type = logging::consumer::type_t::uart;
     for(auto i = 1; i < consumer_count; ++i)

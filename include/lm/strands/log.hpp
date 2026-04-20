@@ -90,6 +90,7 @@ namespace lm::strands
 {
     struct log
     {
+        static auto init() -> void;
         static auto dispatch(text t) -> bool;
         static auto capacity() -> st;
         static auto occupancy()  -> st;

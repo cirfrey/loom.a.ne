@@ -30,10 +30,11 @@ namespace lm::fabric
             constexpr auto is_local()        const -> bool { return loom_id == 0; }
             constexpr auto extension_count() const -> st   { return (size / sizeof(v0)) - 1; }
 
+            // Payload management stuff.
             template <typename As>
-            auto get_payload() const -> const As& {
+            auto get_payload() const -> As const& {
                 static_assert(sizeof(As) <= sizeof(payload), "Payload type too large");
-                return *std::launder(reinterpret_cast<const As*>(payload));
+                return *std::launder(reinterpret_cast<As const*>(payload));
             }
             template <typename As>
             auto get_payload() -> As& {
@@ -46,6 +47,29 @@ namespace lm::fabric
                 static_assert(sizeof(Payload) <= sizeof(payload), "Payload type too large");
                 std::memcpy(payload, &p, sizeof(Payload));
                 return *this;
+            }
+
+            // Extension management stuff.
+            template <typename Extension>
+            static constexpr auto extension(Extension&& e) -> v0
+            {
+                static_assert(sizeof(Extension) <= sizeof(v0), "Extension type too large");
+                static_assert(alignof(Extension) <= alignof(v0), "Extension type has too large alignment for this");
+                v0 ev;
+                std::memcpy(&ev, &e, sizeof(Extension));
+                return ev;
+            }
+            template <typename As>
+            auto as_extension() const -> As const& {
+                static_assert(sizeof(As) <= sizeof(v0), "Extension type too large");
+                static_assert(alignof(As) <= alignof(v0), "Extension type has too large alignment for this");
+                return *std::launder(reinterpret_cast<As const*>(this));
+            }
+            template <typename As>
+            auto as_extension() -> As& {
+                static_assert(sizeof(As) <= sizeof(v0), "Extension type too large");
+                static_assert(alignof(As) <= alignof(v0), "Extension type has too large alignment for this");
+                return *std::launder(reinterpret_cast<As*>(this));
             }
         };
         static_assert(sizeof(v0) == 24, "loom.a.ne Event v0 must be exactly 24 bytes");

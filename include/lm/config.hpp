@@ -31,9 +31,25 @@ namespace lm
     {
         struct network_t
         {
-            char ssid[64];
-            char password[64];
+            #ifndef LM_CONFIG_NETWORK_SSID_MAX_LEN
+            #define LM_CONFIG_NETWORK_SSID_MAX_LEN 64
+            #endif
+            static constexpr st ssid_max_len = LM_CONFIG_NETWORK_SSID_MAX_LEN;
+            char ssid[ssid_max_len] = "loom.a.ne";
+
+            #ifndef LM_CONFIG_NETWORK_PASSWORD_MAX_LEN
+            #define LM_CONFIG_NETWORK_PASSWORD_MAX_LEN 64
+            #endif
+            static constexpr st password_max_len = LM_CONFIG_NETWORK_PASSWORD_MAX_LEN;
+            char password[password_max_len] = "loom.a.ne";
         } network;
+
+        struct framework_t
+        {
+            // Refers to the manager_announce event.
+            // This is the window you should expect responses from.
+            u16 manager_announce_window_ms = 10;
+        } framework;
 
         struct ini_t
         {
@@ -79,8 +95,9 @@ namespace lm
                 regular,
                 warn,
                 error,
-                #ifdef LM_CONFIG_LOGGING_EXTRA_SEVERITIES
-                    LM_CONFIG_LOGGING_EXTRA_SEVERITIES
+                panic,
+                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS
+                    LM_CONFIG_LOGGING_EXTRA_LEVELS
                 #endif
 
                 level_count
@@ -92,8 +109,10 @@ namespace lm
                 [regular] = feature::on,
                 [warn]    = feature::on,
                 [error]   = feature::on,
-                #ifdef LM_CONFIG_LOGGING_EXTRA_SEVERITIES_ENABLED
-                    LM_CONFIG_LOGGING_EXTRA_SEVERITIES_ENABLED
+                [panic]   = feature::on, // NOTE: If you disable panic, then the program won't call chip::system::panic
+                                         //       when you do log::panic(). Make sure to call it yourself then.
+                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
+                    LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
                 #endif
             };
 
@@ -104,12 +123,23 @@ namespace lm
                 [regular] = ansi::code<ansi::style::reset>,
                 [warn]    = ansi::code<ansi::fg::yellow>,
                 [error]   = ansi::code<ansi::fg::red>,
-                #ifdef LM_CONFIG_LOGGING_EXTRA_SEVERITIES_ANSI
-                    LM_CONFIG_LOGGING_EXTRA_SEVERITIES_ANSI
+                [panic]   = ansi::code<ansi::fg::bright_red, ansi::style::bold>,
+                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
+                    LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
                 #endif
             };
 
-            // TODO: level prefix.
+            text level_prefix[level_count] = {
+                [debug]   = "[d]"_text,
+                [info]    = "[i]"_text,
+                [regular] = "[r]"_text,
+                [warn]    = "[W]"_text,
+                [error]   = "[E]"_text,
+                [panic]   = "[PANIC]"_text,
+                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
+                    LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
+                #endif
+            };
 
             // Also able disable logging in general.
             feature toggle = feature::on;
@@ -139,23 +169,9 @@ namespace lm
             #endif
             static constexpr u16 strandman_max_strands = LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS;
 
-            struct id { enum id_t : u8 {
-                strandman,
-                log,
-                apply_config,
-                healthmon,
-                blink,
-                busmon,
-                usbd,
-                usbip,
-
-                reserved_max = usbip,
-            }; };
-
             struct info {
-                char name[32];
-                u8 id;
-                st stack_size;
+                char name[24];
+                u16 stack_size;
                 feature set_running;
 
                 [[deprecated("No longer used, removeme!")]] st priority;
@@ -165,50 +181,43 @@ namespace lm
             };
 
             info strandman = info{
-                .name        = "lm::strand::strandman",
-                .id          = id::strandman,
+                .name        = "lm.strandman",
                 .stack_size  = 26 * 128,
                 .set_running = feature::on,
             };
 
             info log = info{
-                .name        = "lm::strand::log",
-                .id          = id::log,
+                .name        = "lm.log",
                 .stack_size  = 24 * 128,
                 .set_running = feature::on,
             };
 
             info apply_config = info{
-                .name        = "lm::strand::apply_config",
-                .id          = id::apply_config,
+                .name        = "lm.config",
                 .stack_size  = 64 * 128,
                 .set_running = feature::on,
             };
 
             info healthmon = info{
                 .name        = "lm::strand::healthmon",
-                .id          = id::healthmon,
                 .stack_size  = 22 * 128,
                 .set_running = feature::on,
             };
 
             info blink = info{
                 .name        = "lm::strand::blink",
-                .id          = id::blink,
                 .stack_size  = 11 * 128,
                 .set_running = feature::on,
             };
 
             info busmon = info{
                 .name        = "lm::strand::busmon",
-                .id          = id::busmon,
                 .stack_size  = 18 * 128,
                 .set_running = feature::on,
             };
 
             info usbd = info{
                 .name        = "lm::strand::usbd",
-                .id          = id::usbd,
                 .stack_size  = 64 * 128,
                 .set_running = feature::on,
             };
@@ -216,14 +225,12 @@ namespace lm
             // Internal to usbd, not managed.
             info tud = info{
                 .name        = "lm::strand::tud",
-                .id          = id::usbd,
                 .stack_size  = 64 * 128,
                 .set_running = feature::on,
             };
 
             info usbip = info{
                 .name        = "lm::strand::usbip",
-                .id          = id::usbip,
                 .stack_size  = 64 * 128,
                 .set_running = feature::on,
             };

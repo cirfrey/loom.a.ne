@@ -221,6 +221,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
             .result       = response_register_strand::ok,
             .id           = newstrand.id,
         }));
+        log::debug("Registered strand [%s] with id [%u]\n", newstrand.name, newstrand.id);
     }
 
     // Handle strand updates.
@@ -234,10 +235,10 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         }
         if(!target_strand) return;
 
-        // Prevent stale messages.
-        if(e.timestamp <= target_strand->status_timestamp) continue;
-
         auto new_status = e.get_payload<fabric::topic::framework_t::strand_status>().status;
+        // Prevent stale messages.
+        if(target_strand->status_timestamp < e.timestamp && new_status == target_strand->status) continue;
+
         auto prev = renum<strand_t::status_t>::unqualified(target_strand->status);
         auto curr = renum<strand_t::status_t>::unqualified(new_status);
         log::regular(

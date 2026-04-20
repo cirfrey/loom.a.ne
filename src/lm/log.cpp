@@ -26,15 +26,32 @@ static constexpr auto get_short_filename(lm::log::fmt_t f) -> char const*
     return end;
 }
 
+auto lm::log::init() -> void
+{
+    lm::strands::log::init();
+}
+
 auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 {
     auto out = mut_text{.data = in.data, .size = 0};
 
-    auto ansi = config.logging.level_ansi[f.args.loglevel];
-    out.size += std::snprintf(
-        out.data + out.size, in.size - out.size, "%.*s", (int)ansi.size, ansi.data
-    );
-    out.size = clamp(out.size, 0, in.size);
+    if(f.args.color == yes_color)
+    {
+        auto ansi = config.logging.level_ansi[f.args.loglevel];
+        out.size += std::snprintf(
+            out.data + out.size, in.size - out.size, "%.*s", (int)ansi.size, ansi.data
+        );
+        out.size = clamp(out.size, 0, in.size);
+    }
+
+    if(f.args.prefix == yes_prefix)
+    {
+        auto prefix = config.logging.level_prefix[f.args.loglevel];
+        out.size += std::snprintf(
+            out.data + out.size, in.size - out.size, "%.*s", (int)prefix.size, prefix.data
+        );
+        out.size = clamp(out.size, 0, in.size);
+    }
 
     if(f.args.timestamp == timestamp_ms_6) {
         out.size += std::snprintf(
@@ -64,11 +81,11 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 
 auto lm::log::dispatch(text t) -> bool
 {
-    if(config.logging.toggle == feature::off) return false;
-
-    return config.logging.custom_dispatcher != nullptr
-        ? config.logging.custom_dispatcher(t)
-        : lm::strands::log::dispatch(t);
+    if(config.logging.custom_dispatcher != nullptr)
+        return config.logging.custom_dispatcher(t);
+    if(config.logging.toggle == feature::off)
+        return false;
+    return lm::strands::log::dispatch(t);
 }
 
 static std::atomic_flag uart_busy[lm::board::uart_port_count] = ATOMIC_FLAG_INIT;

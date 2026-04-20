@@ -27,7 +27,7 @@ namespace lm::fabric::bus
         void* impl = nullptr;
     };
 
-    enum class userfilter_return
+    enum userfilter_return
     {
         pass,
         filter,
