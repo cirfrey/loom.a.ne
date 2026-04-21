@@ -11,32 +11,52 @@
 
 namespace lm::log
 {
-    enum timestamp_t {
-        no_timestamp,
-        timestamp_ms_6,
-    };
-    enum filename_t {
-        no_filename,
-        short_filename,
-        full_filename,
-    };
-    enum color_t {
-        no_color,
-        yes_color,
-    };
-    enum prefix_t {
-        no_prefix,
-        yes_prefix,
-    };
+    using timestamp_t = config_t::logging_t::timestamp_t;
+    using filename_t = config_t::logging_t::filename_t;
+    using color_t = feature;
+    using prefix_t = feature;
     using level = config_t::logging_t::level;
 
     struct fmt_t_args {
         const char* fmt = "";
-        timestamp_t timestamp = timestamp_ms_6;
-        filename_t  filename  = short_filename;
-        color_t     color     = yes_color;
-        prefix_t    prefix    = yes_prefix;
+        timestamp_t timestamp = timestamp_t::timestamp_ms_6;
+        filename_t  filename  = filename_t::short_filename;
+        color_t     color     = feature::on;
+        prefix_t    prefix    = feature::on;
         level       loglevel  = level::debug;
+
+        static auto from_config() -> fmt_t_args
+        {
+            return {
+                .timestamp = config.logging.timestamp,
+                .filename  = config.logging.filename,
+                .color     = config.logging.color,
+                .prefix    = config.logging.prefix,
+            };
+        }
+
+        static auto clean() -> fmt_t_args
+        {
+            return {
+                .timestamp = timestamp_t::no_timestamp,
+                .filename  = filename_t::no_filename,
+                .color     = feature::off,
+                .prefix    = feature::off,
+            };
+        }
+
+        constexpr auto with_fmt(const char* f) -> fmt_t_args&
+        { fmt = f; return *this; }
+        constexpr auto with_timestamp(timestamp_t t) -> fmt_t_args&
+        { timestamp = t; return *this; }
+        constexpr auto with_filename(filename_t f) -> fmt_t_args&
+        { filename = f; return *this; }
+        constexpr auto with_color(color_t c) -> fmt_t_args&
+        { color = c; return *this; }
+        constexpr auto with_prefix(prefix_t p) -> fmt_t_args&
+        { prefix = p; return *this; }
+        constexpr auto with_loglevel(level l) -> fmt_t_args&
+        { loglevel = l; return *this; }
     };
 
     struct fmt_t
@@ -46,11 +66,12 @@ namespace lm::log
 
         constexpr fmt_t(
             const char* f,
-            fmt_t_args a = fmt_t_args{},
+            fmt_t_args a = fmt_t_args::from_config(),
             std::source_location l = std::source_location::current()
         ) : args(a), loc(l) { args.fmt = f; }
+
         constexpr fmt_t(
-            fmt_t_args a = fmt_t_args{},
+            fmt_t_args a,
             std::source_location l = std::source_location::current()
         ) : args(a), loc(l) {}
     };
@@ -78,6 +99,7 @@ namespace lm::log
 
     LM_LOG_DECLARE_LEVEL_SHORTHAND(debug)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(test)
+    LM_LOG_DECLARE_LEVEL_SHORTHAND(assertion)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(info)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(regular)
     LM_LOG_DECLARE_LEVEL_SHORTHAND(warn)

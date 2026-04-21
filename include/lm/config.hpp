@@ -51,16 +51,6 @@ namespace lm
             u16 manager_announce_window_ms = 10;
         } framework;
 
-        struct ini_t
-        {
-            #ifndef LM_CONFIG_INI_MAX_FIELDS
-            // Controls how many fields it will allocate for config_ini.hpp.
-            // This way you can have more at a later time if you extend config_t.
-            #define LM_CONFIG_INI_MAX_FIELDS 128
-            #endif
-            static constexpr u16 max_fields = LM_CONFIG_INI_MAX_FIELDS;
-        } ini;
-
         struct logging_t
         {
             // 4KB log, should be plenty for our usecase.
@@ -91,7 +81,8 @@ namespace lm
             // Log level customization.
             enum level {
                 debug,
-                test, // Used for unit tests, assertions and stuff like that.
+                test, // Used for unit and manufacturing tests.
+                assertion,
                 info,
                 regular,
                 warn,
@@ -105,14 +96,15 @@ namespace lm
             };
 
             feature level_enabled[level_count] = {
-                [debug]   = feature::on,
-                [test]    = feature::on,
-                [info]    = feature::on,
-                [regular] = feature::on,
-                [warn]    = feature::on,
-                [error]   = feature::on,
-                [panic]   = feature::on, // NOTE: If you disable panic OR logging in general, then the program won't call
-                                         // chip::system::panic when you do log::panic(). Make sure to call it yourself then.
+                [debug]     = feature::on,
+                [test]      = feature::on,
+                [assertion] = feature::on,
+                [info]      = feature::on,
+                [regular]   = feature::on,
+                [warn]      = feature::on,
+                [error]     = feature::on,
+                [panic]     = feature::on, // NOTE: If you disable panic OR logging in general, then the program won't call
+                                           // chip::system::panic when you do log::panic(). Make sure to call it yourself then.
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
                 #endif
@@ -120,34 +112,50 @@ namespace lm
 
             // Overridable log color.
             text level_ansi[level_count] = {
-                [debug]   = ansi::code<ansi::fg::gray>,
-                [test]    = ansi::code<ansi::fg::blue>,
-                [info]    = ansi::code<ansi::fg::white>,
-                [regular] = ansi::code<ansi::style::reset>,
-                [warn]    = ansi::code<ansi::fg::yellow>,
-                [error]   = ansi::code<ansi::fg::red>,
-                [panic]   = ansi::code<ansi::fg::bright_red, ansi::style::bold>,
+                [debug]     = ansi::code<ansi::fg::gray>,
+                [test]      = ansi::code<ansi::fg::blue>,
+                [assertion] = ansi::code<ansi::fg::bright_magenta, ansi::style::bold, ansi::style::underline>,
+                [info]      = ansi::code<ansi::fg::white>,
+                [regular]   = ansi::code<ansi::style::reset>,
+                [warn]      = ansi::code<ansi::fg::yellow>,
+                [error]     = ansi::code<ansi::fg::red>,
+                [panic]     = ansi::code<ansi::fg::bright_red, ansi::style::bold>,
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
                 #endif
             };
 
             text level_prefix[level_count] = {
-                [debug]   = "[d]"_text,
-                [test]    = "[t]"_text,
-                [info]    = "[i]"_text,
-                [regular] = "[r]"_text,
-                [warn]    = "[W]"_text,
-                [error]   = "[E]"_text,
-                [panic]   = "[PANIC]"_text,
+                [debug]     = "[d]"_text,
+                [test]      = "[t]"_text,
+                [assertion] = "[a]"_text,
+                [info]      = "[i]"_text,
+                [regular]   = "[r]"_text,
+                [warn]      = "[W]"_text,
+                [error]     = "[E]"_text,
+                [panic]     = "[PANIC]"_text,
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
                 #endif
             };
 
+            enum timestamp_t {
+                no_timestamp,
+                timestamp_ms_6,
+            } timestamp = timestamp_ms_6;
+            enum filename_t {
+                no_filename,
+                short_filename,
+                full_filename,
+            } filename = short_filename;
+            feature color = feature::on;
+            feature prefix = feature::on;
+
+            // TODO: configurable dispatching stream for each log level.
+
             // Also able disable logging in general.
             feature toggle = feature::on;
-            // Or override with your own function.
+            // Or override all dispatchers with your own function.
             using dispatcher_t = bool(*)(text, level);
             dispatcher_t custom_dispatcher = nullptr;
         } logging;
@@ -259,7 +267,6 @@ namespace lm
             u8 strandman_queue_size = 64;
         } strandman;
 
-
         // Common between usb_t and usbip_t.
         struct usbcommon
         {
@@ -357,11 +364,13 @@ namespace lm
                     count
                 }; };
                 struct usb_t {
+                    static constexpr auto max_channels = 2;
                     // Enable just by setting the channels.
                     u8 microphone_channels = 0;
                     u8 speaker_channels    = 0;
                 } usb;
                 struct usbip_t {
+                    static constexpr auto max_channels = 2;
                     u8 microphone_channels = 0;
                     u8 speaker_channels    = 0;
                 } usbip;

@@ -123,7 +123,11 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
         lens.header, lens.cdc, lens.hid, lens.midi, lens.msc, lens.audio, lens.total
     );
     auto printer = [](auto fmt, auto... args){ log::debug<128>(
-        log::fmt_t({ .fmt = fmt, .timestamp = log::no_timestamp, .filename = log::no_filename }),
+        log::fmt_t(log::fmt_t_args::from_config()
+            .with_fmt(fmt)
+            .with_timestamp(log::timestamp_t::no_timestamp)
+            .with_filename(log::filename_t::no_filename
+            )),
         veil::forward<decltype(args)>(args)...
     ); };
     usb::debug::print_ep_table(config.usb.endpoints, printer, {"\t", 1});

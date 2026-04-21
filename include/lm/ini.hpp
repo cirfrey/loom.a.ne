@@ -5,9 +5,10 @@
 
 namespace lm::ini
 {
-    enum class parse_result
+    enum class field_parse_result
     {
         ok,
+
         empty_key,
         empty_input,
         empty_output,
@@ -28,13 +29,16 @@ namespace lm::ini
     struct parse_args
     {
         bool log_success = true;
+        bool log_error   = true;
         bool log_ignored = true;
+
+        bool match_only_one_field = false;
     };
 
     // TODO: sure would be nice to have a printable description on error.
     struct field
     {
-        [[nodiscard]] auto parse(text, parse_args = parse_args{}) -> parse_result;
+        [[nodiscard]] auto parse(text, parse_args = parse_args{}) const -> field_parse_result;
 
         text key = {nullptr, 0};
         void* output = nullptr;
@@ -62,9 +66,15 @@ namespace lm::ini
         struct string_data_t {
             st max_len = 256;
             bool strip = true;
+            enum when_too_large
+            {
+                truncate,
+                error,
+            } too_large_behaviour = error;
+            bool add_null_terminator = false;
         };
         struct enumeration_data_t {
-            using parse_t = parse_result(*)(field& field, text input, parse_args);
+            using parse_t = field_parse_result(*)(field const& field, text input, parse_args);
             // Given a lm::text, writes to .output if valid, otherwise should print
             // the valid enumerations for the user to debug.
             // - true = parsed successfully
@@ -101,7 +111,28 @@ namespace lm::ini
         return ret;
     }
 
-    //constexpr auto string_field()
+    constexpr auto string_field(text key, mut_text str, field::string_data_t data) -> field
+    {
+        auto ret = field{};
+        ret.key = key;
+        ret.output = str.data;
+        ret.type = field::string;
+        ret.string_data = data;
+        ret.string_data.max_len = str.size;
+        return ret;
+    }
+
+    // In this case you *need* to supply the size.
+    constexpr auto string_field(text key, char* str, field::string_data_t data) -> field
+    {
+        auto ret = field{};
+        ret.key = key;
+        ret.output = str;
+        ret.type = field::string;
+        ret.string_data = data;
+        ret.string_data.add_null_terminator = true;
+        return ret;
+    }
 
     template <
         typename EnumPretend,
@@ -139,13 +170,45 @@ namespace lm::ini
         ret.enumeration_data.parse = parser;
         return ret;
     }
+
+    using parse_result = field_parse_result;
+    // The ini parser proper.
+    // For our intents and purposes an ini file is a string that:
+    // - Has [sections]
+    // - Has [key] = [value]
+    //
+    // A [section] is treated as a key modifier, that is, a [usb.string_descriptor] prefixes every
+    // [key] under it with [usb.string_descriptor.${key}]. To not add any prefix you either declare
+    // at the top of the string where there are no prefixes or add an empty section [] like so (ugly).
+    //
+    // A [key] is any string of characters that precedes an equals sign, they can be letters, numbers,
+    // symbols, whatever, anything goes as long as its not an equal sign [=]. Keys are string.strip()'ed.
+    // The correct parser for a key (string, number, enum) is decided given on the fields passed to this function.
+    //
+    // A [value] is any of the following three:
+    // - 1. Some sequence of characters after the equal sign [=] until the end of the line [\n].
+    // - 2. Some sequence of characters prefixed with quotes ["] until the next quote ["].
+    // - 3. Some sequence of characters prefixed with an open bracket [(] until *corresponding* closing brace [)].
+    // In case [1.] the value is string.strip()'ed before being fed into the corresponding parser.
+    // In case [2.] and [3.] the prefixes and postfixes are stripped before being fed into the corresponding parser.
+    //
+    // Some other misc notes:
+    // - Duplicate keys are allowed, they are all parsed in order, therefore the last one will hold the final result (if parsed correctly).
+    // - Comments are anything that precedes [;] until the end of the line [\n] and are NOT in a [2.] or [3.] value,
+    //   On those cases, they are treated as part of the value.
+    //
+    // The job of this function is to break the input text into [key] = [value] pairs, identify the [key] and [value]
+    // while keeping track of the [section]s and forward the [value] in the corresponding field, given the [key].
+    [[nodiscard]] auto parse(text, std::span<field const>, parse_args = {}) -> parse_result;
+    [[nodiscard]] inline auto parse(text t, std::initializer_list<field> fs, parse_args args = {}) -> parse_result
+    { return parse(t, std::span{fs.begin(), fs.size()}, args); }
 }
 
 // Impls.
 template <typename Enum, int Lo, int Hi>
 constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::parse_t
 {
-    return [](ini::field& field, text input, parse_args args){
+    return [](ini::field const& field, text input, parse_args args){
         using re = renum<Enum, Lo, Hi>;
         constexpr auto enum_name = type_name<Enum>();
 
@@ -161,9 +224,9 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
                 (int)input.size,     input.data
             );
         };
-        if(re::check_exists(input, on_exists)) return parse_result::ok;
+        if(re::check_exists(input, on_exists)) return field_parse_result::ok;
 
-        if(!args.log_ignored) return parse_result::enumeration_not_found;
+        if(!args.log_error) return field_parse_result::enumeration_not_found;
 
         char fmtbuf[256];
         auto fmtbuf_offset = 0;
@@ -181,8 +244,8 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
                 {fmtbuf + fmtbuf_offset, sizeof(fmtbuf) - fmtbuf_offset},
                 log::fmt_t({
                     .fmt       = fmt,
-                    .timestamp = log::no_timestamp,
-                    .filename  = log::no_filename,
+                    .timestamp = log::timestamp_t::no_timestamp,
+                    .filename  = log::filename_t::no_filename,
                     .loglevel  = loglevel,
                 }),
                 (int)valstr.size, valstr.data
@@ -201,6 +264,6 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
             (int)white.size, white.data, (int)fmtbuf_offset,  fmtbuf,         (int)white.size, white.data
         );
 
-        return parse_result::enumeration_not_found;
+        return field_parse_result::enumeration_not_found;
     };
 }

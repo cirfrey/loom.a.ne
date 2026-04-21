@@ -36,7 +36,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 {
     auto out = mut_text{.data = in.data, .size = 0};
 
-    if(f.args.color == yes_color)
+    if(f.args.color == feature::on)
     {
         auto ansi = config.logging.level_ansi[f.args.loglevel];
         out.size += std::snprintf(
@@ -45,7 +45,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
         out.size = clamp(out.size, 0, in.size);
     }
 
-    if(f.args.prefix == yes_prefix)
+    if(f.args.prefix == feature::on)
     {
         auto prefix = config.logging.level_prefix[f.args.loglevel];
         out.size += std::snprintf(
@@ -54,7 +54,7 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
         out.size = clamp(out.size, 0, in.size);
     }
 
-    if(f.args.timestamp == timestamp_ms_6) {
+    if(f.args.timestamp == timestamp_t::timestamp_ms_6) {
         out.size += std::snprintf(
             out.data + out.size, in.size - out.size, "[%6lu]",
             chip::time::uptime()/1000
@@ -62,10 +62,10 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
         out.size = clamp(out.size, 0, in.size);
     }
 
-    if(f.args.filename != no_filename) {
+    if(f.args.filename != filename_t::no_filename) {
         out.size += std::snprintf(
             out.data + out.size, in.size - out.size, "[%s:%-3d] ",
-            f.args.filename == short_filename ? get_short_filename(f) : f.loc.file_name(),
+            f.args.filename == filename_t::short_filename ? get_short_filename(f) : f.loc.file_name(),
             f.loc.line()
         );
         out.size = clamp(out.size, 0, in.size);

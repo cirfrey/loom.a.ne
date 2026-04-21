@@ -40,18 +40,43 @@ namespace lm::config_ini
     template <typename Num>
     constexpr auto numb(char const* key, Num& num, ini::field::number_data_t data = {}) -> ini::field
     { return ini::number_field(key | to_text, num, data); }
+    constexpr auto strg(char const* key, char* str, ini::field::string_data_t data) -> ini::field
+    { return ini::string_field(key | to_text, str, data); }
 
     // All the fields we want to expose to ini configuration.
-    // This is usually read in the apply_config strand.
-    inline ini::field fields[config_t::ini_t::max_fields] = {
+    // This is usually read in lm::hooks::arch_config().
+    // If you want to have your own fields, define them and read the ini with them in your lm::hooks::config(),
+    // just remember to set log_ignored = false in the parse args so you don't flood yourself with unset fields.
+    inline ini::field fields[] = {
+        /// --- Network ---
+        strg("network.ssid", config.network.ssid, {.max_len = config.network.ssid_max_len}),
+        strg("network.password", config.network.password, {.max_len = config.network.password_max_len}),
+
+        /// --- Framework ---
+        numb("framework.manager_announce_window_ms", config.framework.manager_announce_window_ms),
+
         /// --- Logging ---
-        feat("logging.debug.toggle",   config.logging.level_enabled[config_t::logging_t::level::debug]),
-        feat("logging.info.toggle",    config.logging.level_enabled[config_t::logging_t::level::info]),
-        feat("logging.regular.toggle", config.logging.level_enabled[config_t::logging_t::level::regular]),
-        feat("logging.warn.toggle",    config.logging.level_enabled[config_t::logging_t::level::warn]),
-        feat("logging.error.toggle",   config.logging.level_enabled[config_t::logging_t::level::error]),
-        // TODO: level ansi and level prefix (when that's implemented).
+        feat("logging.debug.toggle",     config.logging.level_enabled[config_t::logging_t::level::debug]),
+        feat("logging.test.toggle",      config.logging.level_enabled[config_t::logging_t::level::test]),
+        feat("logging.assertion.toggle", config.logging.level_enabled[config_t::logging_t::level::assertion]),
+        feat("logging.info.toggle",      config.logging.level_enabled[config_t::logging_t::level::info]),
+        feat("logging.regular.toggle",   config.logging.level_enabled[config_t::logging_t::level::regular]),
+        feat("logging.warn.toggle",      config.logging.level_enabled[config_t::logging_t::level::warn]),
+        feat("logging.error.toggle",     config.logging.level_enabled[config_t::logging_t::level::error]),
+        feat("logging.panic.toggle",     config.logging.level_enabled[config_t::logging_t::level::panic]),
+        // TODO: level ansi and level prefix. They need to be converted to null-terminated strings for that to work.
+        many("logging.timestamp", config.logging.timestamp),
+        many("logging.filename", config.logging.filename),
+        feat("logging.color", config.logging.color),
+        feat("logging.prefix", config.logging.prefix),
         feat("logging.toggle", config.logging.toggle),
+
+        /// --- Test ---
+        feat("test.unit", config.test.unit),
+        many("test.after_unit", config.test.after_unit),
+
+        /// TODO: --- Launcher ---
+        /// TODO: --- Strandman ---
 
         /// --- Usb ---
         numb("usb.device.class",    config.usb.device_descriptor.device_class),
@@ -60,43 +85,47 @@ namespace lm::config_ini
         numb("usb.device.vendor",   config.usb.device_descriptor.vendor_id),
         numb("usb.device.product",  config.usb.device_descriptor.product_id),
         numb("usb.device.bcd",      config.usb.device_descriptor.bcd_device),
-        //strg("usb.string.manufacturer", config.usb.string_descriptors.manufacturer, {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.product",      config.usb.string_descriptors.product,      {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.serial",       config.usb.string_descriptors.serial,       {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.midi",         config.usb.string_descriptors.midi,         {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.hid",          config.usb.string_descriptors.hid,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.uac",          config.usb.string_descriptors.uac,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.cdc",          config.usb.string_descriptors.cdc,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usb.string.msc",          config.usb.string_descriptors.msc,          {.len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.manufacturer", config.usb.string_descriptors.manufacturer, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.product",      config.usb.string_descriptors.product,      {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.serial",       config.usb.string_descriptors.serial,       {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.midi",         config.usb.string_descriptors.midi,         {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.hid",          config.usb.string_descriptors.hid,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.uac",          config.usb.string_descriptors.uac,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.cdc",          config.usb.string_descriptors.cdc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usb.string.msc",          config.usb.string_descriptors.msc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
 
         /// --- Usbip ---
         numb("usbip.port", config.usbip.port),
         feat("usbip.close_conn_after_devlist", config.usbip.close_conn_after_devlist),
+
         numb("usbip.stall_status_code", config.usbip.stall_status_code),
-        //strg("usbip.path", config.usbip.path,  {.len = sizeof(config_t::usbip_t::path)}),
-        //strg("usbip.busid", config.usbip.busid, {.len = sizeof(config_t::usbip_t::busid)}),
+
+        strg("usbip.path", config.usbip.path,  {.max_len = sizeof(config_t::usbip_t::path)}),
+        strg("usbip.busid", config.usbip.busid, {.max_len = sizeof(config_t::usbip_t::busid)}),
+
         numb("usbip.out_event_queue_size", config.usbip.out_event_queue_size),
+
         numb("usbip.device.class",    config.usbip.device_descriptor.device_class),
         numb("usbip.device.subclass", config.usbip.device_descriptor.device_subclass),
         numb("usbip.device.protocol", config.usbip.device_descriptor.device_protocol),
         numb("usbip.device.vendor",   config.usbip.device_descriptor.vendor_id),
         numb("usbip.device.product",  config.usbip.device_descriptor.product_id),
         numb("usbip.device.bcd",      config.usbip.device_descriptor.bcd_device),
-        //strg("usbip.string.manufacturer", config.usbip.string_descriptors.manufacturer, {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.product",      config.usbip.string_descriptors.product,      {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.serial",       config.usbip.string_descriptors.serial,       {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.midi",         config.usbip.string_descriptors.midi,         {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.hid",          config.usbip.string_descriptors.hid,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.uac",          config.usbip.string_descriptors.uac,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.cdc",          config.usbip.string_descriptors.cdc,          {.len = config_t::usbcommon::string_descriptor_max_len}),
-        //strg("usbip.string.msc",          config.usbip.string_descriptors.msc,          {.len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.manufacturer", config.usbip.string_descriptors.manufacturer, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.product",      config.usbip.string_descriptors.product,      {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.serial",       config.usbip.string_descriptors.serial,       {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.midi",         config.usbip.string_descriptors.midi,         {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.hid",          config.usbip.string_descriptors.hid,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.uac",          config.usbip.string_descriptors.uac,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.cdc",          config.usbip.string_descriptors.cdc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        strg("usbip.string.msc",          config.usbip.string_descriptors.msc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
 
         /// --- Audio ---
         // Capped to 2 channels for now.
-        numb("audio.usb.microphone_channels",   config.audio.backend.usb.microphone_channels,   {.max = 2}),
-        numb("audio.usb.speaker_channels",      config.audio.backend.usb.speaker_channels,      {.max = 2}),
-        numb("audio.usbip.microphone_channels", config.audio.backend.usbip.microphone_channels, {.max = 2}),
-        numb("audio.usbip.speaker_channels",    config.audio.backend.usbip.speaker_channels,    {.max = 2}),
+        numb("audio.usb.microphone_channels",   config.audio.backend.usb.microphone_channels,   {.max = config.audio.backend.usb.max_channels}),
+        numb("audio.usb.speaker_channels",      config.audio.backend.usb.speaker_channels,      {.max = config.audio.backend.usb.max_channels}),
+        numb("audio.usbip.microphone_channels", config.audio.backend.usbip.microphone_channels, {.max = config.audio.backend.usbip.max_channels}),
+        numb("audio.usbip.speaker_channels",    config.audio.backend.usbip.speaker_channels,    {.max = config.audio.backend.usbip.max_channels}),
         feat("audio.mesh.toggle",               config.audio.backend.mesh.toggle),
 
         /// --- CDC ---
