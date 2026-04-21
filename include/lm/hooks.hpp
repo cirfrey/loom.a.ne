@@ -32,6 +32,8 @@ namespace lm::hook
     // [WEAK].
     auto config() -> void;
 
+    auto parse_ini() -> void;
+
     auto framework_main() -> void;
     // [WEAK].
     auto main() -> void;

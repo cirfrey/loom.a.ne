@@ -46,6 +46,14 @@ namespace lm
             };
         };
 
+        struct ini_t
+        {
+            using with_source_cb_t = void(*)(void* userdata, text t);
+            using with_source_t = void(*)(void* userdata, with_source_cb_t cb);
+            // Generally set by lm::hook::arch_config.
+            with_source_t with_source = nullptr;
+        } ini;
+
         struct network_t
         {
             #ifndef LM_CONFIG_NETWORK_SSID_MAX_LEN

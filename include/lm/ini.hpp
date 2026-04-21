@@ -85,7 +85,7 @@ namespace lm::ini
             // When nullptr, warning is logged and field is skipped.
             parse_t parse = nullptr;
 
-            using normalize_t = void(*)(field& field);
+            using normalize_t = void(*)(field const& field);
             normalize_t normalize = nullptr;
         };
 
@@ -249,6 +249,7 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
                     .fmt       = fmt,
                     .timestamp = log::timestamp_t::no_timestamp,
                     .filename  = log::filename_t::no_filename,
+                    .prefix    = feature::off,
                     .loglevel  = loglevel,
                 }),
                 (int)valstr.size, valstr.data
@@ -262,10 +263,10 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
         auto gray   = config.logging.level_ansi.data[log::level::debug];
         auto white  = config.logging.level_ansi.data[log::level::regular];
         log::warn<128 * 3>(
-            "Ignoring %s[%.*s]%s for %s[%.*s - %.*s]%s\n\t> Allowed values are: %s[%.*s%s]\n",
-            white, (int)input.size,     input.data,     yellow,
-            white, (int)field.key.size, field.key.data, (int)enum_name.size, enum_name.data, yellow,
-            white, (int)fmtbuf_offset,  fmtbuf,         white
+            "Ignoring %s[%s%.*s%s]%s for %s[%.*s%s(%.*s%s)]%s\n\t> Allowed values are: %s[%.*s%s]\n",
+            white, gray, (int)input.size, input.data, white, yellow,
+            white, (int)field.key.size, field.key.data, gray, (int)enum_name.size, enum_name.data, white, yellow,
+            white, (int)fmtbuf_offset, fmtbuf, white
         );
 
         return field_parse_result::enumeration_not_found;

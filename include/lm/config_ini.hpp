@@ -26,7 +26,7 @@ namespace lm::config_ini
         ) return feature::off;
         return feature::on;
     }
-    constexpr auto feature_normalizer(ini::field& f) -> void
+    constexpr auto feature_normalizer(ini::field const& f) -> void
     {
         *(feature*)f.output = to_feature(*(feature_ini*)f.output);
     };

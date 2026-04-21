@@ -5,6 +5,7 @@
 #include "lm/config.hpp"
 #include "lm/log.hpp"
 #include "lm/chip/system.hpp"
+#include "lm/config_ini.hpp"
 
 #include "lm/fabric/strand.hpp"
 #include "lm/fabric/strand_registry.hpp"
@@ -28,6 +29,8 @@ auto lm::hook::launcher() -> void
     lm::hook::arch_config();
     lm::hook::config();
 
+    lm::hook::parse_ini();
+
     if(lm::config.test.unit == feature::on)
         lm::hook::test::unit();
 
@@ -42,12 +45,29 @@ auto lm::hook::framework_init() -> void
     lm::fabric::strand::registry::init();
     if(lm::fabric::strand::registry::reserve(0).has_error()) {
         log::panic("lm::fabric::strand::registry::reserve(0) failed, somethine is seriously wrong!\n");
-        chip::system::panic({}, 1);
+        chip::system::halt(1);
     }
 
     // Doesn't start the log task, just inits the buffer so we don't lose any messages until it does
     // actually spin up.
     lm::log::init();
+}
+
+auto lm::hook::parse_ini() -> void
+{
+    if(lm::config.ini.with_source == nullptr) {
+        lm::log::warn("lm::config.ini.with_source not set, this is likely an oversight in lm::hooks::arch_config\n");
+        return;
+    }
+
+    lm::config.ini.with_source(nullptr, [](void*, text ini_text){
+        auto result = ini::parse(ini_text, config_ini::fields);
+
+        if(result != lm::ini::parse_result::ok) {
+            auto re = renum<lm::ini::parse_result>::unqualified(result);
+            lm::log::warn("Ini parsed with errors, result=[%.*s]\n", (int)re.size, re.data);
+        }
+    });
 }
 
 auto lm::hook::framework_main() -> void

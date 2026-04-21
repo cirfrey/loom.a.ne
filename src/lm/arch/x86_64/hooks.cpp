@@ -69,8 +69,9 @@ auto lm::hook::arch_config() -> void
     lm::config.usb.endpoints    = arch::x86_64::endpoints;
     lm::config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
 
-    // Hardcoded for now, until I get ini parsing up and running.
-    lm::config.midi.backend.usbip.cable_count = 4;
-
-    // TODO: parse the damn ini.
+    // Hardcoded for now, until I actually fetch the ini file from somewhere.
+    lm::config.ini.with_source = [](void* ud, auto cb){
+        auto ini_text = "[midi.usbip]\ncable_count = 4\nmode = bogus"_text;
+        cb(ud, ini_text);
+    };
 }
