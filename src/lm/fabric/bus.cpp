@@ -126,8 +126,6 @@ auto lm::fabric::bus::publish(event& e) -> publish_result
 {
     auto res = publish_result{};
 
-    // NOTE: We take the mutex to iterate the list safely,
-    //       but we do NOT block on queue->send.
     bus_subs.write(publish_impl, &res, std::span<event>{&e, 1});
 
     return res;
@@ -137,8 +135,6 @@ auto lm::fabric::bus::publish(std::span<event> extended_event) -> publish_result
 {
     auto res = publish_result{};
 
-    // NOTE: We take the mutex to iterate the list safely,
-    //       but we do NOT block on queue->send.
     bus_subs.write(publish_impl, &res, extended_event);
 
     return res;
