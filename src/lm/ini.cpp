@@ -107,7 +107,17 @@ static constexpr auto parse_number(
     {
         i64 sval = is_neg ? -static_cast<i64>(val) : static_cast<i64>(val);
 
-        if (sval < field.number_data.min || sval > static_cast<i64>(field.number_data.max))
+        i64 type_max_s = (field.number_data.output_bits < 64)
+            ? (i64{1} << (field.number_data.output_bits - 1)) - 1
+            : lm::signed_max<64>;
+        i64 type_min_s = (field.number_data.output_bits < 64)
+            ? -(i64{1} << (field.number_data.output_bits - 1))
+            : lm::signed_min<64>;
+        i64 effective_max = type_max_s < static_cast<i64>(field.number_data.max)
+                        ? type_max_s : static_cast<i64>(field.number_data.max);
+        i64 effective_min = type_min_s > field.number_data.min
+                        ? type_min_s : field.number_data.min;
+        if (sval < effective_min || sval > effective_max)
             return parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
@@ -121,10 +131,14 @@ static constexpr auto parse_number(
     else
     {
         if (is_neg && val != 0) return parse_result::number_negative_unsigned;
-        if (val > field.number_data.max) return parse_result::number_outside_bounds;
+        u64 type_max = (field.number_data.output_bits < 64)
+            ? (u64{1} << field.number_data.output_bits) - 1
+            : lm::unsigned_max<64>;
+        u64 effective_max = type_max < field.number_data.max ? type_max : field.number_data.max;
+        if (val > effective_max) return parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<u8* >(field.output)  = static_cast<u8>(val);  break;
+            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  break;
             case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); break;
             case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); break;
             case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); break;

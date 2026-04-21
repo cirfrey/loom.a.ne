@@ -88,8 +88,10 @@ LM_TEST_SUITE("bitset.tail_isolation",
     check(bs.count() == 0, "flip_all: count == 0, tail not leaked");
 
     // Directly poke the raw bucket — simulate a bug writing tail bits
-    bs.buckets[1] = 0xFFFFFFFF;   // all 32 bits set, only bit 0 (= bit 32) is valid
-    check(bs.count() == 1,        "raw tail poke: count still 1 after trim");
+    bs.buckets[1] = 0xFFFFFFFF;
+    // count() sees raw bits — 32 set in bucket[1], not just the 1 valid one.
+    // This documents that count() does NOT auto-trim.
+    check(bs.count() == 32, "raw tail poke: count reflects raw bits (count does not trim)");
     // Note: count() doesn't trim — it counts raw popcount. This test documents
     // that trim_tail is NOT called by count(). Callers of set/clear/flip don't
     // need to worry because those operations target specific bits. Bulk ops do trim.

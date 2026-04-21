@@ -25,7 +25,7 @@ namespace lm::fabric::bus
             type_mask.reset();
             for(auto id: ids) type_mask.set(id);
         }
-        auto wants_type(u8 id) const -> bool { return type_mask.test(id); }
+        auto wants_type(u8 id) const -> bool { return type_mask.none() || type_mask.test(id); }
     };
 
     static guarded<
@@ -103,44 +103,21 @@ namespace lm::fabric::bus
         header.timestamp = chip::time::uptime();
 
         for (auto const& sub : bus_subs) {
+            if(sub.queue == nullptr) continue;
+
             auto const not_interested_in_topic = !(sub.topic == topic::any || sub.topic == header.topic);
             auto const not_interested_in_type  = !(sub.wants_type(header.type));
-            auto const bad_queue               = sub.queue == nullptr;
 
-            if(not_interested_in_topic)
-            {
-                ++res->ignored;
-                continue;
-            }
-            else if(not_interested_in_type)
-            {
-                ++res->uninterested;
-                continue;
-            }
-            else if(bad_queue)
-            {
-                ++res->dropped;
-                continue;
-            }
+            if(not_interested_in_topic) { ++res->ignored;      continue; }
+            if(not_interested_in_type)  { ++res->uninterested; continue; }
 
             auto const not_enough_slots = sub.queue->slots() < events.size();
-            if(not_enough_slots)
-            {
-                ++res->dropped;
-                continue;
-            }
+            if(not_enough_slots)        { ++res->dropped;      continue; }
 
-            // TODO: test against the user-defined filter.
             if(sub.userfilter == nullptr || sub.userfilter(sub.userfilter_userdata, events) == userfilter_return::pass)
-            {
-                // All good. Go ahead and publish.
-                ++res->published;
-                for(auto& e : events) { sub.queue->send(&e, 0); }
-            }
+                { ++res->published; for(auto& e : events) sub.queue->send(&e, 0); }
             else
-            {
-                ++res->filtered;
-            }
+                { ++res->filtered; }
         }
     }
 }
