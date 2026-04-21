@@ -29,6 +29,23 @@ namespace lm
     // - Dynamic fields (runtime stuff) customizable by regular assignment.
     struct config_t
     {
+        // To get around some C++ limitations.
+        template <st Rows, st Cols>
+        struct table {
+            static constexpr st rows = Rows;
+            static constexpr st cols = Cols;
+
+            char data[rows][cols]{};
+            st   size[rows]{};
+
+            constexpr auto copy(auto dst_idx, const auto& src) -> void
+            {
+                // TODO: Some asserts of size and handling '\0' would be nice here.
+                size[dst_idx] = src.size;
+                for(st i = 0; i < src.size; ++i) data[dst_idx][i] = src.data[i];
+            };
+        };
+
         struct network_t
         {
             #ifndef LM_CONFIG_NETWORK_SSID_MAX_LEN
@@ -110,34 +127,52 @@ namespace lm
                 #endif
             };
 
-            // Overridable log color.
-            text level_ansi[level_count] = {
-                [debug]     = ansi::code<ansi::fg::gray>,
-                [test]      = ansi::code<ansi::fg::blue>,
-                [assertion] = ansi::code<ansi::fg::bright_magenta, ansi::style::bold, ansi::style::underline>,
-                [info]      = ansi::code<ansi::fg::white>,
-                [regular]   = ansi::code<ansi::style::reset>,
-                [warn]      = ansi::code<ansi::fg::yellow>,
-                [error]     = ansi::code<ansi::fg::red>,
-                [panic]     = ansi::code<ansi::fg::bright_red, ansi::style::bold>,
+            #ifndef LM_CONFIG_LOGGING_ANSI_MAX_LEN
+            // Should be enough even for some truecolor shenanigans.
+            #define LM_CONFIG_LOGGING_ANSI_MAX_LEN 32
+            #endif
+            static constexpr u8 ansi_max_len = LM_CONFIG_LOGGING_ANSI_MAX_LEN;
+            table<level_count, ansi_max_len> level_ansi = []() consteval {
+                table<level_count, ansi_max_len> out{};
+
+                out.copy(debug,     ansi::code<ansi::fg::gray>);
+                out.copy(test,      ansi::code<ansi::fg::blue>);
+                out.copy(assertion, ansi::code<ansi::fg::bright_magenta, ansi::style::bold>);
+                out.copy(info,      ansi::code<ansi::fg::white>);
+                out.copy(regular,   ansi::code<ansi::style::reset>);
+                out.copy(warn,      ansi::code<ansi::fg::yellow>);
+                out.copy(error,     ansi::code<ansi::fg::red>);
+                out.copy(panic,     ansi::code<ansi::fg::bright_red, ansi::style::bold>);
+
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
                 #endif
-            };
 
-            text level_prefix[level_count] = {
-                [debug]     = "[d]"_text,
-                [test]      = "[t]"_text,
-                [assertion] = "[a]"_text,
-                [info]      = "[i]"_text,
-                [regular]   = "[r]"_text,
-                [warn]      = "[W]"_text,
-                [error]     = "[E]"_text,
-                [panic]     = "[PANIC]"_text,
+                return out;
+            }();
+
+            #ifndef LM_CONFIG_LOGGING_PREFIX_MAX_LEN
+            #define LM_CONFIG_LOGGING_PREFIX_MAX_LEN 8
+            #endif
+            static constexpr u8 prefix_max_len = LM_CONFIG_LOGGING_PREFIX_MAX_LEN;
+            table<level_count, prefix_max_len> level_prefix = []() consteval {
+                table<level_count, prefix_max_len> out{};
+
+                out.copy(debug,     "[d]"_text);
+                out.copy(test,      "[t]"_text);
+                out.copy(assertion, "[a]"_text);
+                out.copy(info,      "[i]"_text);
+                out.copy(regular,   "[r]"_text);
+                out.copy(warn,      "[W]"_text);
+                out.copy(error,     "[E]"_text);
+                out.copy(panic,     "[PANIC]"_text);
+
                 #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
                     LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
                 #endif
-            };
+
+                return out;
+            }();
 
             enum timestamp_t {
                 no_timestamp,

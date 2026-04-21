@@ -35,6 +35,8 @@ static constexpr auto parse_string(
 
     auto* out = static_cast<char*>(field.output);
     std::memcpy(out, in.data + start, final_size);
+    if(field.string_data.size_out != nullptr)
+        *(st*)field.string_data.size_out = final_size;
     if(field.string_data.add_null_terminator)
         out[final_size + 1] = '\0';
 

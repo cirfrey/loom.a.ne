@@ -67,7 +67,7 @@ namespace lm::ansi
         bright_white  = 107,
     }; }
 
-    namespace _detail
+    namespace detail
     {
         // Sum up total size: \x1b + [ + (lengths of N) + (N-1 semicolons) + m
         template<int... Codes>
@@ -114,16 +114,15 @@ namespace lm::ansi
                 *p++ = 'm';
             }
         };
-
-        template <int... Codes>
-        inline constexpr auto code = code_t<Codes...>();
     }
+    template <int... Codes>
+    inline constexpr auto code = detail::code_t<Codes...>{};
 
-    template<int... Codes>
-    inline constexpr auto code = text{
-        _detail::code<Codes...>.data,
-        sizeof(_detail::code<Codes...>.data)
-    };
+    // template<int... Codes>
+    // inline constexpr auto code = text{
+    //     code_raw<Codes...>.data,
+    //     code_raw<Codes...>.size
+    // };
 
     // TODO: runtime code as well.
     // template <int... Codes>

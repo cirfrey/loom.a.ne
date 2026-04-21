@@ -209,7 +209,6 @@ LM_TEST_SUITE("ini.parse.quoted",
         };
 
         auto r = ini::parse("x=\"hello world\"\n"_text, fields);
-
         check(r == ini::parse_result::ok, "quoted string parse ok");
         check(std::memcmp(buffer, "hello world", 11) == 0, "quoted value correct");
     }

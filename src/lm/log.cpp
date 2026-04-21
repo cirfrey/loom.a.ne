@@ -38,18 +38,22 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
 
     if(f.args.color == feature::on)
     {
-        auto ansi = config.logging.level_ansi[f.args.loglevel];
         out.size += std::snprintf(
-            out.data + out.size, in.size - out.size, "%.*s", (int)ansi.size, ansi.data
+            out.data + out.size, in.size - out.size,
+            "%.*s",
+            (int)config.logging.level_ansi.size[f.args.loglevel],
+            config.logging.level_ansi.data[f.args.loglevel]
         );
         out.size = clamp(out.size, 0, in.size);
     }
 
     if(f.args.prefix == feature::on)
     {
-        auto prefix = config.logging.level_prefix[f.args.loglevel];
         out.size += std::snprintf(
-            out.data + out.size, in.size - out.size, "%.*s", (int)prefix.size, prefix.data
+            out.data + out.size, in.size - out.size,
+            "%.*s",
+            (int)config.logging.level_prefix.size[f.args.loglevel],
+            config.logging.level_prefix.data[f.args.loglevel]
         );
         out.size = clamp(out.size, 0, in.size);
     }

@@ -72,6 +72,9 @@ namespace lm::ini
                 error,
             } too_large_behaviour = error;
             bool add_null_terminator = false;
+
+            // Expects this to be an lm::st.
+            void* size_out = nullptr;
         };
         struct enumeration_data_t {
             using parse_t = field_parse_result(*)(field const& field, text input, parse_args);
@@ -254,14 +257,15 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
             if(fmtbuf_offset >= sizeof(fmtbuf)) fmtbuf_offset = sizeof(fmtbuf);
         }
 
-        auto const& yellow = config.logging.level_ansi[log::level::warn];
-        auto const& gray   = config.logging.level_ansi[log::level::debug];
-        auto const& white  = config.logging.level_ansi[log::level::regular];
+        // TODO: this needs to use raw ansi and not level_ansi.
+        auto yellow = config.logging.level_ansi.data[log::level::warn];
+        auto gray   = config.logging.level_ansi.data[log::level::debug];
+        auto white  = config.logging.level_ansi.data[log::level::regular];
         log::warn<128 * 3>(
-            "Ignoring %.*s[%.*s]%.*s for %.*s[%.*s - %.*s]%.*s\n\t> Allowed values are: %.*s[%.*s%.*s]\n",
-            (int)white.size, white.data, (int)input.size,     input.data,     (int)yellow.size, yellow.data,
-            (int)white.size, white.data, (int)field.key.size, field.key.data, (int)enum_name.size, enum_name.data, (int)yellow.size, yellow.data,
-            (int)white.size, white.data, (int)fmtbuf_offset,  fmtbuf,         (int)white.size, white.data
+            "Ignoring %s[%.*s]%s for %s[%.*s - %.*s]%s\n\t> Allowed values are: %s[%.*s%s]\n",
+            white, (int)input.size,     input.data,     yellow,
+            white, (int)field.key.size, field.key.data, (int)enum_name.size, enum_name.data, yellow,
+            white, (int)fmtbuf_offset,  fmtbuf,         white
         );
 
         return field_parse_result::enumeration_not_found;
