@@ -70,7 +70,7 @@ auto lm::hook::framework_main() -> void
     auto strandman_handle = strands::strandman::spawn< config_t::launcher_t::strandman_max_strands >(
         strands::strandman::strand_t{
             .code = [](void*){}, // Dummy.
-            .id = (u8)lm::registry::strand_id.reserve().id,
+            .id = lm::registry::strand_id.reserve().id | toe,
             .stack_size = lm::config.launcher.strandman.stack_size,
             .sleep_ms = 0,
             .name = "lm.strandman",

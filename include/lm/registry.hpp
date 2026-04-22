@@ -6,9 +6,8 @@
 
 namespace lm::registry
 {
-    using result = lm::synchronized_registry_reserve_result;
+    using result      = lm::synchronized_registry_reserve_result;
+    using u8_registry = synchronized_registry< unsigned_max<8> + 1 >;
 
-    // We start it with the id 0 reserved since that id has a special meaning (means: any strand)
-    // and we don't want to accidentally assign a strand that id.
-    inline static auto strand_id = synchronized_registry< unsigned_max<8> >({0});
+    extern u8_registry strand_id;
 }

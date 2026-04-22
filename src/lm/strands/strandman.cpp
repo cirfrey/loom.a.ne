@@ -277,8 +277,10 @@ auto lm::strands::strandman::manage_strands(st max_strands, std::span<strand_t>&
 
     using signal = fabric::topic::framework_t::strand_signal;
 
-    for(auto& strand : strands)
+    for(auto i = 1; i < strands.size(); ++i)
     {
+        auto& strand = strands[i];
+
         auto can_be_created   =
             strand.status == status::not_created || strand.status == status::reaped;
         auto can_set_running  = strand.status == status::ready;
