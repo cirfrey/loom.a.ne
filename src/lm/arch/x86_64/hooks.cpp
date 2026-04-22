@@ -7,7 +7,7 @@
 #include "lm/build.hpp"
 #include "lm/banner.hpp"
 
-auto lm::hook::arch_init() -> void
+auto lm::hook::arch_init(config_t& config) -> void
 {
     chip::system::init();
     chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);
@@ -50,28 +50,28 @@ auto lm::hook::arch_init() -> void
 
 #include <cstdio>
 
-auto lm::hook::arch_config() -> void
+auto lm::hook::arch_config(config_t& config) -> void
 {
     auto uuid = chip::info::uuid();
     std::snprintf(
-        lm::config.usb.string_descriptors.serial,
+        config.usb.string_descriptors.serial,
         config_t::usbcommon::string_descriptor_max_len,
         "%.*s",
         (int)uuid.size, uuid.data
     );
     std::snprintf(
-        lm::config.usbip.string_descriptors.serial,
+        config.usbip.string_descriptors.serial,
         config_t::usbcommon::string_descriptor_max_len,
         "%.*s",
         (int)uuid.size, uuid.data
     );
 
-    lm::config.usb.endpoints    = arch::x86_64::endpoints;
-    lm::config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
+    config.usb.endpoints    = arch::x86_64::endpoints;
+    config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
 
     // Hardcoded for now, until I actually fetch the ini file from somewhere.
-    lm::config.ini.with_source = [](void* ud, auto cb){
-        auto ini_text = "[midi.usbip]\ncable_count = 4\nmode = bogus"_text;
+    config.ini.with_source = [](void* ud, auto cb){
+        auto ini_text = "[midi.usbip]\ncable_count = 4"_text;
         cb(ud, ini_text);
     };
 }

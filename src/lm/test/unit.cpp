@@ -10,10 +10,10 @@
 
 #include "lm/board.hpp"
 
-auto lm::hook::test::unit() -> void
+auto lm::hook::test::unit(config_t& config) -> void
 {
-    auto const saved_dispatcher = lm::config.logging.custom_dispatcher;
-    lm::config.logging.custom_dispatcher = [](text t, log::level) -> bool {
+    auto const saved_dispatcher = config.logging.custom_dispatcher;
+    config.logging.custom_dispatcher = [](text t, log::level) -> bool {
         // dispatch_immediate writes directly to UART without the ring buffer.
         // Port 0 = stdout on native, UART0 on embedded.
         lm::log::dispatch_immediate(
@@ -25,7 +25,7 @@ auto lm::hook::test::unit() -> void
         return true;
     };
     auto const result = lm::test::run_unit();
-    lm::config.logging.custom_dispatcher = saved_dispatcher;
+    config.logging.custom_dispatcher = saved_dispatcher;
 
     using after_t = config_t::test_t::after_test;
     switch(lm::config.test.after_unit) {

@@ -184,13 +184,13 @@ namespace lm
 
             enum timestamp_t {
                 no_timestamp,
-                timestamp_ms_6,
-            } timestamp = timestamp_ms_6;
+                ms_6,
+            } timestamp = ms_6;
             enum filename_t {
                 no_filename,
-                short_filename,
-                full_filename,
-            } filename = short_filename;
+                file,
+                full_path,
+            } filename = file;
             feature color = feature::on;
             feature prefix = feature::on;
 
@@ -540,8 +540,7 @@ namespace lm
         } msc;
     };
 
-    // TODO: thread-safe, acessible by config().
-    extern config_t config;
+    extern config_t const& config;
 }
 
 // TODO: refactor me!

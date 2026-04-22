@@ -19,8 +19,8 @@ namespace lm::log
 
     struct fmt_t_args {
         const char* fmt = "";
-        timestamp_t timestamp = timestamp_t::timestamp_ms_6;
-        filename_t  filename  = filename_t::short_filename;
+        timestamp_t timestamp = timestamp_t::ms_6;
+        filename_t  filename  = filename_t::file;
         color_t     color     = feature::on;
         prefix_t    prefix    = feature::on;
         level       loglevel  = level::debug;

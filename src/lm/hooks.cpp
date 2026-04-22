@@ -3,9 +3,10 @@
 #include "lm/core.hpp"
 #include "lm/board.hpp"
 #include "lm/config.hpp"
+#include "lm/config/boot.hpp"
 #include "lm/log.hpp"
 #include "lm/chip/system.hpp"
-#include "lm/config_ini.hpp"
+#include "lm/config/ini.hpp"
 
 #include "lm/fabric/strand.hpp"
 #include "lm/fabric/strand_registry.hpp"
@@ -22,23 +23,23 @@
 // TODO: allow override.
 auto lm::hook::launcher() -> void
 {
-    lm::hook::framework_init();
-    lm::hook::arch_init();
-    lm::hook::init();
+    lm::hook::framework_init(config_rw);
+    lm::hook::arch_init(config_rw);
+    lm::hook::init(config_rw);
 
-    lm::hook::arch_config();
-    lm::hook::config();
+    lm::hook::arch_config(config_rw);
+    lm::hook::config(config_rw);
 
-    lm::hook::parse_ini();
+    lm::hook::parse_ini(config_rw);
 
     if(lm::config.test.unit == feature::on)
-        lm::hook::test::unit();
+        lm::hook::test::unit(config_rw);
 
     lm::hook::framework_main();
     lm::hook::main();
 }
 
-auto lm::hook::framework_init() -> void
+auto lm::hook::framework_init(config_t& config) -> void
 {
     // We also allocate id(0) since it has special meaning (any strand) and we don't want to have
     // a strand running with that id.
@@ -53,7 +54,7 @@ auto lm::hook::framework_init() -> void
     lm::log::init();
 }
 
-auto lm::hook::parse_ini() -> void
+auto lm::hook::parse_ini(config_t& config) -> void
 {
     if(lm::config.ini.with_source == nullptr) {
         lm::log::warn("lm::config.ini.with_source not set, this is likely an oversight in lm::hooks::arch_config\n");
@@ -101,7 +102,7 @@ auto lm::hook::framework_main() -> void
     //       to start all the strands we need from lm::config.
 }
 
-[[gnu::weak]] auto lm::hook::init() -> void {}
-[[gnu::weak]] auto lm::hook::config() -> void {}
-[[gnu::weak]] auto lm::hook::test::unit() -> void {}
+[[gnu::weak]] auto lm::hook::init(config_t&) -> void {}
+[[gnu::weak]] auto lm::hook::config(config_t&) -> void {}
+[[gnu::weak]] auto lm::hook::test::unit(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::main() -> void {}
