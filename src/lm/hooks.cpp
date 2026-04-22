@@ -3,13 +3,13 @@
 #include "lm/core.hpp"
 #include "lm/board.hpp"
 #include "lm/config.hpp"
+#include "lm/registry.hpp"
 #include "lm/config/boot.hpp"
 #include "lm/log.hpp"
 #include "lm/chip/system.hpp"
 #include "lm/config/ini.hpp"
 
 #include "lm/fabric/strand.hpp"
-#include "lm/fabric/strand_registry.hpp"
 #include "lm/fabric/register_strand.hpp"
 
 #include "lm/strands/strandman.hpp"
@@ -41,27 +41,21 @@ auto lm::hook::launcher() -> void
 
 auto lm::hook::framework_init(config_t& config) -> void
 {
-    // We also allocate id(0) since it has special meaning (any strand) and we don't want to have
-    // a strand running with that id.
-    lm::fabric::strand::registry::init();
-    if(lm::fabric::strand::registry::reserve(0).has_error()) {
-        log::panic("lm::fabric::strand::registry::reserve(0) failed, somethine is seriously wrong!\n");
-        chip::system::halt(1);
-    }
+    registry::strand_id.init();
 
     // Doesn't start the log task, just inits the buffer so we don't lose any messages until it does
     // actually spin up.
-    lm::log::init();
+    log::init();
 }
 
 auto lm::hook::parse_ini(config_t& config) -> void
 {
-    if(lm::config.ini.with_source == nullptr) {
-        lm::log::warn("lm::config.ini.with_source not set, this is likely an oversight in lm::hooks::arch_config\n");
+    if(config.ini.with_source == nullptr) {
+        log::warn("lm::config.ini.with_source not set, this is likely an oversight in lm::hooks::arch_config\n");
         return;
     }
 
-    lm::config.ini.with_source(nullptr, [](void*, text ini_text){
+    config.ini.with_source(nullptr, [](void*, text ini_text){
         auto result = ini::parse(ini_text, config_ini::fields);
 
         if(result != lm::ini::parse_result::ok) {
@@ -76,7 +70,7 @@ auto lm::hook::framework_main() -> void
     auto strandman_handle = strands::strandman::spawn< config_t::launcher_t::strandman_max_strands >(
         strands::strandman::strand_t{
             .code = [](void*){}, // Dummy.
-            .id = lm::fabric::strand::registry::reserve().id,
+            .id = (u8)lm::registry::strand_id.reserve().id,
             .stack_size = lm::config.launcher.strandman.stack_size,
             .sleep_ms = 0,
             .name = "lm.strandman",

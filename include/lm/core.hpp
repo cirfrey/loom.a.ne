@@ -12,3 +12,4 @@
 #include "lm/core/primitives/bitset.hpp"
 #include "lm/core/primitives/guarded.hpp"
 #include "lm/core/primitives/stopwatch.hpp"
+#include "lm/core/primitives/synchronized_registry.hpp"

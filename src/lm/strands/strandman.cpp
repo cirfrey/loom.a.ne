@@ -1,10 +1,8 @@
 #include "lm/strands/strandman.hpp"
 
-#include "lm/fabric/strand_registry.hpp"
-
 #include "lm/core.hpp"
 #include "lm/fabric.hpp"
-
+#include "lm/registry.hpp"
 #include "lm/log.hpp"
 
 #include <cstring>
@@ -122,20 +120,10 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
             continue;
         }
 
-        // Check if we can use the id or need to get a new id.
-        bool id_error   = false;
-        u8 newstrand_id = 0;
-        if(data.autoassign_id) {
-            auto ret     = fabric::strand::registry::reserve();
-            id_error     = ret.has_error();
-            newstrand_id = ret.id;
-        } else {
-            auto ret     = fabric::strand::registry::reserve(data.id);
-            id_error     = ret.has_error();
-            newstrand_id = ret.id;
-        }
-
-        if(id_error) {
+        auto [register_status, newstrand_id] = data.autoassign_id
+            ? registry::strand_id.reserve()
+            : registry::strand_id.reserve(data.id);
+        if(register_status == registry::result::error) {
             consume();
             fabric::bus::publish(fabric::event{
                 .topic     = fabric::topic::framework,
@@ -152,7 +140,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         request_register_strand::extdata extdata;
         strandman_q.receive(&extdata, 0);
         if(extdata.strand == nullptr) {
-            fabric::strand::registry::unreserve(newstrand_id);
+            registry::strand_id.unreserve(newstrand_id);
             consume(e.extension_count() - 1);
             fabric::bus::publish(fabric::event{
                 .topic     = fabric::topic::framework,
@@ -172,7 +160,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
 
         strand_t newstrand {
             .code       = extdata.strand,
-            .id         = newstrand_id,
+            .id         = newstrand_id | toe,
             .stack_size = extdata.stack_size,
             .sleep_ms   = extdata.sleep_ms,
             .priority   = extdata.priority,
@@ -198,7 +186,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         }
 
         if(too_many_depends) {
-            fabric::strand::registry::unreserve(newstrand_id);
+            registry::strand_id.unreserve(newstrand_id);
             fabric::bus::publish(fabric::event{
                 .topic     = fabric::topic::framework,
                 .type      = response_register_strand::type,

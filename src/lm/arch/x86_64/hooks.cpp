@@ -66,10 +66,14 @@ auto lm::hook::arch_config(config_t& config) -> void
         (int)uuid.size, uuid.data
     );
 
+    // TODO: Im not happy with this, the spans allow write.
+    //       Ideally we'd do span<type const> and then each
+    //       backend creates its own copy from the template.
+    // NOTE: Cannot have multiple usbip instances until the previous commented is implemented.
     config.usb.endpoints    = arch::x86_64::endpoints;
     config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
 
-    // Hardcoded for now, until I actually fetch the ini file from somewhere.
+    // TODO: Hardcoded for now, until I actually fetch the ini file from somewhere.
     config.ini.with_source = [](void* ud, auto cb){
         auto ini_text = "[midi.usbip]\ncable_count = 4"_text;
         cb(ud, ini_text);
