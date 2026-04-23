@@ -3,6 +3,7 @@
 #include "lm/core/types.hpp"
 #include "lm/core/veil.hpp"
 #include "lm/core/helpers.hpp"
+#include "lm/port.hpp"
 
 namespace lm
 {
@@ -20,17 +21,17 @@ namespace lm
             else return to_text(unsigned_atlas[sizeof(T) - 1]);
         }
         text name, prefix, suffix;
-        #if defined(__clang__)
+        #if LM_PORT_COMPILER_CLANG
             name   = to_text(__PRETTY_FUNCTION__);
             prefix = to_text("lm::text lm::type_name() [T = ");
             if constexpr (EnableShortInts) { suffix = to_text(", EnableShortInts = true]"); }
             else                           { suffix = to_text(", EnableShortInts = false]"); }
-        #elif defined(__GNUC__)
+        #elif LM_PORT_COMPILER_GCC
             name   = to_text(__PRETTY_FUNCTION__);
             prefix = to_text("constexpr lm::text lm::type_name() [with T = ");
             if constexpr (EnableShortInts) { suffix = to_text("; bool EnableShortInts = true]"); }
             else                           { suffix = to_text("; bool EnableShortInts = false]"); }
-        #elif defined(_MSC_VER)
+        #elif LM_PORT_COMPILER_MSVC
             static_assert(false, "Please implement type_name() for this compiler");
         #else
             static_assert(false, "Please implement type_name() for this compiler");
@@ -84,7 +85,7 @@ namespace lm::detail
             auto data = unq.data;
             auto size = unq.size;
 
-            #if defined(_MSC_VER)
+            #if LM_PORT_COMPILER_MSVC
                 for(auto colons = 0u; colons < 2; colons += *(--data) == ':') ++size;
                 --data;
                 while(*data != ',' && *data != ':') { --data; ++size; }
@@ -99,11 +100,11 @@ namespace lm::detail
     template <typename Enum, Enum Value>
     consteval auto enum_value_view()
     {
-        #if !defined(_MSC_VER)
+        #if !LM_PORT_COMPILER_MSVC
             const char* fn = __PRETTY_FUNCTION__;
-            #if defined(__clang__)
+            #if LM_PORT_COMPILER_CLANG
                 while(*(fn++) != ',');
-            #elif defined(__GNUC__)
+            #elif LM_PORT_COMPILER_GCC
                 while(*(fn++) != ';');
             #endif
             while(*(fn++) != '=');
