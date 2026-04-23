@@ -32,29 +32,10 @@ namespace lm::fabric::strand
     };
     // This is the one you probably want to use:
     template <typename Strand>
-    [[nodiscard]] constexpr auto create(create_strand_args const& args) -> handle_t;
+    [[nodiscard]] constexpr auto create(create_strand_args args) -> handle_t;
     // Create a strand given some args. raw_params is forwarded to the strand.
     [[nodiscard]] auto create(create_strand_args const& args, void* params = nullptr) -> handle_t;
-}
 
-// Strand utilities.
-namespace lm::fabric::strand
-{
-    // Yield for atleast N milliseconds. If N == 0 just yield to something of equal or higher priority if
-    // theres someone waiting to run, otherwise keep running.
-    auto sleep_ms(unsigned long ms) -> void;
-
-    // Get your own strand handle. You probably never want to do this, but you never know.
-    [[nodiscard]] auto get_my_own_handle() -> handle_t;
-
-    enum class reap_status { success, error };
-    // Deletes a strand by it's handle. The strand must want to be deleted.
-    [[nodiscard]] auto reap(handle_t handle) -> reap_status;
-}
-
-// The *actual* API behind all the managed strand things. You probably don't want to use any of this directly.
-namespace lm::fabric::strand
-{
     // Deltas and timestamps are in micros.
     // requested_sleep_ms is in millis.
     struct strand_runtime_info
@@ -76,7 +57,27 @@ namespace lm::fabric::strand
         ok,
         suicidal,
     };
+}
 
+// Strand utilities.
+namespace lm::fabric::strand
+{
+    // Yield for atleast N milliseconds. If N == 0 just yield to something of equal or higher priority if
+    // theres someone waiting to run, otherwise keep running.
+    auto sleep_ms(unsigned long ms) -> void;
+
+    // Get your own strand handle. You probably never want to do this, but you never know.
+    [[nodiscard]] auto get_my_own_handle() -> handle_t;
+
+    enum class reap_status { success, error };
+    // Deletes a strand by it's handle. The strand must want to be deleted.
+    [[nodiscard]] auto reap(handle_t handle) -> reap_status;
+}
+
+#include <cstdio>
+// The *actual* API behind all the managed strand things. You probably don't want to use any of this directly.
+namespace lm::fabric::strand
+{
     /** --- A wrapper to make tasking easy ---
      * This is the main way you might interact with the strand system.
      * Here's what it expects your strand to look like.
@@ -121,16 +122,16 @@ namespace lm::fabric::strand
             constructed = true;
         }
         constexpr auto on_ready()     -> managed_strand_status
-        { if(on_ready_cb)     return on_ready_cb(ud);    return managed_strand_status::ok; }
+        { if(constructed && on_ready_cb)     return on_ready_cb(ud);     return managed_strand_status::ok; }
         constexpr auto before_sleep() -> managed_strand_status
-        { if(before_sleep_cb) return before_sleep_cb(ud); return managed_strand_status::ok; }
+        { if(constructed && before_sleep_cb) return before_sleep_cb(ud); return managed_strand_status::ok; }
         constexpr auto on_wake()      -> managed_strand_status
-        { if(on_wake_cb);     return on_wake_cb(ud);      return managed_strand_status::ok; }
+        { if(constructed && on_wake_cb)      return on_wake_cb(ud);      return managed_strand_status::ok; }
         constexpr ~type_erased_strand_t()
         { if(constructed && destruct_cb) destruct_cb(ud); }
 
     };
-    auto manage(void* params, void* ud, type_erased_strand_t type_erased_strand) -> void;
+    auto manage(void* params, type_erased_strand_t type_erased_strand) -> void;
 
     /// Managed strand lifetime stuff.
 
@@ -148,19 +149,28 @@ constexpr auto lm::fabric::strand::managed() -> function_t
 {
     return [](void* params){
         alignas(Strand) char buffer[sizeof(Strand)];
-        manage(params, buffer, {
+
+        type_erased_strand_t te {
             .ud = buffer,
             .construct_cb    = [](void* buffer, strand_runtime_info& info){ new (buffer) Strand(info); },
             .destruct_cb     = [](void* buffer){ (buffer | rc<Strand*>)->~Strand(); },
-            .on_ready_cb     = [](void* buffer){ return (buffer | rc<Strand*>)->on_ready(); },
-            .before_sleep_cb = [](void* buffer){ return (buffer | rc<Strand*>)->before_sleep(); },
-            .on_wake_cb      = [](void* buffer){ return (buffer | rc<Strand*>)->on_wake(); },
-        });
+        };
+
+        #define LM_FABRIC_STRAND_BIND_IF_EXISTS(func_name, cb_member) \
+        if constexpr (requires(Strand s) { { s.func_name() } -> veil::convertible_to<managed_strand_status>; }) { \
+            te.cb_member = [](void* b){ return reinterpret_cast<Strand*>(b)->func_name(); }; \
+        }
+        LM_FABRIC_STRAND_BIND_IF_EXISTS(on_ready,     on_ready_cb)
+        LM_FABRIC_STRAND_BIND_IF_EXISTS(before_sleep, before_sleep_cb)
+        LM_FABRIC_STRAND_BIND_IF_EXISTS(on_wake,      on_wake_cb)
+        #undef LM_FABRIC_STRAND_BIND_IF_EXISTS
+
+        manage(params, te);
     };
 }
 
 template <typename Strand>
-constexpr auto lm::fabric::strand::create(create_strand_args const& args) -> handle_t
+constexpr auto lm::fabric::strand::create(create_strand_args args) -> handle_t
 {
     args.code = managed<Strand>();
     return create(args, managed_strand_params{ .id = args.id, .sleep_ms = args.sleep_ms } | smuggle<void*>);

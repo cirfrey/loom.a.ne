@@ -3,6 +3,7 @@
 #include "lm/core/types.hpp"
 #include "lm/core/ansi.hpp"
 #include "lm/fabric/types.hpp"
+#include "lm/fabric/strand.hpp"
 #include "lm/usb/common.hpp"
 
 #include "lm/chip/memory.hpp"
@@ -73,7 +74,7 @@ namespace lm
         {
             // Refers to the manager_announce event.
             // This is the window you should expect responses from.
-            u16 manager_announce_window_ms = 10;
+            u16 manager_announce_window_ms = 100;
         } framework;
 
         struct logging_t
@@ -234,67 +235,59 @@ namespace lm
             struct info {
                 char name[24];
                 u16 stack_size;
-                feature set_running;
-
-                [[deprecated("No longer used, removeme!")]] st priority;
-                [[deprecated("No longer used, will this be necessary?")]] st core_affinity;
-
-                u16 sleep_ms = 0;
+                u16 sleep_ms        = 1;
+                u8 priority         = 5;
+                u16 core_affinity   = ~u16{0};
+                feature set_running = feature::on;
+                fabric::strand::function_t code;
             };
 
             info strandman = info{
                 .name        = "lm.strandman",
                 .stack_size  = 26 * 128,
-                .set_running = feature::on,
+                .sleep_ms    = 10,
             };
 
             info log = info{
                 .name        = "lm.log",
                 .stack_size  = 24 * 128,
-                .set_running = feature::on,
-            };
-
-            info apply_config = info{
-                .name        = "lm.config",
-                .stack_size  = 64 * 128,
-                .set_running = feature::on,
+                .sleep_ms    = 100,
             };
 
             info healthmon = info{
-                .name        = "lm::strand::healthmon",
+                .name        = "lm.healthmon",
                 .stack_size  = 22 * 128,
-                .set_running = feature::on,
+                .sleep_ms    = 5000,
             };
 
             info blink = info{
-                .name        = "lm::strand::blink",
+                .name        = "lm.blink",
                 .stack_size  = 11 * 128,
-                .set_running = feature::on,
+                .sleep_ms    = 10,
             };
 
             info busmon = info{
-                .name        = "lm::strand::busmon",
+                .name        = "lm.busmon",
                 .stack_size  = 18 * 128,
-                .set_running = feature::on,
+                .sleep_ms    = 10,
+                .set_running = feature::off,
             };
 
             info usbd = info{
-                .name        = "lm::strand::usbd",
+                .name        = "lm.usbd",
                 .stack_size  = 64 * 128,
-                .set_running = feature::on,
+                .set_running = feature::off,
             };
 
             // Internal to usbd, not managed.
             info tud = info{
-                .name        = "lm::strand::tud",
+                .name        = "lm.usbd.tud",
                 .stack_size  = 64 * 128,
-                .set_running = feature::on,
             };
 
             info usbip = info{
-                .name        = "lm::strand::usbip",
+                .name        = "lm.usbip",
                 .stack_size  = 64 * 128,
-                .set_running = feature::on,
             };
 
         } launcher;

@@ -20,7 +20,7 @@ namespace lm::hook
     auto arch_init(config_t&) -> void;
     /* [WEAK] */ auto init(config_t&) -> void;
 
-
+    auto framework_config(config_t&) -> void;
     auto arch_config(config_t&) -> void;
     /* [WEAK] */ auto config(config_t&) -> void;
 

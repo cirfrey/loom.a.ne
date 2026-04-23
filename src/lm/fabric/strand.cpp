@@ -7,7 +7,7 @@
 
 #include "lm/log.hpp"
 
-auto lm::fabric::strand::manage(void* _params, void* ud, type_erased_strand_t strand) -> void
+auto lm::fabric::strand::manage(void* _params, type_erased_strand_t strand) -> void
 {
     auto params = _params | unsmuggle<managed_strand_params>;
 

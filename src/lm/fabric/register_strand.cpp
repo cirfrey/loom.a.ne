@@ -18,7 +18,7 @@ namespace
     struct manager_cache_t {
         bool valid           = false;
         u8   manager_id      = 0;
-        u16  safe_timeout    = 10;   // conservative default
+        u16  safe_timeout_ms = 10;   // conservative default
         st   available_slots = 0;
     };
 
@@ -69,7 +69,7 @@ namespace
         for(auto const& e : resp_q.consume<fabric::event>()) {
             auto& data = e.get_payload<response>();
             if(!best.valid || data.available_slots > best.available_slots)
-                best = {true, e.strand_id, data.safe_timeout, data.available_slots};
+                best = {true, e.strand_id, data.safe_timeout_ms, data.available_slots};
         }
 
         if(!best.valid) return false;
@@ -122,6 +122,7 @@ namespace
             .request_running = p.start,
             .strand          = p.code,
             .priority        = p.priority,
+            .core_affinity   = p.core_affinity,
         });
 
         // ── extname ───────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ auto lm::fabric::register_strand(register_params const& p) -> register_result
             }
         }
         manager_id = g_manager_cache.manager_id;
-        mgr_sleep  = g_manager_cache.safe_timeout;
+        mgr_sleep  = g_manager_cache.safe_timeout_ms;
     }
 
     // ── Timeout: never shorter than 2 full manager cycles ────────────────────

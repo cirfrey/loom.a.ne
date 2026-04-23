@@ -74,8 +74,8 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .type      = response_manager_announce::type,
                 .strand_id = strands[0].id,
             }.with_payload(response_manager_announce{
-                .seqnum       = data.seqnum,
-                .safe_timeout = 5 * 1000, // We'd for sure handle anything in 5ms, right... ?
+                .seqnum          = data.seqnum,
+                .safe_timeout_ms = clamp(strands[0].sleep_ms, 1, strands[0].sleep_ms) * 3 | toe,
                 .available_slots = clamp(max_strands - strands.size(), 0, unsigned_max<16>) | toe,
             }));
             continue;

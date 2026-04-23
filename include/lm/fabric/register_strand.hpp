@@ -58,13 +58,14 @@ namespace lm::fabric
 
     struct register_params
     {
-        text                                      name        = {};
-        u16                                       stack_size  = 128;   // words
-        u16                                       sleep_ms    = 10;
-        u8                                        priority    = 5;
-        bool                                      start       = true;
-        fabric::strand::function_t                code        = nullptr;
-        std::initializer_list<depends::depends_t> depends     = {};
+        text                                      name          = {};
+        u16                                       stack_size    = 128;   // words
+        u16                                       sleep_ms      = 10;
+        u8                                        priority      = 5;
+        u16                                       core_affinity = 0;
+        bool                                      start         = true;
+        fabric::strand::function_t                code          = nullptr;
+        std::initializer_list<depends::depends_t> depends       = {};
 
 
         // Advanced — leave as defaults unless you have a reason

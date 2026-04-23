@@ -44,7 +44,6 @@ auto lm::strands::healthmon::before_sleep() -> status
     // info from event bus and keeping track of it,
     // then - every once in a while - make a report on it
     // with some heavier processing.
-    // lm::strand::sleep_ms(cfg.sleep_ms);
 
     // --- PART A: Global Heap Health ---
     auto total     = chip::memory::total();

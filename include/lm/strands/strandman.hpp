@@ -19,8 +19,8 @@ namespace lm::strands
             u8 id;
             u16 stack_size; // In words
             u16 sleep_ms;
-            u8 priority      = fabric::topic::framework_t::request_register_strand::default_priority;
-            u8 core_affinity = fabric::topic::framework_t::request_register_strand::no_affinity;
+            u8 priority       = fabric::topic::framework_t::request_register_strand::default_priority;
+            u16 core_affinity = fabric::topic::framework_t::request_register_strand::no_affinity;
             name_t name;
             depends_t depends[config_t::strandman_t::max_depends] = {};
 

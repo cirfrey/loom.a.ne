@@ -39,17 +39,16 @@ lm::strands::usbip::usbip(ri& info) : info{info}
         log::fmt_t(log::fmt_t_args::from_config()
             .with_fmt(fmt)
             .with_timestamp(log::timestamp_t::no_timestamp)
-            .with_filename(log::filename_t::no_filename
-            )),
+            .with_filename(log::filename_t::no_filename)
+            .with_prefix(log::prefix_t::disabled)
+        ),
         veil::forward<decltype(args)>(args)...
     ); };
     usb::debug::print_ep_table(config.usbip.endpoints, printer, {"\t", 1});
 }
 
 auto lm::strands::usbip::on_ready() -> status
-{
-    return status::ok;
-}
+{ return status::ok; }
 
 auto lm::strands::usbip::before_sleep() -> status
 { return status::ok; }

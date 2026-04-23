@@ -124,7 +124,7 @@ namespace lm::fabric
             {
                 static constexpr auto type = types::response_manager_announce;
                 u8 seqnum;
-                u16 safe_timeout; // What's a safe timeout for this manager to ensure it gets any events we throw at it.
+                u16 safe_timeout_ms; // What's a safe timeout for this manager to ensure it gets any events we throw at it.
                 u16 available_slots;
             }; static_assert(sizeof(response_manager_announce) <= sizeof(fabric::event::payload));
 
@@ -164,7 +164,7 @@ namespace lm::fabric
                     bool request_running = false;
                     strand_t strand;
                     u8 priority      = default_priority;
-                    u8 core_affinity = no_affinity;
+                    u16 core_affinity = no_affinity;
                 }; static_assert(sizeof(extdata) <= sizeof(fabric::event));
 
                 struct extname {

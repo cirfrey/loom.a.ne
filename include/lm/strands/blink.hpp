@@ -117,7 +117,6 @@ namespace lm::strands
 
         blink(ri& info);
         auto on_ready()     -> status;
-        auto before_sleep() -> status;
         auto on_wake()      -> status;
         ~blink() = default;
 
