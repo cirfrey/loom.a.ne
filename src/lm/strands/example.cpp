@@ -2,25 +2,10 @@
 
 #include "lm/strands/example.hpp"
 
-lm::strands::example::example(fabric::strand_runtime_info& info)
-{
-}
+lm::strands::example::example(ri& info) : info{info} {}
 
-auto lm::strands::example::on_ready() -> fabric::managed_strand_status
-{ 
-    return fabric::managed_strand_status::ok; 
-}
+auto lm::strands::example::on_ready()     -> status { return status::ok; }
+auto lm::strands::example::before_sleep() -> status { return status::ok; }
+auto lm::strands::example::on_wake()      -> status { return status::ok; }
 
-auto lm::strands::example::before_sleep() -> fabric::managed_strand_status
-{ 
-    return fabric::managed_strand_status::ok;
-}
-
-auto lm::strands::example::on_wake() -> fabric::managed_strand_status
-{
-    return fabric::managed_strand_status::ok;
-}
-
-lm::strands::example::~example()
-{
-}
+lm::strands::example::~example() {}

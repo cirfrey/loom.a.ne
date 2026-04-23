@@ -4,6 +4,7 @@
 #include "lm/fabric.hpp"
 #include "lm/registry.hpp"
 #include "lm/log.hpp"
+#include "lm/chip.hpp"
 
 #include <cstring>
 
@@ -302,7 +303,7 @@ auto lm::strands::strandman::manage_strands(st max_strands, std::span<strand_t>&
                 .core_affinity = strand.core_affinity == 255 ? fabric::strand::create_strand_args::no_affinity : strand.core_affinity,
                 .sleep_ms = strand.sleep_ms,
                 .code = strand.code,
-            });
+            }, fabric::strand::managed_strand_params{ .id = strand.id, .sleep_ms = strand.sleep_ms } | smuggle<void*>);
             if(h != fabric::strand::bad_handle) {
                 using status = fabric::topic::framework_t::strand_status;
                 fabric::bus::publish(fabric::event{

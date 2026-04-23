@@ -100,12 +100,15 @@ namespace lm
     struct mut_buf {
         void* data = nullptr;
         st size    = 0;
+        constexpr operator buf() { return { .data = data, .size = size}; }
     };
     // Non-owning, mutable view of a character string, NOT null-terminated (.size is law).
     struct mut_text {
         char* data = nullptr;
         st size    = 0;
         constexpr operator mut_buf() { return { .data = data, .size = size }; }
+        constexpr operator buf()     { return { .data = data, .size = size }; }
+        constexpr operator text()    { return { .data = data, .size = size }; }
     };
 
     inline namespace literals

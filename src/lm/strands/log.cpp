@@ -54,7 +54,7 @@ auto lm::strands::log::occupancy() -> st
 }
 
 
-lm::strands::log::log(fabric::strand_runtime_info& info)
+lm::strands::log::log(ri& info)
 {
     //     // Forwards ESP_LOG* to uart.
     //     esp_log_set_vprintf([](const char* format, va_list args) {
@@ -71,12 +71,12 @@ lm::strands::log::log(fabric::strand_runtime_info& info)
         consumers[i].type = logging::consumer::type_t::disabled;
 }
 
-auto lm::strands::log::on_ready() -> fabric::managed_strand_status
+auto lm::strands::log::on_ready() -> status
 {
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::log::before_sleep() -> fabric::managed_strand_status
+auto lm::strands::log::before_sleep() -> status
 {
     // 2. Consume.
     for(auto i = 0; i < consumer_count; ++i)
@@ -108,10 +108,10 @@ auto lm::strands::log::before_sleep() -> fabric::managed_strand_status
         logs.dequeue();
     }
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::log::on_wake() -> fabric::managed_strand_status
+auto lm::strands::log::on_wake() -> status
 {
     auto try_get_logs = [&](){
         if(logs.full()) return false;
@@ -126,7 +126,7 @@ auto lm::strands::log::on_wake() -> fabric::managed_strand_status
 
     while(try_get_logs());
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
 lm::strands::log::~log()

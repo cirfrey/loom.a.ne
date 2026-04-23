@@ -256,27 +256,4 @@ namespace lm::fabric
         }
     }
     namespace topic = topic_versions::v0;
-
-
-    // Deltas and timestamps are in micros.
-    // requested_sleep_ms is in millis.
-    struct strand_runtime_info
-    {
-        u64 created_timestamp = 0;
-        u64 running_timestamp = 0;
-
-        u8 id = 0;
-        u16 requested_sleep_ms = 0;
-
-        u64 actual_sleep_delta = 0;
-
-        u64 last_before_sleep_delta = 0;
-        u64 last_on_wake_delta = 0;
-    };
-
-    enum managed_strand_status
-    {
-        ok,
-        suicidal,
-    };
 }

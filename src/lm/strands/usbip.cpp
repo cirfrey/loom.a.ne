@@ -11,7 +11,7 @@
 #include "lm/usb/backend.hpp"
 #include "lm/usb/debug.hpp"
 
-lm::strands::usbip::usbip(fabric::strand_runtime_info& info) : info{info}
+lm::strands::usbip::usbip(ri& info) : info{info}
 {
     auto lens = usb::backend::setup_descriptors(
         config_descriptor,
@@ -46,16 +46,16 @@ lm::strands::usbip::usbip(fabric::strand_runtime_info& info) : info{info}
     usb::debug::print_ep_table(config.usbip.endpoints, printer, {"\t", 1});
 }
 
-auto lm::strands::usbip::on_ready() -> fabric::managed_strand_status
+auto lm::strands::usbip::on_ready() -> status
 {
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::usbip::before_sleep() -> fabric::managed_strand_status
-{ return fabric::managed_strand_status::ok; }
+auto lm::strands::usbip::before_sleep() -> status
+{ return status::ok; }
 
 // Just a very simple state machine.
-auto lm::strands::usbip::on_wake() -> fabric::managed_strand_status
+auto lm::strands::usbip::on_wake() -> status
 {
     using state_func_t = desired_strand_action(usbip::*)();
     state_func_t state_funcs[] = {
@@ -70,13 +70,13 @@ auto lm::strands::usbip::on_wake() -> fabric::managed_strand_status
         switch((this->*state_funcs[state])())
         {
             case desired_strand_action::loop:  continue;
-            case desired_strand_action::yield: return fabric::managed_strand_status::ok;
-            case desired_strand_action::die:   return fabric::managed_strand_status::suicidal;
-            default:                           return fabric::managed_strand_status::ok;
+            case desired_strand_action::yield: return status::ok;
+            case desired_strand_action::die:   return status::suicidal;
+            default:                           return status::ok;
         }
     }
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
 lm::strands::usbip::~usbip() { transition_state(initializing); }

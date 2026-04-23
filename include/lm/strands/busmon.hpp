@@ -7,6 +7,9 @@ namespace lm::strands
 {
     struct busmon
     {
+        using ri     = fabric::strand::strand_runtime_info;
+        using status = fabric::strand::managed_strand_status;
+
         using stringify_cb =
             st/*how many bytes you wrote*/(*)
             (fabric::event const& /*event*/, mut_text);
@@ -16,10 +19,10 @@ namespace lm::strands
         };
         static_assert(sizeof(teach_topic) <= sizeof(fabric::event));
 
-        busmon(fabric::strand_runtime_info& info);
-        auto on_ready()     -> fabric::managed_strand_status;
-        auto before_sleep() -> fabric::managed_strand_status;
-        auto on_wake()      -> fabric::managed_strand_status;
+        busmon(ri& info);
+        auto on_ready()     -> status;
+        auto before_sleep() -> status;
+        auto on_wake()      -> status;
         ~busmon() = default;
 
     private:

@@ -6,7 +6,7 @@
 
 #include <cstdio>
 
-lm::strands::busmon::busmon(fabric::strand_runtime_info& info)
+lm::strands::busmon::busmon(ri& info)
 {
     ev_q        = fabric::queue<fabric::event>(128);
     ev_q_tok    = fabric::bus::subscribe(ev_q, fabric::topic::any);
@@ -14,7 +14,7 @@ lm::strands::busmon::busmon(fabric::strand_runtime_info& info)
     teach_q_tok = fabric::bus::subscribe(teach_q, fabric::topic::busmon_teach);
 }
 
-auto lm::strands::busmon::on_ready() -> fabric::managed_strand_status
+auto lm::strands::busmon::on_ready() -> status
 {
     // Let's teach ourselves the fallback printer and our own event printer
     // and we'll even be cheeky and do it via the event bus instead of
@@ -40,10 +40,10 @@ auto lm::strands::busmon::on_ready() -> fabric::managed_strand_status
         );
     }}));
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::busmon::before_sleep() -> fabric::managed_strand_status
+auto lm::strands::busmon::before_sleep() -> status
 {
     // Learn how to print events of a specific topic.
     for(auto const& e : teach_q.consume<fabric::event>())
@@ -63,8 +63,8 @@ auto lm::strands::busmon::before_sleep() -> fabric::managed_strand_status
         lm::log::debug("[BUSMON] %.*s\n", strsize, buf);
     }
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::busmon::on_wake() -> fabric::managed_strand_status
-{ return fabric::managed_strand_status::ok; }
+auto lm::strands::busmon::on_wake() -> status
+{ return status::ok; }

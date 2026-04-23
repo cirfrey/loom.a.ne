@@ -13,6 +13,9 @@ namespace lm::strands
 {
     struct usbd
     {
+        using ri     = fabric::strand::strand_runtime_info;
+        using status = fabric::strand::managed_strand_status;
+
         struct event
         {
             enum event_t : u8
@@ -26,10 +29,10 @@ namespace lm::strands
             };
         };
 
-        usbd(fabric::strand_runtime_info& info);
-        auto on_ready()     -> fabric::managed_strand_status;
-        auto before_sleep() -> fabric::managed_strand_status;
-        auto on_wake()      -> fabric::managed_strand_status;
+        usbd(ri& info);
+        auto on_ready()     -> status;
+        auto before_sleep() -> status;
+        auto on_wake()      -> status;
         ~usbd();
 
         std::array<

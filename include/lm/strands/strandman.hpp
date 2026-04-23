@@ -71,6 +71,9 @@ constexpr auto lm::strands::strandman::spawn(strand_t strandman_info) -> fabric:
 
     // We copy the boot info into the strand and then
     // everything kicks off from there.
+    // But we need to make sure that boot_payload doesn't
+    // go out of scope before the strand has it, so that's
+    // why we need the semaphore.
     auto handle = fabric::strand::create(
         {
             .name = strandman_info.name,
@@ -83,7 +86,7 @@ constexpr auto lm::strands::strandman::spawn(strand_t strandman_info) -> fabric:
 
                 strand_t strands[MaxStrands];
                 strands[0] = boot->strandman_info;
-                boot->sync.give(); // Release the parent.
+                boot->sync.give(); // Release the semaphore.
 
                 auto strandview = std::span(strands, 1);
 
@@ -91,13 +94,13 @@ constexpr auto lm::strands::strandman::spawn(strand_t strandman_info) -> fabric:
                 while(man.do_loop(MaxStrands, strandview));
 
                 // TODO: how do we clean up tman?
-                //fabric::strand::reap(fabric::strand::get_handle());
+                //fabric::strand::reap(fabric::strand::get_my_own_handle());
             },
         },
         &boot
     );
 
-    // Block until the child is done copying
+    // Block until the strand is done copying.
     sync.take();
 
     return handle;

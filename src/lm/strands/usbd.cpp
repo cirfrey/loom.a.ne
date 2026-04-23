@@ -96,7 +96,7 @@ auto apply_dynamic_fifo_allocation(std::span<lm::usbd::ep_t> eps) -> lm::st {
 }
 #endif
 
-lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
+lm::strands::usbd::usbd(ri& info)
 {
     usbd_instance = this;
 
@@ -135,7 +135,7 @@ lm::strands::usbd::usbd(fabric::strand_runtime_info& info)
     chip::usb::phy::power_up();
 }
 
-auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
+auto lm::strands::usbd::on_ready() -> status
 {
   // Disabled for now.
   #if 0
@@ -149,15 +149,15 @@ auto lm::strands::usbd::on_ready() -> fabric::managed_strand_status
         while(1) tud_task();
     }, this);
   #endif
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
-auto lm::strands::usbd::before_sleep() -> fabric::managed_strand_status
-{ return fabric::managed_strand_status::ok; }
+auto lm::strands::usbd::before_sleep() -> status
+{ return status::ok; }
 
-auto lm::strands::usbd::on_wake() -> fabric::managed_strand_status
+auto lm::strands::usbd::on_wake() -> status
 {
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 }
 
 lm::strands::usbd::~usbd() {

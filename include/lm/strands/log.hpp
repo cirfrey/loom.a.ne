@@ -1,3 +1,4 @@
+// TODO: rename this strand to ::logger.
 #pragma once
 
 #include "lm/fabric.hpp"
@@ -90,15 +91,18 @@ namespace lm::strands
 {
     struct log
     {
+        using ri     = fabric::strand::strand_runtime_info;
+        using status = fabric::strand::managed_strand_status;
+
         static auto init() -> void;
         static auto dispatch(text t) -> bool;
         static auto capacity() -> st;
         static auto occupancy()  -> st;
 
-        log(fabric::strand_runtime_info& info);
-        auto on_ready()     -> fabric::managed_strand_status;
-        auto before_sleep() -> fabric::managed_strand_status;
-        auto on_wake()      -> fabric::managed_strand_status;
+        log(ri& info);
+        auto on_ready()     -> status;
+        auto before_sleep() -> status;
+        auto on_wake()      -> status;
         ~log();
 
         logging::ring_buffer<logging::log, config_t::logging_t::consumerbuf_max_size> logs;

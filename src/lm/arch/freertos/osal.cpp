@@ -179,7 +179,7 @@ auto lm::fabric::strand::create(
     return handle;
 }
 
-auto lm::fabric::strand::get_handle() -> handle_t { return xTaskGetCurrentTaskHandle(); }
+auto lm::fabric::strand::get_my_own_handle() -> handle_t { return xTaskGetCurrentTaskHandle(); }
 
 auto lm::fabric::strand::reap(handle_t handle) -> void { vTaskDelete((TaskHandle_t)handle); }
 

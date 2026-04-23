@@ -26,16 +26,13 @@ thread_local strand::handle_t s_current_strand_handle = nullptr;
 
 auto strand::create(
     create_strand_args const& args,
-    void* raw_params
+    void* params
 ) -> handle_t
 {
     // Core affinity and priority are ignored natively — the OS scheduler handles it.
     auto* nt = new native_strand();
-    void* final_arg = raw_params
-        ? raw_params
-        : (managed_strand_params{ .id = args.id, .sleep_ms = args.sleep_ms } | smuggle<void*>);
 
-    nt->t = std::thread([nt, code = args.code, params = final_arg]() {
+    nt->t = std::thread([nt, code = args.code, params = params]() {
         s_current_strand_handle = nt;
         code(params);
     });
@@ -49,7 +46,7 @@ auto strand::create(
     return nt;
 }
 
-auto strand::get_handle() -> handle_t {
+auto strand::get_my_own_handle() -> handle_t {
     return s_current_strand_handle;
 }
 

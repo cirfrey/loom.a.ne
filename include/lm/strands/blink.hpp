@@ -112,10 +112,13 @@ namespace lm::strands
 
     struct blink
     {
-        blink(fabric::strand_runtime_info& info);
-        auto on_ready()     -> fabric::managed_strand_status;
-        auto before_sleep() -> fabric::managed_strand_status;
-        auto on_wake()      -> fabric::managed_strand_status;
+        using ri     = fabric::strand::strand_runtime_info;
+        using status = fabric::strand::managed_strand_status;
+
+        blink(ri& info);
+        auto on_ready()     -> status;
+        auto before_sleep() -> status;
+        auto on_wake()      -> status;
         ~blink() = default;
 
     private:

@@ -81,13 +81,12 @@ auto lm::hook::framework_main() -> void
         chip::system::halt(1);
     }
 
-    auto ret = fabric::register_strand({
+    if(!fabric::register_strand<strands::log>({
         .name       = "lm.log"_text,
         .stack_size = lm::config.launcher.log.stack_size,
         .sleep_ms   = 10,
-        .code       = fabric::strand::managed<strands::log>(),
-    });
-    if(!ret.ok()) {
+    }).ok())
+    {
         lm::log::panic("Failed to spawn log strand! Something very bad happened.\n");
         chip::system::halt(1);
     }

@@ -2,7 +2,7 @@
 // Wrapper around the bus registration protocol so you can do it easy and fun and nice.
 #pragma once
 
-#include "lm/fabric.hpp"
+#include "lm/fabric/strand.hpp"
 #include "lm/config.hpp"
 #include "lm/core/hash.hpp"
 #include <initializer_list>
@@ -78,9 +78,21 @@ namespace lm::fabric
 
     // ── Main API ─────────────────────────────────────────────────────────────
 
+
+    template <typename Strand>
+    [[nodiscard]] auto register_strand(register_params const&) -> register_result;
     [[nodiscard]] auto register_strand(register_params const&) -> register_result;
 
     // Convenience: invalidate the cached manager, force fresh discovery.
     // Call this if you get manager_cant_handle_more_strands and want to re-probe.
     auto invalidate_manager_cache() -> void;
+}
+
+
+template <typename Strand>
+[[nodiscard]] auto lm::fabric::register_strand(register_params const& p) -> register_result
+{
+    auto p2 = p;
+    p2.code = strand::managed<Strand>();
+    return register_strand(p2);
 }

@@ -34,12 +34,15 @@ namespace lm::strands
 {
     struct usbip
     {
-        fabric::strand_runtime_info& info;
+        using ri     = fabric::strand::strand_runtime_info;
+        using status = fabric::strand::managed_strand_status;
 
-        usbip(fabric::strand_runtime_info& info);
-        auto on_ready()     -> fabric::managed_strand_status;
-        auto before_sleep() -> fabric::managed_strand_status;
-        auto on_wake()      -> fabric::managed_strand_status;
+        ri& info;
+
+        usbip(ri& info);
+        auto on_ready()     -> status;
+        auto before_sleep() -> status;
+        auto on_wake()      -> status;
         ~usbip();
 
         enum state_t {

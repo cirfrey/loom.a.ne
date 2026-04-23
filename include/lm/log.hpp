@@ -83,8 +83,7 @@ namespace lm::log
 
     [[nodiscard]] auto fmt(mut_text in, fmt_t f, ...) -> mut_text;
 
-    // All of these use dispatch() and not dispatch_immediate().
-    // If you want formatting for your dispatch_immediate() then you do it yourself using fmt().
+    // The underlying log function used by the shorthands. Just formats and filters by loglevel, defers the actual logging to dispatch().
     template<u16 Bufsize = config_t::logging_t::format_bufsize, typename... Args> constexpr auto log(fmt_t f, Args&&...) -> bool;
 
     // Use this if you define your own level shorthands. Don't forget to namespace it appropriately.
@@ -110,8 +109,12 @@ namespace lm::log
     auto dispatch(text t, level loglevel) -> bool;
     // Just pushes it to UART with complete disregard for ethics and morals.
     auto dispatch_immediate(chip::uart_port, buf, st timeout_micros, bool yield) -> void;
+    template <u16 BufSize = config_t::logging_t::format_bufsize, typename... Args>
+    constexpr auto dispatch_immediate(chip::uart_port, st, bool, fmt_t, Args... args) -> void;
     // Tries to push to UART with complete regard for ethics and morals (gives up if busy).
     auto try_dispatch_immediate(chip::uart_port, buf, st timeout_micros, bool yield) -> bool;
+    template <u16 BufSize = config_t::logging_t::format_bufsize, typename... Args>
+    constexpr auto try_dispatch_immediate(chip::uart_port, st, bool, fmt_t, Args... args) -> bool;
 }
 
 
@@ -123,7 +126,22 @@ constexpr auto lm::log::log(fmt_t f, Args&&... args) -> bool
     if(config.logging.level_enabled[f.args.loglevel] == feature::off) return false;
 
     char buf[BufSize];
-    auto in  = mut_text{.data = buf, .size = sizeof(buf)};
-    auto out = fmt(in, f, veil::forward<decltype(args)>(args)...);
-    return dispatch(text{.data = out.data, .size = out.size}, f.args.loglevel);
+    auto formatted = fmt({buf, sizeof(buf)}, f, veil::forward<Args>(args)...);
+    return dispatch(formatted, f.args.loglevel);
+}
+
+template <lm::u16 BufSize, typename... Args>
+constexpr auto lm::log::dispatch_immediate(chip::uart_port port, st timeout_micros, bool yield, fmt_t f, Args... args) -> void
+{
+    char buf[BufSize];
+    auto formatted = fmt({buf, sizeof(buf)}, f, veil::forward<Args>(args)...);
+    dispatch_immediate(port, formatted, timeout_micros, yield);
+}
+
+template <lm::u16 BufSize, typename... Args>
+constexpr auto lm::log::try_dispatch_immediate(chip::uart_port port, st timeout_micros, bool yield, fmt_t f, Args... args) -> void
+{
+    char buf[BufSize];
+    auto formatted = fmt({buf, sizeof(buf)}, f, veil::forward<Args>(args)...);
+    return try_dispatch_immediate(port, formatted, timeout_micros, yield);
 }

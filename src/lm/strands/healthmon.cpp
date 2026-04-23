@@ -33,12 +33,12 @@ constexpr char get_state_char(eTaskState state) {
 }
 #endif
 
-lm::strands::healthmon::healthmon(fabric::strand_runtime_info&) {}
+lm::strands::healthmon::healthmon(ri&) {}
 
-auto lm::strands::healthmon::on_ready() -> fabric::managed_strand_status
-{ return fabric::managed_strand_status::ok; }
+auto lm::strands::healthmon::on_ready() -> status
+{ return status::ok; }
 
-auto lm::strands::healthmon::before_sleep() -> fabric::managed_strand_status
+auto lm::strands::healthmon::before_sleep() -> status
 {
     // Ideally this should sleep very little, accumulating
     // info from event bus and keeping track of it,
@@ -62,7 +62,7 @@ auto lm::strands::healthmon::before_sleep() -> fabric::managed_strand_status
     );
 
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
 
     #ifndef LM_PORT_HOST_WINDOWS
 
@@ -119,9 +119,9 @@ auto lm::strands::healthmon::before_sleep() -> fabric::managed_strand_status
         lm::log::error("[!!!] CRITICAL: One or more tasks are near stack overflow (<256B)!\n");
     }
 
-    return fabric::managed_strand_status::ok;
+    return status::ok;
     #endif
 }
 
-auto lm::strands::healthmon::on_wake() -> fabric::managed_strand_status
-{ return fabric::managed_strand_status::ok; }
+auto lm::strands::healthmon::on_wake() -> status
+{ return status::ok; }
