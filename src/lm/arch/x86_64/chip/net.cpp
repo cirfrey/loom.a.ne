@@ -11,6 +11,7 @@
 
 #include "lm/chip/net.hpp"
 #include "lm/port.hpp"
+#include "lm/core/endian.hpp"
 
 // ---------------------------------------------------------------------------
 // Platform includes
@@ -77,14 +78,6 @@ auto setsock(lm::chip::socket_t s, int level, int optname, const T& val) -> void
         ::setsockopt(to_SOCKET(s), level, optname, (const char*)&val, sizeof(val));
     #endif
 }
-
-// hton16 — only needed for sin_port in make_listen_socket.
-// USB/IP protocol byte-swapping lives in endian.hpp, not here.
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    auto hton16(lm::u16 v) -> lm::u16 { return v; }
-#else
-    auto hton16(lm::u16 v) -> lm::u16 { return (lm::u16)((v >> 8) | (v << 8)); }
-#endif
 
 } // anonymous namespace
 
