@@ -49,6 +49,19 @@ namespace lm::config_ini
     // If you want to have your own fields, define them and read the ini with them in your lm::hooks::config(),
     // just remember to set log_ignored = false in the parse args so you don't flood yourself with unset fields.
     inline ini::field fields[] = {
+        /// --- System ---
+        feature("system.use_random_seed", config_rw.system.use_random_seed),
+        number("system.random_seed",      config_rw.system.random_seed[0]),
+        number("system.random_seed.0",    config_rw.system.random_seed[0]),
+        number("system.random_seed.1",    config_rw.system.random_seed[1]),
+        number("system.random_seed.2",    config_rw.system.random_seed[2]),
+        number("system.random_seed.3",    config_rw.system.random_seed[3]),
+        number("system.random_seed.4",    config_rw.system.random_seed[4]),
+        number("system.random_seed.5",    config_rw.system.random_seed[5]),
+        number("system.random_seed.6",    config_rw.system.random_seed[6]),
+        number("system.random_seed.7",    config_rw.system.random_seed[7]),
+
+
         /// --- Network ---
         string("network.ssid",     config_rw.network.ssid, {.max_len = config_rw.network.ssid_max_len}),
         string("network.password", config_rw.network.password, {.max_len = config_rw.network.password_max_len}),
