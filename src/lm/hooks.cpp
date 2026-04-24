@@ -196,6 +196,9 @@ auto lm::hook::framework_main() -> void
 
 [[gnu::weak]] auto lm::hook::init(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::config(config_t&) -> void {}
-[[gnu::weak]] auto lm::hook::test::unit(config_t&) -> void {}
+[[gnu::weak]] auto lm::hook::test::unit(config_t&) -> void {
+    log::warn<256>(
+        "config.test.unit == on but there was no lm::hook::test::unit linked, this is a most likely a build system problem\n");
+}
 [[gnu::weak]] auto lm::hook::post_parse(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::main() -> void {}

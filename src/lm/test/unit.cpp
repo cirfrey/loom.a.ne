@@ -34,17 +34,17 @@ auto lm::hook::test::unit(config_t& config) -> void
         case after_t::proceed_if_ok:
             if(result.ok()) return;
             // Failures were logged above. Fall through to halt.
-            log::panic("Unit tests failed — halting (test.after_unit = proceed_if_ok)\n");
+            log::test("Unit tests failed — halting (config.test.after_unit = proceed_if_ok)\n");
             chip::system::halt(1);
             break;
 
         case after_t::halt:
             if(result.ok()) {
-                lm::log::info("Unit tests passed — halting (test.after_unit = halt)\n");
+                log::test("Unit tests passed — halting (config.test.after_unit = halt)\n");
                 chip::system::halt(0);
             }
             else {
-                lm::log::warn("Unit tests failed — halting (test.after_unit = halt)\n");
+                log::test("Unit tests failed — halting (config.test.after_unit = halt)\n");
                 chip::system::halt(1);
             }
 
@@ -52,5 +52,4 @@ auto lm::hook::test::unit(config_t& config) -> void
             log::panic("Unhandled setting for lm::config.launcher.test.after_unit %u - halting", lm::config.test.after_unit);
             chip::system::halt(1);
     }
-
 }
