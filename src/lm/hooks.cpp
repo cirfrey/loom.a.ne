@@ -74,6 +74,8 @@ auto lm::hook::parse_ini(config_t& config) -> void
     }
 
     config.ini.with_source(nullptr, [](void*, text ini_text){
+        if(ini_text.data == nullptr || ini_text.size == 0) return;
+
         auto result = ini::parse(ini_text, config_ini::fields);
 
         if(result != lm::ini::parse_result::ok) {

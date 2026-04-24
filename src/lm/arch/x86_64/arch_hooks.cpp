@@ -2,6 +2,19 @@
 
 #include "lm/board.hpp"
 #include "lm/chip.hpp"
+#include "lm/core.hpp"
+#include "lm/ini.hpp"
+#include "lm/log.hpp"
+
+#include "lm/arch/x86_64/endpoints.hpp"
+#include "lm/arch/x86_64/program_args.hpp"
+#include "lm/strands/usbip.hpp"
+
+#include <cstdio>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <filesystem>
 
 auto lm::hook::arch_init([[maybe_unused]] config_t& config) -> void
 {
@@ -9,19 +22,6 @@ auto lm::hook::arch_init([[maybe_unused]] config_t& config) -> void
     chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);
 }
 
-#include "lm/arch/x86_64/endpoints.hpp"
-#include "lm/arch/x86_64/program_args.hpp"
-#include "lm/strands/usbip.hpp"
-
-#include "lm/core.hpp"
-#include "lm/ini.hpp"
-#include "lm/log.hpp"
-
-#include <cstdio>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <filesystem>
 
 // These fields are specific to lm::hook::arch_config.
 namespace lm::arch_config
@@ -73,13 +73,12 @@ auto lm::hook::arch_config(config_t& config) -> void
     config.ini.with_source = [](void* ud, auto cb){
         if(lm::arch_config::inipath_size == 0){
             log::debug("No native.inipath set, will forward empty string to config.ini.with_source callback\n");
-            cb(ud, " "_text);
+            cb(ud, {nullptr, 0});
             return;
         }
 
         std::error_code ec;
-        std::uintmax_t fileSize = std::filesystem::file_size(lm::arch_config::inipath, ec);
-
+        auto file_size = std::filesystem::file_size(lm::arch_config::inipath, ec) | to<st>;
         if(ec)
         {
             log::warn<256>(
@@ -88,21 +87,36 @@ auto lm::hook::arch_config(config_t& config) -> void
                 lm::arch_config::inipath,
                 ec.message().c_str()
             );
-            cb(ud, " "_text);
+            cb(ud, {nullptr, 0});
+            return;
         }
-        else
-        {
-            log::debug(
-                "Reading file [%.*s] and forwarding to config.ini.with_source callback\n",
+
+        std::ifstream file(lm::arch_config::inipath, std::ios::binary);
+        if(!file.is_open()) {
+            log::warn("Failed to open [%.*s], forwarding empty string\n",
                 (int)lm::arch_config::inipath_size,
                 lm::arch_config::inipath
             );
-
-            std::ifstream file(lm::arch_config::inipath, std::ios::binary);
-            std::vector<char> buffer(fileSize);
-            file.read(buffer.data(), fileSize);
-            cb(ud, text{buffer.data(), buffer.size()});
+            cb(ud, {nullptr, 0});
+            return;
         }
+
+        std::vector<char> buffer(file_size);
+        auto const n = static_cast<st>(file.read(buffer.data(), file_size).gcount());
+        if(n != file_size) {
+            log::warn("Truncated read on [%.*s] (%lu/%lu bytes), skipping\n",
+                (int)lm::arch_config::inipath_size, lm::arch_config::inipath,
+                n, file_size);
+            cb(ud, {nullptr, 0});
+            return;
+        }
+
+        log::debug(
+            "Forwarding [%.*s] to config.ini.with_source callback\n",
+            (int)lm::arch_config::inipath_size,
+            lm::arch_config::inipath
+        );
+        cb(ud, text{buffer.data(), static_cast<st>(n)});
     };
 }
 
