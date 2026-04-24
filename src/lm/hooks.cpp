@@ -2,15 +2,16 @@
 
 #include "lm/core.hpp"
 #include "lm/board.hpp"
-#include "lm/config.hpp"
 #include "lm/registry.hpp"
-#include "lm/config/boot.hpp"
 #include "lm/log.hpp"
-#include "lm/chip/system.hpp"
-#include "lm/config/ini.hpp"
+#include "lm/chip.hpp"
+#include "lm/fabric.hpp"
+#include "lm/build.hpp"
+#include "lm/banner.hpp"
 
-#include "lm/fabric/strand.hpp"
-#include "lm/fabric/register_strand.hpp"
+#include "lm/config.hpp"
+#include "lm/config/ini.hpp"
+#include "lm/config/boot.hpp"
 
 #include "lm/strands/strandman.hpp"
 #include "lm/strands/log.hpp"
@@ -32,6 +33,12 @@ auto lm::hook::launcher() -> void
     lm::hook::config(config_rw);
 
     lm::hook::parse_ini(config_rw);
+
+    lm::hook::framework_post_parse(config_rw);
+    lm::hook::arch_post_parse(config_rw);
+    lm::hook::post_parse(config_rw);
+
+    lm::hook::framework_final_config_override(config_rw);
 
     if(lm::config.test.unit == feature::on)
         lm::hook::test::unit(config_rw);
@@ -76,8 +83,62 @@ auto lm::hook::parse_ini(config_t& config) -> void
     });
 }
 
+auto lm::hook::framework_post_parse([[maybe_unused]] config_t& config) -> void {}
+
+auto lm::hook::framework_final_config_override(config_t& config) -> void
+{
+    // Override the serials IIF they were defaulted.
+    auto uuid = chip::info::uuid();
+    if(std::strcmp(config.usb.string_descriptors.serial, "00:00:00:00:00:00") == 0)
+    {
+        std::snprintf(
+            config.usb.string_descriptors.serial,
+            config_t::usbcommon::string_descriptor_max_len,
+            "%.*s",
+            (int)uuid.size, uuid.data
+        );
+    }
+    if(std::strcmp(config.usbip.string_descriptors.serial, "00:00:00:00:00:00") == 0)
+    {
+        std::snprintf(
+            config.usbip.string_descriptors.serial,
+            config_t::usbcommon::string_descriptor_max_len,
+            "%.*s",
+            (int)uuid.size, uuid.data
+        );
+    }
+}
+
 auto lm::hook::framework_main() -> void
 {
+    char bootstrbuf[64];
+    auto bootstr = log::fmt(
+        {bootstrbuf, sizeof(bootstrbuf)},
+        log::fmt_t({ .fmt = "%s\n", .loglevel = log::level::info }),
+        "Welcome to Loomane :)"
+    );
+    write_banner(
+        [](text t){ log::dispatch_immediate(board::uart_trace, t, 0, true); },
+        [](){ fabric::strand::sleep_ms(1); },
+        {bootstr.data, bootstr.size},
+        {
+            .ver_major = build::version_major,
+            .ver_minor = build::version_minor,
+            .banner = chip::info::banner(),
+            .uuid = chip::info::uuid(),
+            .chip_name = chip::info::name(),
+            .total_ram = chip::memory::total(),
+            .free_ram = chip::memory::free(),
+            .uptime_us = chip::time::uptime(),
+            .temp = chip::sensor::internal_temperature(),
+            .arch = build::arch,
+            .board = build::board,
+            .git_hash = build::git_hash,
+            .build_date = build::build_date,
+        }
+    );
+    fabric::strand::sleep_ms(500); // Take a moment to appreciate the banner, it's pretty.
+
     auto strandman_arg = strands::strandman::strand_t{
         .code          = [](void*){}, // Dummy.
         .id            = lm::registry::strand_id.reserve().id | toe,
@@ -136,4 +197,5 @@ auto lm::hook::framework_main() -> void
 [[gnu::weak]] auto lm::hook::init(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::config(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::test::unit(config_t&) -> void {}
+[[gnu::weak]] auto lm::hook::post_parse(config_t&) -> void {}
 [[gnu::weak]] auto lm::hook::main() -> void {}

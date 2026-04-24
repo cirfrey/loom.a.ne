@@ -27,14 +27,14 @@ auto lm::chip::info::uuid() -> text
 
         std::random_device rd;
         std::seed_seq seed{
-            config.system.use_random_seed == feature::on ? config.system.random_seed[0] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[1] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[2] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[3] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[4] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[5] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[6] : rd(),
-            config.system.use_random_seed == feature::on ? config.system.random_seed[7] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[0] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[1] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[2] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[3] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[4] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[5] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[6] : rd(),
+            config.system.use_seed == feature::on ? config.system.random_seed[7] : rd(),
         };
         std::mt19937 generator(seed);
         std::uniform_int_distribution<> distribution(0, sizeof(uuid_characters) - 1);

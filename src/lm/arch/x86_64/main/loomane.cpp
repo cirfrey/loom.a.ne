@@ -4,6 +4,8 @@
 #include "lm/fabric/strand.hpp"
 #include "lm/port.hpp"
 
+#include "lm/arch/x86_64/program_args.hpp"
+
 #if LM_PORT_HOST_WINDOWS
     // Native Windows (MSVC, MinGW, Clang-cl)
     #define WIN32_LEAN_AND_MEAN
@@ -19,8 +21,10 @@
         }
         return FALSE;
     }
-    auto main() -> int
+    auto main(int argc, char* argv[]) -> int
     {
+        lm::arch::x86_64::program_args = {argv, (lm::st)argc};
+
         SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
         lm::hook::launcher();
         // Check for ctrl+c every second.
@@ -30,8 +34,10 @@
 
 #else
 
-    auto main() -> int
+    auto main(int argc, char* argv[]) -> int
     {
+        lm::arch::x86_64::program_args = {argv, (lm::st)argc};
+
         lm::hook::launcher();
         // Linux doesnt need all that fancy ctrl+c every second thing apparently.
         using ulong = unsigned long;

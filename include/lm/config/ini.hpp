@@ -49,8 +49,11 @@ namespace lm::config_ini
     // If you want to have your own fields, define them and read the ini with them in your lm::hooks::config(),
     // just remember to set log_ignored = false in the parse args so you don't flood yourself with unset fields.
     inline ini::field fields[] = {
+        /// x86_64 fields, generally set in lm::hook::arch_config.
+        string("native.inipath", nullptr, {}),
+
         /// --- System ---
-        feature("system.use_random_seed", config_rw.system.use_random_seed),
+        feature("system.use_seed",        config_rw.system.use_seed),
         number("system.random_seed",      config_rw.system.random_seed[0]),
         number("system.random_seed.0",    config_rw.system.random_seed[0]),
         number("system.random_seed.1",    config_rw.system.random_seed[1]),

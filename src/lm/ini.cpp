@@ -3,6 +3,7 @@
 #include "lm/core/math.hpp"
 
 #include <cstdlib>
+#include <cinttypes>
 
 // TODO: implement error logging on all these functions.
 
@@ -42,6 +43,14 @@ static constexpr auto parse_string(
         *(st*)field.string_data.size_out = final_size;
     if(field.string_data.add_null_terminator)
         out[final_size + 1] = '\0';
+
+    if(args.log_success) {
+        log::debug(
+            "[%.*s - string] = [%.*s]\n",
+            (int)field.key.size, field.key.data,
+            (int)final_size,     out
+        );
+    }
 
     return field_parse_result::ok;
 }
@@ -112,6 +121,10 @@ static constexpr auto parse_number(
         val = val * base + digit;
     }
 
+    #define LM_PARSE_NUMBER_LOG(FMT, OUT) \
+        if(args.log_success) \
+            log::debug(FMT, (int)field.key.size, field.key.data, OUT);
+
     // 5. Bounds Check and Cast
     if (field.number_data.output_is_signed)
     {
@@ -131,10 +144,10 @@ static constexpr auto parse_number(
             return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<i8* >(field.output) = static_cast<i8>(sval);  break;
-            case 16: *static_cast<i16*>(field.output) = static_cast<i16>(sval); break;
-            case 32: *static_cast<i32*>(field.output) = static_cast<i32>(sval); break;
-            case 64: *static_cast<i64*>(field.output) = static_cast<i64>(sval); break;
+            case 8:  *static_cast<i8* >(field.output) = static_cast<i8>(sval);  LM_PARSE_NUMBER_LOG("[%.*s - i8] = ["  PRId8  "]\n", *static_cast<i8*>(field.output));  break;
+            case 16: *static_cast<i16*>(field.output) = static_cast<i16>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i16] = [" PRId16 "]\n", *static_cast<i16*>(field.output)); break;
+            case 32: *static_cast<i32*>(field.output) = static_cast<i32>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i32] = [" PRId32 "]\n", *static_cast<i32*>(field.output)); break;
+            case 64: *static_cast<i64*>(field.output) = static_cast<i64>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i64] = [" PRId64 "]\n", *static_cast<i64*>(field.output)); break;
             default: return field_parse_result::number_outside_bounds;
         }
     }
@@ -148,13 +161,14 @@ static constexpr auto parse_number(
         if (val > effective_max) return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  break;
-            case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); break;
-            case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); break;
-            case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); break;
+            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  LM_PARSE_NUMBER_LOG("[%.*s - u8] = ["  PRIu8  "]\n", *static_cast<u8*>(field.output));  break;
+            case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); LM_PARSE_NUMBER_LOG("[%.*s - u16] = [" PRIu16 "]\n", *static_cast<u16*>(field.output)); break;
+            case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); LM_PARSE_NUMBER_LOG("[%.*s - u32] = [" PRIu32 "]\n", *static_cast<u32*>(field.output)); break;
+            case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); LM_PARSE_NUMBER_LOG("[%.*s - u64] = [" PRIu64 "]\n", *static_cast<u64*>(field.output)); break;
             default: return field_parse_result::number_unknown_size;
         }
     }
+
     return field_parse_result::ok;
 }
 
@@ -195,7 +209,13 @@ auto lm::ini::field::parse(text in, parse_args args) const -> field_parse_result
     }
 }
 
-auto lm::ini::parse(text input, std::span<field const> fields, parse_args args) -> parse_result
+auto lm::ini::parse(
+    text input,
+    std::span<field const> fields,
+    parse_args args,
+    std::span<text> keys_to_parse,
+    std::span<text> keys_to_skip
+) -> parse_result
 {
     if(!input.data || input.size == 0) return parse_result::empty_input;
 
@@ -379,6 +399,30 @@ auto lm::ini::parse(text input, std::span<field const> fields, parse_args args) 
         for(auto& f : fields) {
             if(!matches(f, section, raw_key)) continue;
             found = true;
+
+            if(keys_to_parse.size())
+            {
+                bool in_list = false;
+                for(auto k : keys_to_parse) {
+                    if(matches(f, ""_text, k)) {
+                        in_list = true;
+                        break;
+                    }
+                }
+                if(!in_list) continue;
+            }
+
+            if(keys_to_skip.size())
+            {
+                bool in_list = false;
+                for(auto k : keys_to_skip) {
+                    if(matches(f, ""_text, k)) {
+                        in_list = true;
+                        break;
+                    }
+                }
+                if(in_list) continue;
+            }
 
             auto r = f.parse(value, args);
             if(r != parse_result::ok) {

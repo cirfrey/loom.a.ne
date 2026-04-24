@@ -49,7 +49,7 @@ namespace lm
 
         struct system_t
         {
-            feature use_random_seed = feature::off;
+            feature use_seed = feature::off;
             u32     random_seed[8]  = {42, 0, 0, 0, 0, 0, 0, 0};
         } system;
 

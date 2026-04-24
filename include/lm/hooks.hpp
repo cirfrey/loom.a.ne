@@ -27,6 +27,11 @@ namespace lm::hook
 
     auto parse_ini(config_t&) -> void;
 
+    auto framework_post_parse(config_t&) -> void;
+    auto arch_post_parse(config_t&) -> void;
+    /* [WEAK] */ auto post_parse(config_t&) -> void;
+
+    auto framework_final_config_override(config_t&) -> void;
 
     namespace test
     {

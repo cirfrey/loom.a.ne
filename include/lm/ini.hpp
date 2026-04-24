@@ -202,9 +202,16 @@ namespace lm::ini
     //
     // The job of this function is to break the input text into [key] = [value] pairs, identify the [key] and [value]
     // while keeping track of the [section]s and forward the [value] in the corresponding field, given the [key].
-    [[nodiscard]] auto parse(text, std::span<field const>, parse_args = {}) -> parse_result;
-    [[nodiscard]] inline auto parse(text t, std::initializer_list<field> fs, parse_args args = {}) -> parse_result
-    { return parse(t, std::span{fs.begin(), fs.size()}, args); }
+    //
+    // NOTE: When set, only keys in keys_to_parse are parsed. The rest are ignored but not treated as errors.
+    // NOTE: keys_to_skip does the opposite.
+    [[nodiscard]] auto parse(
+        text,
+        std::span<field const>,
+        parse_args = {},
+        std::span<text> keys_to_parse = {},
+        std::span<text> keys_to_skip = {}
+    ) -> parse_result;
 }
 
 // Impls.
