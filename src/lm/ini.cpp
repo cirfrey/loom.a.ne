@@ -144,10 +144,10 @@ static constexpr auto parse_number(
             return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<i8* >(field.output) = static_cast<i8>(sval);  LM_PARSE_NUMBER_LOG("[%.*s - i8] = ["  PRId8  "]\n", *static_cast<i8*>(field.output));  break;
-            case 16: *static_cast<i16*>(field.output) = static_cast<i16>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i16] = [" PRId16 "]\n", *static_cast<i16*>(field.output)); break;
-            case 32: *static_cast<i32*>(field.output) = static_cast<i32>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i32] = [" PRId32 "]\n", *static_cast<i32*>(field.output)); break;
-            case 64: *static_cast<i64*>(field.output) = static_cast<i64>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i64] = [" PRId64 "]\n", *static_cast<i64*>(field.output)); break;
+            case 8:  *static_cast<i8* >(field.output) = static_cast<i8>(sval);  LM_PARSE_NUMBER_LOG("[%.*s - i8] = [%"  PRId8  "]\n", *static_cast<i8*>(field.output));  break;
+            case 16: *static_cast<i16*>(field.output) = static_cast<i16>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i16] = [%" PRId16 "]\n", *static_cast<i16*>(field.output)); break;
+            case 32: *static_cast<i32*>(field.output) = static_cast<i32>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i32] = [%" PRId32 "]\n", *static_cast<i32*>(field.output)); break;
+            case 64: *static_cast<i64*>(field.output) = static_cast<i64>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i64] = [%" PRId64 "]\n", *static_cast<i64*>(field.output)); break;
             default: return field_parse_result::number_outside_bounds;
         }
     }
@@ -161,10 +161,10 @@ static constexpr auto parse_number(
         if (val > effective_max) return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  LM_PARSE_NUMBER_LOG("[%.*s - u8] = ["  PRIu8  "]\n", *static_cast<u8*>(field.output));  break;
-            case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); LM_PARSE_NUMBER_LOG("[%.*s - u16] = [" PRIu16 "]\n", *static_cast<u16*>(field.output)); break;
-            case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); LM_PARSE_NUMBER_LOG("[%.*s - u32] = [" PRIu32 "]\n", *static_cast<u32*>(field.output)); break;
-            case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); LM_PARSE_NUMBER_LOG("[%.*s - u64] = [" PRIu64 "]\n", *static_cast<u64*>(field.output)); break;
+            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  LM_PARSE_NUMBER_LOG("[%.*s - u8] = [%"  PRIu8  "]\n", *static_cast<u8*>(field.output));  break;
+            case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); LM_PARSE_NUMBER_LOG("[%.*s - u16] = [%" PRIu16 "]\n", *static_cast<u16*>(field.output)); break;
+            case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); LM_PARSE_NUMBER_LOG("[%.*s - u32] = [%" PRIu32 "]\n", *static_cast<u32*>(field.output)); break;
+            case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); LM_PARSE_NUMBER_LOG("[%.*s - u64] = [%" PRIu64 "]\n", *static_cast<u64*>(field.output)); break;
             default: return field_parse_result::number_unknown_size;
         }
     }
