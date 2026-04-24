@@ -95,6 +95,16 @@ auto lm::hook::framework_main() -> void
         chip::system::halt(1);
     }
 
+    // Wait for strandman to be ready.
+    while(!fabric::discover_manager())
+    {
+        lm::log::debug(
+            "Waiting for %ums and checking if strandman is up\n",
+            lm::config.framework.manager_announce_window_ms
+        );
+        fabric::strand::sleep_ms(lm::config.framework.manager_announce_window_ms);
+    }
+
     for(auto& info : {
         lm::config.launcher.log,
         lm::config.launcher.healthmon,
@@ -114,7 +124,6 @@ auto lm::hook::framework_main() -> void
             .code          = info.code,
         }).ok())
         {
-            // TODO: investigate why this is broken on linux builds.
             lm::log::panic("Failed to register strand [%s]! Something very bad happened.\n", info.name);
             chip::system::halt(1);
         }

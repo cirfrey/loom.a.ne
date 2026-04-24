@@ -31,52 +31,6 @@ namespace
         return ++n;   // wraps at 255 — fine, it's a correlation key not an ID
     }
 
-    // ── Manager discovery ────────────────────────────────────────────────────
-
-    auto discover_manager() -> bool
-    {
-        using request  = fabric::topic::framework_t::request_manager_announce;
-        using response = fabric::topic::framework_t::response_manager_announce;
-
-        auto seq      = next_seqnum();
-        auto resp_q   = fabric::queue<fabric::event>(4);
-        auto resp_tok = fabric::bus::subscribe(
-            resp_q,
-            fabric::topic::framework,
-            {response::type},
-            [](void* ud, std::span<fabric::event> events) {
-                auto seq = ud | unsmuggle<u8>;
-
-                auto data = events[0].get_payload<response>();
-                if(data.seqnum == seq)
-                    return fabric::bus::pass;
-                return fabric::bus::filter;
-            },
-            seq | smuggle<void*>
-        );
-
-
-        fabric::bus::publish(fabric::event{
-            .topic = fabric::topic::framework,
-            .type  = request::type,
-        }.with_payload(request{ .seqnum = seq }));
-
-
-        // Collect all responses within the window, pick the richest manager.
-        fabric::strand::sleep_ms(config.framework.manager_announce_window_ms);
-        manager_cache_t best{};
-
-        for(auto const& e : resp_q.consume<fabric::event>()) {
-            auto& data = e.get_payload<response>();
-            if(!best.valid || data.available_slots > best.available_slots)
-                best = {true, e.strand_id, data.safe_timeout_ms, data.available_slots};
-        }
-
-        if(!best.valid) return false;
-        g_manager_cache = best;
-        return true;
-    }
-
     // ── Event chain builder ───────────────────────────────────────────────────
 
     using request  = lm::fabric::topic::framework_t::request_register_strand;
@@ -152,6 +106,50 @@ namespace
 }
 
 // ── Public ───────────────────────────────────────────────────────────────────
+
+auto lm::fabric::discover_manager(st queue_size) -> bool
+{
+    using request  = fabric::topic::framework_t::request_manager_announce;
+    using response = fabric::topic::framework_t::response_manager_announce;
+
+    auto seq      = next_seqnum();
+    auto resp_q   = fabric::queue<fabric::event>(queue_size);
+    auto resp_tok = fabric::bus::subscribe(
+        resp_q,
+        fabric::topic::framework,
+        {response::type},
+        [](void* ud, std::span<fabric::event> events) {
+            auto seq = ud | unsmuggle<u8>;
+
+            auto data = events[0].get_payload<response>();
+            if(data.seqnum == seq)
+                return fabric::bus::pass;
+            return fabric::bus::filter;
+        },
+        seq | smuggle<void*>
+    );
+
+
+    fabric::bus::publish(fabric::event{
+        .topic = fabric::topic::framework,
+        .type  = request::type,
+    }.with_payload(request{ .seqnum = seq }));
+
+
+    // Collect all responses within the window, pick the richest manager.
+    fabric::strand::sleep_ms(config.framework.manager_announce_window_ms);
+    manager_cache_t best{};
+
+    for(auto const& e : resp_q.consume<fabric::event>()) {
+        auto& data = e.get_payload<response>();
+        if(!best.valid || data.available_slots > best.available_slots)
+            best = {true, e.strand_id, data.safe_timeout_ms, data.available_slots};
+    }
+
+    if(!best.valid) return false;
+    g_manager_cache = best;
+    return true;
+}
 
 auto lm::fabric::invalidate_manager_cache() -> void
 {

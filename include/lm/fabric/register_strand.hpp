@@ -84,6 +84,7 @@ namespace lm::fabric
     [[nodiscard]] auto register_strand(register_params const&) -> register_result;
     [[nodiscard]] auto register_strand(register_params const&) -> register_result;
 
+    auto discover_manager(st queue_size = 4) -> bool;
     // Convenience: invalidate the cached manager, force fresh discovery.
     // Call this if you get manager_cant_handle_more_strands and want to re-probe.
     auto invalidate_manager_cache() -> void;
