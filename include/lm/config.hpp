@@ -105,7 +105,7 @@ namespace lm
             static constexpr u16 format_bufsize = LM_CONFIG_LOGGING_FORMAT_BUFSIZE;
 
             // Log level customization.
-            enum level {
+            enum level_t {
                 debug,
                 test, // Used for unit and manufacturing tests.
                 assertion,
@@ -121,63 +121,95 @@ namespace lm
                 level_count
             };
 
-            feature level_enabled[level_count] = {
-                [debug]     = feature::on,
-                [test]      = feature::on,
-                [assertion] = feature::on,
-                [info]      = feature::on,
-                [regular]   = feature::on,
-                [warn]      = feature::on,
-                [error]     = feature::on,
-                [panic]     = feature::on, // NOTE: If you disable panic OR logging in general, then the program won't call
-                                           // chip::system::panic when you do log::panic(). Make sure to call it yourself then.
-                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
-                    LM_CONFIG_LOGGING_EXTRA_LEVELS_ENABLED
-                #endif
-            };
 
             #ifndef LM_CONFIG_LOGGING_ANSI_MAX_LEN
             // Should be enough even for some truecolor shenanigans.
             #define LM_CONFIG_LOGGING_ANSI_MAX_LEN 32
             #endif
             static constexpr u8 ansi_max_len = LM_CONFIG_LOGGING_ANSI_MAX_LEN;
-            table<level_count, ansi_max_len> level_ansi = []() consteval {
-                table<level_count, ansi_max_len> out{};
-
-                out.copy(debug,     ansi::code<ansi::fg::gray>);
-                out.copy(test,      ansi::code<ansi::fg::blue>);
-                out.copy(assertion, ansi::code<ansi::fg::bright_magenta, ansi::style::bold>);
-                out.copy(info,      ansi::code<ansi::fg::white>);
-                out.copy(regular,   ansi::code<ansi::style::reset>);
-                out.copy(warn,      ansi::code<ansi::fg::yellow>);
-                out.copy(error,     ansi::code<ansi::fg::red>);
-                out.copy(panic,     ansi::code<ansi::fg::bright_red, ansi::style::bold>);
-
-                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
-                    LM_CONFIG_LOGGING_EXTRA_LEVELS_ANSI
-                #endif
-
-                return out;
-            }();
-
             #ifndef LM_CONFIG_LOGGING_PREFIX_MAX_LEN
             #define LM_CONFIG_LOGGING_PREFIX_MAX_LEN 8
             #endif
             static constexpr u8 prefix_max_len = LM_CONFIG_LOGGING_PREFIX_MAX_LEN;
-            table<level_count, prefix_max_len> level_prefix = []() consteval {
-                table<level_count, prefix_max_len> out{};
 
-                out.copy(debug,     "[d]"_text);
-                out.copy(test,      "[t]"_text);
-                out.copy(assertion, "[a]"_text);
-                out.copy(info,      "[i]"_text);
-                out.copy(regular,   "[r]"_text);
-                out.copy(warn,      "[W]"_text);
-                out.copy(error,     "[E]"_text);
-                out.copy(panic,     "[PANIC]"_text);
+            struct level_data_t {
+                feature enabled;
+                char ansi_storage[ansi_max_len];
+                st   ansi_len = 0;
+                char prefix_storage[prefix_max_len];
+                st   prefix_len = 0;
+                constexpr auto ansi()       -> mut_text { return {ansi_storage, ansi_len}; }
+                constexpr auto ansi() const -> text     { return {ansi_storage, ansi_len}; }
+                constexpr auto prefix()       -> mut_text { return {prefix_storage, prefix_len}; }
+                constexpr auto prefix() const -> text     { return {prefix_storage, prefix_len}; }
+            };
 
-                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
-                    LM_CONFIG_LOGGING_EXTRA_LEVELS_PREFIX
+            struct level_data_array_t {
+                level_data_t data[level_count];
+                constexpr auto operator[](level_t l) -> level_data_t&
+                { return data[l]; }
+                constexpr auto operator[](level_t l) const -> level_data_t const&
+                { return data[l]; }
+                static constexpr auto copy(char* out, st& out_size, const auto& src) -> void
+                {
+                    out_size = src.size;
+                    for(st i = 0; i < src.size; ++i) out[i] = src.data[i];
+                };
+                struct set_args { feature enabled; text ansi; text prefix; };
+                constexpr auto set(level_t idx, set_args args) -> void
+                {
+                    data[idx].enabled = args.enabled;
+                    copy(data[idx].ansi_storage,   data[idx].ansi_len,   args.ansi);
+                    copy(data[idx].prefix_storage, data[idx].prefix_len, args.prefix);
+                }
+            };
+
+            level_data_array_t level = []() consteval {
+                level_data_array_t out = {};
+
+                out.set(debug, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::gray>,
+                    .prefix  = "[d]"_text,
+                });
+                out.set(test, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::blue>,
+                    .prefix  = "[t]"_text,
+                });
+                out.set(assertion, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::bright_magenta, ansi::style::bold>,
+                    .prefix  = "[a]"_text,
+                });
+                out.set(info, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::white>,
+                    .prefix  = "[i]"_text,
+                });
+                out.set(regular, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::style::reset>,
+                    .prefix  = "[r]"_text,
+                });
+                out.set(warn, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::yellow>,
+                    .prefix  = "[W]"_text,
+                });
+                out.set(error, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::red>,
+                    .prefix  = "[E]"_text,
+                });
+                out.set(panic, {
+                    .enabled = feature::on,
+                    .ansi    = ansi::as_text<ansi::fg::bright_red, ansi::style::bold>,
+                    .prefix  = "[PANIC]"_text,
+                });
+
+                #ifdef LM_CONFIG_LOGGING_EXTRA_LEVELS_INIT
+                    LM_CONFIG_LOGGING_EXTRA_LEVELS_INIT
                 #endif
 
                 return out;
@@ -200,7 +232,7 @@ namespace lm
             // Also able disable logging in general.
             feature toggle = feature::on;
             // Or override all dispatchers with your own function.
-            using dispatcher_t = bool(*)(text, level);
+            using dispatcher_t = bool(*)(text, level_t);
             dispatcher_t custom_dispatcher = nullptr;
         } logging;
 
@@ -239,7 +271,8 @@ namespace lm
                 u8 priority         = 5;
                 u16 core_affinity   = ~u16{0};
                 feature set_running = feature::on;
-                fabric::strand::function_t code;
+                // Set by lm::hook::framework_init.
+                fabric::strand::function_t code = nullptr;
             };
 
             info strandman = info{

@@ -54,7 +54,7 @@ auto lm::strands::log::occupancy() -> st
 }
 
 
-lm::strands::log::log(ri& info)
+lm::strands::log::log([[maybe_unused]] ri& info)
 {
     //     // Forwards ESP_LOG* to uart.
     //     esp_log_set_vprintf([](const char* format, va_list args) {

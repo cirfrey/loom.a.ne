@@ -1,3 +1,4 @@
+# TODO: refactor and reorganize this whole file.
 # TODO: Label the partitions according to the name of the folder.
 
 Import("env")

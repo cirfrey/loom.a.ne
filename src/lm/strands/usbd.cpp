@@ -96,7 +96,7 @@ auto apply_dynamic_fifo_allocation(std::span<lm::usbd::ep_t> eps) -> lm::st {
 }
 #endif
 
-lm::strands::usbd::usbd(ri& info)
+lm::strands::usbd::usbd([[maybe_unused]] ri& info)
 {
     usbd_instance = this;
 
@@ -180,14 +180,14 @@ auto tud_descriptor_device_cb() -> lm::u8 const*
 }
 
 // Configuration Descriptor.
-auto tud_descriptor_configuration_cb(uint8_t index) -> lm::u8 const*
+auto tud_descriptor_configuration_cb([[maybe_unused]] uint8_t index) -> lm::u8 const*
 {
     if(!lm::strands::usbd_instance) return nullptr;
     return lm::strands::usbd_instance->config_descriptor;
 }
 
 // String Descriptors.
-auto tud_descriptor_string_cb(lm::u8 index, lm::u16 langid) -> lm::u16 const*
+auto tud_descriptor_string_cb(lm::u8 index, [[maybe_unused]] lm::u16 langid) -> lm::u16 const*
 {
     using namespace lm;
 
@@ -226,7 +226,7 @@ auto tud_descriptor_string_cb(lm::u8 index, lm::u16 langid) -> lm::u16 const*
 
 void tud_mount_cb(void) {}
 void tud_umount_cb(void) {}
-void tud_suspend_cb(bool remote_wakeup_en) {}
+void tud_suspend_cb([[maybe_unused]] bool remote_wakeup_en) {}
 void tud_resume_cb(void) {}
 
 } // extern "C"
@@ -571,16 +571,28 @@ uint8_t tud_msc_get_max_lun_cb(void) {
 }
 
 // Mandatory: Inquiry (8, 16, 4 bytes)
-void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
-    (void) lun;
-    // IMPORTANT: Note the explicit lengths and padding
-    memcpy(vendor_id,   "LoomANe ", 8);
-    memcpy(product_id,  "Static-Flash    ", 16);
-    memcpy(product_rev, "1.0 ", 4);
+void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
+{
+    lm::config_t::msc_t::partition_t const* part = nullptr;
+    for(auto const& p : lm::config.msc.partitions)
+    {
+        if(p.storage == nullptr) continue;
+        if(p.lun != lun) continue;
+        part = &p;
+    }
+
+    if(!part) {
+      // What here?
+      return;
+    }
+
+    memcpy(vendor_id,   part->descriptor.vendor_id,   sizeof(part->descriptor.vendor_id));
+    memcpy(product_id,  part->descriptor.product_id,  sizeof(part->descriptor.product_id));
+    memcpy(product_rev, part->descriptor.product_rev, sizeof(part->descriptor.product_rev));
 }
 
 // Mandatory: Test Unit Ready
-bool tud_msc_test_unit_ready_cb(uint8_t lun) {
+bool tud_msc_test_unit_ready_cb([[maybe_unused]] uint8_t lun) {
     return (static_storage != nullptr);
 }
 
@@ -618,7 +630,7 @@ bool tud_msc_is_writable_cb(uint8_t lun) {
 }
 
 // Mandatory: Write10
-int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
+int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, [[maybe_unused]] uint32_t bufsize) {
     (void) lun; (void) lba; (void) offset; (void) buffer;
     return -1;
 }

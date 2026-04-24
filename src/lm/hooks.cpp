@@ -40,7 +40,7 @@ auto lm::hook::launcher() -> void
     lm::hook::main();
 }
 
-auto lm::hook::framework_init(config_t& config) -> void
+auto lm::hook::framework_init([[maybe_unused]] config_t& config) -> void
 {
     registry::strand_id.init();
 
@@ -114,6 +114,7 @@ auto lm::hook::framework_main() -> void
             .code          = info.code,
         }).ok())
         {
+            // TODO: investigate why this is broken on linux builds.
             lm::log::panic("Failed to register strand [%s]! Something very bad happened.\n", info.name);
             chip::system::halt(1);
         }

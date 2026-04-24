@@ -102,7 +102,7 @@ template <typename As> struct lm::fabric::queue_t::consume_as<As>::iterator
         if(max_items > 0) --max_items;
         return *this;
     }
-    auto operator!=(const iterator& o) const -> bool { return !is_done; }
+    auto operator!=([[maybe_unused]] const iterator& _) const -> bool { return !is_done; }
 };
 template <typename As>
 auto lm::fabric::queue_t::consume(int max_items) -> consume_as<As>

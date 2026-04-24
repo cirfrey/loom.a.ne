@@ -233,8 +233,8 @@ auto queue_t::element_size() const -> st { return element_size_in_bytes; }
 
 // --- Semaphore Mock ---
 struct native_sem {
-    std::mutex mtx;
-    std::condition_variable cv;
+    std::mutex mtx = std::mutex{};
+    std::condition_variable cv = std::condition_variable{};
     u32 count;
     u32 max_count;
 };

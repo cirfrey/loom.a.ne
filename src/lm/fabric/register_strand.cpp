@@ -136,7 +136,7 @@ namespace
         // ── extdepends ────────────────────────────────────────────────────────
         // All depends go here — one extdepends event per depends_per_ext depends.
         st dep_idx = 0;
-        for(auto const& d : p.depends) {
+        for(auto const& d : p.dependencies) {
             st slot = dep_idx % request::depends_per_ext;
             if(slot == 0) {
                 if(c.len >= max_chain_len) break;

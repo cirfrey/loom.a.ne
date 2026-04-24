@@ -7,7 +7,7 @@
 #include "lm/build.hpp"
 #include "lm/banner.hpp"
 
-auto lm::hook::arch_init(config_t& config) -> void
+auto lm::hook::arch_init([[maybe_unused]] config_t& config) -> void
 {
     chip::system::init();
     chip::uart::init(board::uart_trace, board::gpio_uart_trace_tx, board::gpio_uart_trace_rx);

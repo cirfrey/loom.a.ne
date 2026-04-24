@@ -21,7 +21,7 @@ namespace lm::strands
             u16 sleep_ms;
             u8 priority       = fabric::topic::framework_t::request_register_strand::default_priority;
             u16 core_affinity = fabric::topic::framework_t::request_register_strand::no_affinity;
-            name_t name;
+            name_t name = "default.strand.name";
             depends_t depends[config_t::strandman_t::max_depends] = {};
 
             u64 status_timestamp = 0;
@@ -77,6 +77,7 @@ constexpr auto lm::strands::strandman::spawn(strand_t strandman_info) -> fabric:
     auto handle = fabric::strand::create(
         {
             .name = strandman_info.name,
+            .id = strandman_info.id,
             .priority = strandman_info.priority,
             .stack_size = strandman_info.stack_size,
             .core_affinity = strandman_info.core_affinity,

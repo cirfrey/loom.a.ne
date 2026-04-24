@@ -4,10 +4,12 @@
 
 #include <cstdlib>
 
+// TODO: implement error logging on all these functions.
+
 static constexpr auto parse_string(
     lm::ini::field const& field,
     lm::text in,
-    lm::ini::parse_args args
+    [[maybe_unused]] lm::ini::parse_args args
 ) -> lm::ini::field_parse_result
 {
     using namespace lm;
@@ -27,8 +29,9 @@ static constexpr auto parse_string(
     if (final_size > field.string_data.max_len)
     {
         // String too big, log and ignore.
-        if(field.string_data.too_large_behaviour == field.string_data.error)
+        if(field.string_data.too_large_behaviour == field.string_data.error) {
             return field_parse_result::string_too_big;
+        }
         else if(field.string_data.too_large_behaviour == field.string_data.truncate)
             final_size = clamp(final_size, 0, field.string_data.max_len) - 1 * field.string_data.add_null_terminator;
     }
@@ -46,7 +49,7 @@ static constexpr auto parse_string(
 static constexpr auto parse_number(
     lm::ini::field const& field,
     lm::text in,
-    lm::ini::parse_args args
+    [[maybe_unused]] lm::ini::parse_args args
 ) -> lm::ini::field_parse_result
 {
     using namespace lm;
@@ -70,7 +73,7 @@ static constexpr auto parse_number(
     }
 
     // 3. Determine base (Hex, Bin, Dec)
-    int base = 10;
+    auto base = 10_u8;
     if (start + 2 <= end)
     {
         auto pref = text{in.data, 2};

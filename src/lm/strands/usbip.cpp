@@ -57,13 +57,12 @@ auto lm::strands::usbip::before_sleep() -> status
 auto lm::strands::usbip::on_wake() -> status
 {
     using state_func_t = desired_strand_action(usbip::*)();
-    state_func_t state_funcs[] = {
-        [initializing] = &usbip::do_initializing_state,
-        [listening]    = &usbip::do_listening_state,
-        [handshaking]  = &usbip::do_handshaking_state,
-        [exported]     = &usbip::do_exported_state,
-        [transmitting] = &usbip::do_transmitting_state,
-    };
+    state_func_t state_funcs[state_count];
+    state_funcs[initializing] = &usbip::do_initializing_state;
+    state_funcs[listening]    = &usbip::do_listening_state;
+    state_funcs[handshaking]  = &usbip::do_handshaking_state;
+    state_funcs[exported]     = &usbip::do_exported_state;
+    state_funcs[transmitting] = &usbip::do_transmitting_state;
     while(1)
     {
         switch((this->*state_funcs[state])())
@@ -278,8 +277,8 @@ auto lm::strands::usbip::handshaking_process_req_devlist() -> void
         .bNumConfigurations  = device_descriptor.bNumConfigurations,
         .bNumInterfaces      = config_descriptor[4],
     };
-    std::snprintf(dev_info.path,  sizeof(dev_info.path),  config.usbip.path);
-    std::snprintf(dev_info.busid, sizeof(dev_info.busid), config.usbip.busid);
+    std::snprintf(dev_info.path,  sizeof(dev_info.path),  "%s", config.usbip.path);
+    std::snprintf(dev_info.busid, sizeof(dev_info.busid), "%s", config.usbip.busid);
 
     if (!chip::net::send_exact(conn_sock, &dev_info, sizeof(dev_info)))
     {
@@ -349,8 +348,8 @@ auto lm::strands::usbip::handshaking_process_req_import() -> void
             .bNumInterfaces      = config_descriptor[4],
         }
     };
-    std::snprintf(pkt.device.path,  sizeof(pkt.device.path),  config.usbip.path);
-    std::snprintf(pkt.device.busid, sizeof(pkt.device.busid), config.usbip.busid);
+    std::snprintf(pkt.device.path,  sizeof(pkt.device.path),  "%s", config.usbip.path);
+    std::snprintf(pkt.device.busid, sizeof(pkt.device.busid), "%s", config.usbip.busid);
 
     if (!chip::net::send_exact(conn_sock, &pkt, sizeof(pkt)))
     {
@@ -557,7 +556,7 @@ auto lm::strands::usbip::transmitting_flush_inbound_events() -> bool
 // The reply (RET_SUBMIT with the descriptor data) is sent by
 // transmitting_flush_pending_in() on the next tick, once the slot is occupied.
 auto lm::strands::usbip::transmitting_handle_setup(
-    const lm::usbip::usbip_cmd_submit& cmd, u32 seqnum, u8 ep_num) -> bool
+    const lm::usbip::usbip_cmd_submit& cmd, u32 seqnum, [[maybe_unused]] u8 ep_num) -> bool
 {
     auto& data = state_data.transmitting;
 
@@ -727,7 +726,6 @@ auto lm::strands::usbip::setup_handle_get_descriptor(const u8 setup[8], u32 seqn
 {
     const u8 desc_type  = setup[3];
     const u8 desc_index = setup[2];
-    const u16 lang_id   = (u16)setup[4] | ((u16)setup[5] << 8); // wIndex (Language ID)
     const u16 req_len   = (u16)setup[6] | ((u16)setup[7] << 8); // wLength, LE
 
     switch (desc_type) {
@@ -836,7 +834,7 @@ auto lm::strands::usbip::serialise_event_to_usb(
 
     fabric::event dummy;
     // Drain the extensions for now, we might actually want to do something with them later.
-    for(auto i = 0; i < e.extension_count(); ++i) data.out_event_q.receive(&dummy, 0);
+    for(auto i = 0_st; i < e.extension_count(); ++i) data.out_event_q.receive(&dummy, 0);
 
     // Handwavy — exact event layout TBD.
     // The idea: convert a bus event into the raw bytes that would appear in

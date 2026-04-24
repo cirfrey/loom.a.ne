@@ -10,6 +10,9 @@ namespace lm::fabric
     namespace event_versions {
         struct [[gnu::packed]] v0 {
             static constexpr auto protocol_version = 0;
+            static constexpr auto local_loom = 0;
+            static constexpr auto unidentified_strand = 0;
+
             // Protocol metadata.
             u8 version = protocol_version;
             u8 size    = sizeof(v0); // Useful if you receive an event with
@@ -20,8 +23,8 @@ namespace lm::fabric
             // Event metadata.
             u8 topic;
             u8 type;
-            u8 loom_id = 0;
-            u8 strand_id;
+            u8 loom_id = local_loom;
+            u8 strand_id = unidentified_strand;
             alignas(8) u64 timestamp = 0; // In microseconds.
 
             // Payload (what is actually being sent).
@@ -32,17 +35,17 @@ namespace lm::fabric
 
             // Payload management stuff.
             template <typename As>
-            auto get_payload() const -> As const& {
+            constexpr auto get_payload() const -> As const& {
                 static_assert(sizeof(As) <= sizeof(payload), "Payload type too large");
                 return *std::launder(reinterpret_cast<As const*>(payload));
             }
             template <typename As>
-            auto get_payload() -> As& {
+            constexpr auto get_payload() -> As& {
                 static_assert(sizeof(As) <= sizeof(payload), "Payload type too large");
                 return *std::launder(reinterpret_cast<As*>(payload));
             }
             template <typename Payload>
-            auto with_payload(Payload&& p) -> v0&
+            constexpr auto with_payload(Payload&& p) -> v0&
             {
                 static_assert(sizeof(Payload) <= sizeof(payload), "Payload type too large");
                 std::memcpy(payload, &p, sizeof(Payload));
@@ -56,17 +59,17 @@ namespace lm::fabric
                 static_assert(sizeof(Extension) <= sizeof(v0), "Extension type too large");
                 static_assert(alignof(Extension) <= alignof(v0), "Extension type has too large alignment for this");
                 v0 ev;
-                std::memcpy(&ev, &e, sizeof(Extension));
+                std::memcpy(reinterpret_cast<void*>(&ev), &e, sizeof(Extension));
                 return ev;
             }
             template <typename As>
-            auto as_extension() const -> As const& {
+            constexpr auto as_extension() const -> As const& {
                 static_assert(sizeof(As) <= sizeof(v0), "Extension type too large");
                 static_assert(alignof(As) <= alignof(v0), "Extension type has too large alignment for this");
                 return *std::launder(reinterpret_cast<As const*>(this));
             }
             template <typename As>
-            auto as_extension() -> As& {
+            constexpr auto as_extension() -> As& {
                 static_assert(sizeof(As) <= sizeof(v0), "Extension type too large");
                 static_assert(alignof(As) <= alignof(v0), "Extension type has too large alignment for this");
                 return *std::launder(reinterpret_cast<As*>(this));

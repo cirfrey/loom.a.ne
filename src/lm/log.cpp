@@ -41,8 +41,8 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
         out.size += std::snprintf(
             out.data + out.size, in.size - out.size,
             "%.*s",
-            (int)config.logging.level_ansi.size[f.args.loglevel],
-            config.logging.level_ansi.data[f.args.loglevel]
+            (int)config.logging.level[f.args.loglevel].ansi().size,
+            config.logging.level[f.args.loglevel].ansi().data
         );
         out.size = clamp(out.size, 0, in.size);
     }
@@ -52,8 +52,8 @@ auto lm::log::fmt(mut_text in, fmt_t f, ...) -> mut_text
         out.size += std::snprintf(
             out.data + out.size, in.size - out.size,
             "%.*s",
-            (int)config.logging.level_prefix.size[f.args.loglevel],
-            config.logging.level_prefix.data[f.args.loglevel]
+            (int)config.logging.level[f.args.loglevel].prefix().size,
+            config.logging.level[f.args.loglevel].prefix().data
         );
         out.size = clamp(out.size, 0, in.size);
     }
@@ -111,7 +111,7 @@ auto lm::log::dispatch_immediate(chip::uart_port p, buf b, st timeout_micros, bo
         if(yield) fabric::strand::sleep_ms(0); // Just yield.
     }
 
-    auto tot = 0;
+    auto tot = 0_st;
     while(tot < b.size) {
         tot += chip::uart::write(p, {(u8*)b.data + tot, b.size - tot});
     }
@@ -131,7 +131,7 @@ auto lm::log::try_dispatch_immediate(chip::uart_port p, buf b, st timeout_micros
         if(yield) fabric::strand::sleep_ms(0); // Just yield.
     }
 
-    auto tot = 0;
+    auto tot = 0_st;
     while(tot < b.size) {
         tot += chip::uart::write(p, {(u8*)b.data + tot, b.size - tot});
     }

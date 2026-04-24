@@ -6,7 +6,7 @@ namespace lm
 {
     constexpr auto fnv1a_32(buf data) -> u32 {
         u32 hash = 0x811c9dc5;
-        for (auto i = 0; i < data.size; ++i) {
+        for (auto i = 0_st; i < data.size; ++i) {
             hash ^= (u32)(((u8*)data.data)[i]);
             hash *= 0x01000193;
         }
@@ -15,7 +15,7 @@ namespace lm
 
     constexpr auto fnv1a_64(buf data) -> u64 {
         u64 hash = 0xcbf29ce484222325;
-        for (auto i = 0; i < data.size; ++i) {
+        for (auto i = 0_st; i < data.size; ++i) {
             hash ^= (u64)(((u8*)data.data)[i]);
             hash *= 0x100000001b3;
         }

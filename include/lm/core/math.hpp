@@ -4,8 +4,11 @@
 
 namespace lm
 {
-    constexpr auto clamp(auto v, auto lo, auto hi)
-    { return v < lo ? lo : v > hi ? hi : v; }
+    constexpr auto clamp(auto v, auto lo, auto hi) {
+        return
+            v < static_cast<decltype(v)>(lo) ? lo :
+            v > static_cast<decltype(v)>(hi) ? hi : v;
+    }
 
     // Equivalent to arduino's map.
     template <typename V>

@@ -16,7 +16,7 @@
 
 namespace lm::strands::usbip_backend
 {
-    static std::array<
+    [[maybe_unused]] static std::array<
         usb::ep_t,
         config_t::usbip_t::max_endpoints
     > endpoints = {{
@@ -45,12 +45,14 @@ namespace lm::strands
         auto on_wake()      -> status;
         ~usbip();
 
-        enum state_t {
+        enum state_t : u8 {
             initializing, // Before the listen socket is open.
             listening,    // Socket open, waiting for a TCP connection.
             handshaking,  // Connected: handling OP_REQ_DEVLIST / OP_REQ_IMPORT.
             exported,     // OP_REP_IMPORT sent — about to bind DCD and let TinyUSB take over.
             transmitting, // DCD bound, URB loop running.
+
+            state_count
         };
 
         auto transition_state(state_t to) -> bool;

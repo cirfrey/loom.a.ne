@@ -15,7 +15,7 @@ namespace lm::log
     using filename_t = config_t::logging_t::filename_t;
     using color_t = feature;
     using prefix_t = feature;
-    using level = config_t::logging_t::level;
+    using level = config_t::logging_t::level_t;
 
     struct fmt_t_args {
         const char* fmt = "";
@@ -123,7 +123,7 @@ namespace lm::log
 template<lm::u16 BufSize, typename... Args>
 constexpr auto lm::log::log(fmt_t f, Args&&... args) -> bool
 {
-    if(config.logging.level_enabled[f.args.loglevel] == feature::off) return false;
+    if(config.logging.level[f.args.loglevel].enabled == feature::off) return false;
 
     char buf[BufSize];
     auto formatted = fmt({buf, sizeof(buf)}, f, veil::forward<Args>(args)...);

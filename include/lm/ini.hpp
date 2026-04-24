@@ -232,8 +232,8 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
         if(!args.log_error) return field_parse_result::enumeration_not_found;
 
         char fmtbuf[256];
-        auto fmtbuf_offset = 0;
-        for(auto i = 0; i < re::count; ++i)
+        auto fmtbuf_offset = 0_st;
+        for(auto i = 0_st; i < re::count; ++i)
         {
             auto val    = re::values[i] | sc<Enum>;
             auto valstr = re::views[i].unqualified();
@@ -259,15 +259,15 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
         }
 
         // TODO: this needs to use raw ansi and not level_ansi.
-        auto yellow = config.logging.level_ansi.data[log::level::warn];
-        auto gray   = config.logging.level_ansi.data[log::level::debug];
-        auto white  = config.logging.level_ansi.data[log::level::regular];
-        log::warn<128 * 3>(
-            "Ignoring %s[%s%.*s%s]%s for %s[%.*s%s(%.*s%s)]%s\n\t> Allowed values are: %s[%.*s%s]\n",
-            white, gray, (int)input.size, input.data, white, yellow,
-            white, (int)field.key.size, field.key.data, gray, (int)enum_name.size, enum_name.data, white, yellow,
-            white, (int)fmtbuf_offset, fmtbuf, white
-        );
+        // auto yellow = config.logging.level.data[log::level::warn];
+        // auto gray   = config.logging.level.data[log::level::debug];
+        // auto white  = config.logging.level.data[log::level::regular];
+        // log::warn<128 * 3>(
+        //     "Ignoring %s[%s%.*s%s]%s for %s[%.*s%s(%.*s%s)]%s\n\t> Allowed values are: %s[%.*s%s]\n",
+        //     white, gray, (int)input.size, input.data, white, yellow,
+        //     white, (int)field.key.size, field.key.data, gray, (int)enum_name.size, enum_name.data, white, yellow,
+        //     white, (int)fmtbuf_offset, fmtbuf, white
+        // );
 
         return field_parse_result::enumeration_not_found;
     };

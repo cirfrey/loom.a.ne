@@ -118,11 +118,11 @@ namespace lm::ansi
     template <int... Codes>
     inline constexpr auto code = detail::code_t<Codes...>{};
 
-    // template<int... Codes>
-    // inline constexpr auto code = text{
-    //     code_raw<Codes...>.data,
-    //     code_raw<Codes...>.size
-    // };
+    template<int... Codes>
+    inline constexpr auto as_text = text{
+        code<Codes...>.data,
+        code<Codes...>.size
+    };
 
     // TODO: runtime code as well.
     // template <int... Codes>

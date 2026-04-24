@@ -34,7 +34,8 @@
     {
         lm::hook::launcher();
         // Linux doesnt need all that fancy ctrl+c every second thing apparently.
-        while(1) lm::fabric::strand::sleep_ms(unsigned long {-1});
+        using ulong = unsigned long;
+        while(1) lm::fabric::strand::sleep_ms(~ulong{0});
         return 0;
     }
 

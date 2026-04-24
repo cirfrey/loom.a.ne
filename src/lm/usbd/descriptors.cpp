@@ -11,7 +11,7 @@ auto lm::usbd::descriptor::audio(
     usb::configuration_descriptor_builder_state_t& state,
     std::span<usb::ep_t> eps,
     u8 microphone_channels,
-    u8 speaker_channels
+    [[maybe_unused]] u8 speaker_channels
 ) -> st
 {
     using namespace usb;
@@ -29,7 +29,6 @@ auto lm::usbd::descriptor::audio(
         // TUD_AUDIO_DESC_IAD(itfnum, str_idx)
         // TUD_AUDIO_DESC_CONTROL(itfnum, str_idx, revision)
         // TUD_AUDIO_DESC_ST_IN(itf_stream, str_idx, n_channels, resolution, ep_in)
-        auto num_itfs = state.lowest_free_itf_idx - streaming_itf;
         return state.append_desc({ TUD_AUDIO20_MIC_ONE_CH_DESCRIPTOR(
             control_itf,
             string_descriptor::uac,

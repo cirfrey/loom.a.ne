@@ -5,6 +5,7 @@
 #include <string_view>
 #include <algorithm>
 
+#include "lm/core/helpers.hpp"
 #include "lm/banner.hpp"
 
 std::string_view clean_val(std::string_view v) {

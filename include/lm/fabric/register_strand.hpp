@@ -65,7 +65,7 @@ namespace lm::fabric
         u16                                       core_affinity = 0;
         bool                                      start         = true;
         fabric::strand::function_t                code          = nullptr;
-        std::initializer_list<depends::depends_t> depends       = {};
+        std::initializer_list<depends::depends_t> dependencies  = {};
 
 
         // Advanced — leave as defaults unless you have a reason

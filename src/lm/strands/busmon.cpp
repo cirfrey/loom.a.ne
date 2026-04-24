@@ -6,7 +6,7 @@
 
 #include <cstdio>
 
-lm::strands::busmon::busmon(ri& info)
+lm::strands::busmon::busmon([[maybe_unused]] ri& info)
 {
     ev_q        = fabric::queue<fabric::event>(128);
     ev_q_tok    = fabric::bus::subscribe(ev_q, fabric::topic::any);
@@ -59,7 +59,7 @@ auto lm::strands::busmon::before_sleep() -> status
 
         constexpr auto bufsize = 128;
         char buf[bufsize];
-        auto strsize = topic_cbs[e.topic](e, {buf, bufsize});
+        auto strsize = cb(e, {buf, bufsize});
         lm::log::debug("[BUSMON] %.*s\n", strsize, buf);
     }
 

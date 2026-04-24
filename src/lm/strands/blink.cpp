@@ -4,7 +4,7 @@
 #include "lm/chip/gpio.hpp"
 #include "lm/board.hpp"
 
-lm::strands::blink::blink(ri& info)
+lm::strands::blink::blink([[maybe_unused]] ri& info)
 {
     chip::gpio::init(board::status_led, chip::gpio::pin_mode::output);
 }

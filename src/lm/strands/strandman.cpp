@@ -8,7 +8,7 @@
 
 #include <cstring>
 
-lm::strands::strandman::strandman(st max_strands, std::span<strand_t>& strands)
+lm::strands::strandman::strandman([[maybe_unused]] st max_strands, std::span<strand_t>& strands)
 {
     strandman_q = fabric::queue<fabric::event>(config.strandman.strandman_queue_size);
     strandman_tok = fabric::bus::subscribe(strandman_q, fabric::topic::framework, {
@@ -57,7 +57,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
 
         auto consume = [&](i32 count = -1){
             if(count < 0) count = e.extension_count();
-            for(auto const& ext : strandman_q.consume<fabric::event>(count));
+            for([[maybe_unused]] auto const& _ : strandman_q.consume<fabric::event>(count));
         };
 
         // Protect against future dummy-dum-dums.
@@ -102,6 +102,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .requester_id = e.strand_id,
                 .seqnum       = data.seqnum,
                 .result       = response_register_strand::manager_cant_handle_more_strands,
+                .id           = 0,
             }));
             continue;
         }
@@ -117,6 +118,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .requester_id = e.strand_id,
                 .seqnum       = data.seqnum,
                 .result       = response_register_strand::request_malformed,
+                .id           = 0,
             }));
             continue;
         }
@@ -134,6 +136,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .requester_id = e.strand_id,
                 .seqnum       = data.seqnum,
                 .result       = response_register_strand::id_in_use,
+                .id           = data.id,
             }));
             continue;
         }
@@ -151,6 +154,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .requester_id = e.strand_id,
                 .seqnum       = data.seqnum,
                 .result       = response_register_strand::request_malformed,
+                .id           = 0,
             }));
             continue;
         }
@@ -173,7 +177,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
         bool too_many_depends = false;
         auto i = 0;
         request_register_strand::extdepends extdepends;
-        for(auto a = 0; a < e.extension_count() - 2; ++a)
+        for(auto a = 0_st; a < e.extension_count() - 2; ++a)
         {
             strandman_q.receive(&extdepends, 0);
             for(auto& dep : extdepends.depends) {
@@ -196,6 +200,7 @@ auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>&
                 .requester_id = e.strand_id,
                 .seqnum       = data.seqnum,
                 .result       = response_register_strand::too_many_depends,
+                .id           = 0,
             }));
             continue;
         }
@@ -272,13 +277,13 @@ auto lm::strands::strandman::dependencies_satisfied(
     return dependencies_satisfied;
 }
 
-auto lm::strands::strandman::manage_strands(st max_strands, std::span<strand_t>& strands) -> void
+auto lm::strands::strandman::manage_strands([[maybe_unused]] st max_strands, std::span<strand_t>& strands) -> void
 {
     using status = strand_t::status_t;
 
     using signal = fabric::topic::framework_t::strand_signal;
 
-    for(auto i = 1; i < strands.size(); ++i)
+    for(auto i = 1_st; i < strands.size(); ++i)
     {
         auto& strand = strands[i];
 
