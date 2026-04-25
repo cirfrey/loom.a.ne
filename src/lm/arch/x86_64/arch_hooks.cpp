@@ -30,7 +30,7 @@ namespace lm::arch_config
     st   inipath_size = 0;
 
     ini::field fields[] = {
-        ini::string_field({"native.inipath"_text}, inipath, {
+        ini::str("native.inipath"_text, inipath, {
             .max_len = sizeof(inipath),
             .size_out = [](u8, st v){ inipath_size = v; },
         }),

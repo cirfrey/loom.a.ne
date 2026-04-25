@@ -31,22 +31,25 @@ static constexpr auto parse_string(
     st final_size = end - start;
     if (final_size > field.string_data.max_len)
     {
-        // String too big, log and ignore.
-        if(field.string_data.too_large_behaviour == field.string_data.error) {
+        if (field.string_data.too_large_behaviour == field.string_data.error) {
             return field_parse_result::string_too_big;
         }
-        else if(field.string_data.too_large_behaviour == field.string_data.truncate)
-            final_size = clamp(final_size, 0, field.string_data.max_len) - 1 * field.string_data.add_null_terminator;
+        else if (field.string_data.too_large_behaviour == field.string_data.truncate) {
+            // Leave room for the null terminator when truncating.
+            st cap = field.string_data.max_len;
+            if (field.string_data.add_null_terminator && cap > 0) cap -= 1;
+            final_size = cap;
+        }
     }
 
     auto* out = static_cast<char*>(field.get_output_for_idx(field.output, key_idx));
     std::memcpy(out, in.data + start, final_size);
-    if(field.string_data.size_out != nullptr)
+    if (field.string_data.size_out != nullptr)
         field.string_data.size_out(key_idx, final_size);
-    if(field.string_data.add_null_terminator)
-        out[final_size + 1] = '\0';
+    if (field.string_data.add_null_terminator)
+        out[final_size] = '\0';  // BUG WAS: out[final_size + 1] — off by one
 
-    if(args.log_success) {
+    if (args.log_success) {
         log::debug(
             "[%.*s - string] = [%.*s]\n",
             (int)matched_key.size, matched_key.data,
@@ -89,17 +92,17 @@ static constexpr auto parse_number(
     auto base = 10_u8;
     if (start + 2 <= end)
     {
-        auto pref = text{in.data, 2};
+        auto pref = text{in.data + start, 2};
         if (pref == "0x" || pref == "0X") {
-            if(!field.number_data.allow_hex) return field_parse_result::number_unallowed_base; // TODO: logme!
+            if (!field.number_data.allow_hex) return field_parse_result::number_unallowed_base; // TODO: logme!
             base = 16;
             start += 2;
         } else if (pref == "0o" || pref == "0O") {
-            if(!field.number_data.allow_oct) return field_parse_result::number_unallowed_base; // TODO: logme!
+            if (!field.number_data.allow_oct) return field_parse_result::number_unallowed_base; // TODO: logme!
             base = 8;
             start += 2;
         } else if (pref == "0b" || pref == "0B") {
-            if(!field.number_data.allow_binary) return field_parse_result::number_unallowed_base; // TODO: logme!
+            if (!field.number_data.allow_binary) return field_parse_result::number_unallowed_base; // TODO: logme!
             base = 2;
             start += 2;
         }
@@ -126,7 +129,7 @@ static constexpr auto parse_number(
     }
 
     #define LM_PARSE_NUMBER_LOG(FMT, OUT) \
-        if(args.log_success) \
+        if (args.log_success) \
             log::debug(FMT, (int)matched_key.size, matched_key.data, OUT);
 
     // 5. Bounds Check and Cast
@@ -188,9 +191,9 @@ static constexpr auto parse_enumeration(
     using field_parse_result = lm::ini::field_parse_result;
 
     if (field.enumeration_data.parse)
-        return field.enumeration_data.parse(field, in, args, key_idx);
+        return field.enumeration_data.parse(field, in, args, matched_key, key_idx);
 
-    if(!args.log_ignored) {
+    if (!args.log_ignored) {
         lm::log::warn(
             "Skipped field: enum parse function pointer is null for [%.*s]\n",
             (int)matched_key.size, matched_key.data
@@ -201,12 +204,12 @@ static constexpr auto parse_enumeration(
 
 auto lm::ini::field::parse(text in, parse_args args, text matched_key, u8 key_idx) const -> field_parse_result
 {
-    if(key.data == nullptr || key.size == 0 || keycount == 0)
+    if (key.data == nullptr || key.size == 0 || keycount == 0)
         return field_parse_result::empty_key;
-    if(!output)
+    if (!output)
         return field_parse_result::empty_output;
 
-    if(matched_key.data == nullptr || matched_key.size == 0)
+    if (matched_key.data == nullptr || matched_key.size == 0)
         matched_key = key;
 
     switch (type)
@@ -227,7 +230,7 @@ auto lm::ini::parse(
     std::span<text> keys_to_skip
 ) -> parse_result
 {
-    if(!input.data || input.size == 0) return parse_result::empty_input;
+    if (!input.data || input.size == 0) return parse_result::empty_input;
 
     st   pos     = 0;
     text section = {};           // current section prefix — empty means no prefix
@@ -235,30 +238,30 @@ auto lm::ini::parse(
 
     // ── Cursor helpers ────────────────────────────────────────────────────────
 
-    auto at_end  = [&]()       { return pos >= input.size; };
+    auto at_end  = [&]()         { return pos >= input.size; };
     auto cur     = [&]() -> char { return input.data[pos]; };
-    auto advance = [&]()       { ++pos; };
+    auto advance = [&]()         { ++pos; };
 
     auto skip_line = [&]() {
-        while(!at_end() && cur() != '\n') advance();
-        if(!at_end()) advance(); // consume '\n'
+        while (!at_end() && cur() != '\n') advance();
+        if (!at_end()) advance(); // consume '\n'
     };
 
     auto skip_whitespace_inline = [&]() {
-        while(!at_end() && (cur() == ' ' || cur() == '\t')) advance();
+        while (!at_end() && (cur() == ' ' || cur() == '\t')) advance();
     };
 
     auto skip_whitespace = [&]() {
-        while(!at_end() && (cur() == ' ' || cur() == '\t'
-                         || cur() == '\r' || cur() == '\n')) advance();
+        while (!at_end() && (cur() == ' ' || cur() == '\t'
+                          || cur() == '\r' || cur() == '\n')) advance();
     };
 
     auto strip = [](text t) -> text {
         st s = 0, e = t.size;
-        while(s < e && (t.data[s]   == ' '  || t.data[s]   == '\t'
-                     || t.data[s]   == '\r'  || t.data[s]   == '\n')) ++s;
-        while(e > s && (t.data[e-1] == ' '  || t.data[e-1] == '\t'
-                     || t.data[e-1] == '\r'  || t.data[e-1] == '\n')) --e;
+        while (s < e && (t.data[s]   == ' '  || t.data[s]   == '\t'
+                      || t.data[s]   == '\r'  || t.data[s]   == '\n')) ++s;
+        while (e > s && (t.data[e-1] == ' '  || t.data[e-1] == '\t'
+                      || t.data[e-1] == '\r'  || t.data[e-1] == '\n')) --e;
         return {t.data + s, e - s};
     };
 
@@ -273,40 +276,40 @@ auto lm::ini::parse(
 
     auto matches = [](text fieldkey, text sec, text key) -> bool
     {
-        if(key.size == 0) return false;
-        if(sec.size == 0) {
-            if(fieldkey.size != key.size) return false;
+        if (key.size == 0) return false;
+        if (sec.size == 0) {
+            if (fieldkey.size != key.size) return false;
             return __builtin_memcmp(fieldkey.data, key.data, key.size) == 0;
         }
         // fieldkey must be exactly: sec + '.' + key
-        if(fieldkey.size != sec.size + 1 + key.size) return false;
-        if(__builtin_memcmp(fieldkey.data, sec.data, sec.size) != 0) return false;
-        if(fieldkey.data[sec.size] != '.') return false;
+        if (fieldkey.size != sec.size + 1 + key.size) return false;
+        if (__builtin_memcmp(fieldkey.data, sec.data, sec.size) != 0) return false;
+        if (fieldkey.data[sec.size] != '.') return false;
         return __builtin_memcmp(fieldkey.data + sec.size + 1, key.data, key.size) == 0;
     };
 
     // ── Main parse loop ───────────────────────────────────────────────────────
 
-    while(!at_end())
+    while (!at_end())
     {
         skip_whitespace();
-        if(at_end()) break;
+        if (at_end()) break;
 
         // ── Comment lines ─────────────────────────────────────────────────────
-        if(cur() == ';' || cur() == '#') {
+        if (cur() == ';' || cur() == '#') {
             skip_line();
             continue;
         }
 
         // ── Section header ────────────────────────────────────────────────────
-        if(cur() == '[') {
+        if (cur() == '[') {
             advance(); // consume '['
             st start = pos;
-            while(!at_end() && cur() != ']' && cur() != '\n') advance();
+            while (!at_end() && cur() != ']' && cur() != '\n') advance();
 
-            if(at_end() || cur() == '\n') {
+            if (at_end() || cur() == '\n') {
                 // Malformed — no closing ']'
-                if(args.log_ignored)
+                if (args.log_ignored)
                     lm::log::warn("[ini] malformed section header — missing ']'\n");
                 skip_line();
                 continue;
@@ -323,16 +326,16 @@ auto lm::ini::parse(
 
         // Parse key: everything up to '=' or '\n'
         st key_start = pos;
-        while(!at_end() && cur() != '=' && cur() != '\n' && cur() != ';') advance();
+        while (!at_end() && cur() != '=' && cur() != '\n' && cur() != ';') advance();
 
-        if(at_end() || cur() == '\n' || cur() == ';') {
+        if (at_end() || cur() == '\n' || cur() == ';') {
             // TODO: finish this, it's not really working when [key ; comment]
             // No '=' — not a key=value line
             text raw = strip({input.data + key_start, pos - key_start});
-            if(raw.size > 0 && args.log_ignored)
+            if (raw.size > 0 && args.log_ignored)
                 lm::log::debug("[ini] line without '=' ignored: [%.*s]\n",
                     (int)raw.size, raw.data);
-            if(!at_end()) advance(); // consume '\n'
+            if (!at_end()) advance(); // consume '\n'
             continue;
         }
 
@@ -347,19 +350,19 @@ auto lm::ini::parse(
 
         text value = {};
 
-        if(!at_end() && cur() == '"')
+        if (!at_end() && cur() == '"')
         {
             // Form 2: "quoted string" — no escape sequences supported
             // If you need a quote character in the value, use Form 3: (value with "quotes")
             advance(); // consume opening '"'
             st val_start = pos;
-            while(!at_end() && cur() != '"' && cur() != '\n') advance();
+            while (!at_end() && cur() != '"' && cur() != '\n') advance();
 
-            if(at_end() || cur() == '\n') {
-                if(args.log_ignored)
+            if (at_end() || cur() == '\n') {
+                if (args.log_ignored)
                     lm::log::warn("[ini] unclosed '\"' for key [%.*s]\n",
                         (int)raw_key.size, raw_key.data);
-                if(!at_end()) advance();
+                if (!at_end()) advance();
                 continue; // skip this key-value pair
             }
 
@@ -368,21 +371,21 @@ auto lm::ini::parse(
             // Anything after the closing quote on the same line is ignored.
             skip_line();
         }
-        else if(!at_end() && cur() == '(')
+        else if (!at_end() && cur() == '(')
         {
             // Form 3: (parenthesised value) — nested parens are tracked
             // Comments inside are NOT stripped — the entire contents are the value.
             advance(); // consume opening '('
             st val_start = pos;
             st depth = 1;
-            while(!at_end() && depth > 0) {
-                if     (cur() == '(') ++depth;
-                else if(cur() == ')') { if(--depth == 0) break; }
+            while (!at_end() && depth > 0) {
+                if      (cur() == '(') ++depth;
+                else if (cur() == ')') { if (--depth == 0) break; }
                 advance();
             }
 
-            if(at_end() && depth > 0) {
-                if(args.log_ignored)
+            if (at_end() && depth > 0) {
+                if (args.log_ignored)
                     lm::log::warn("[ini] unclosed '(' for key [%.*s]\n",
                         (int)raw_key.size, raw_key.data);
                 continue; // skip this key-value pair
@@ -396,55 +399,55 @@ auto lm::ini::parse(
         {
             // Form 1: raw value — until ';' (comment) or '\n', then stripped
             st val_start = pos;
-            while(!at_end() && cur() != '\n' && cur() != ';') advance();
+            while (!at_end() && cur() != '\n' && cur() != ';') advance();
             value = strip({input.data + val_start, pos - val_start});
             // If we stopped at ';', the rest of the line is a comment — skip it
-            if(!at_end() && cur() == ';') skip_line();
+            if (!at_end() && cur() == ';') skip_line();
         }
 
         // ── Dispatch to matching field ─────────────────────────────────────────
 
-        if(raw_key.size == 0) continue; // blank key (= value with nothing before it)
+        if (raw_key.size == 0) continue; // blank key (= value with nothing before it)
 
-        bool found = false;
+        bool found   = false;
         bool matched = false;
-        for(auto& f : fields) {
-            if(matched && args.match_only_one_field) break;
+        for (auto& f : fields) {
+            if (matched && args.match_only_one_field) break;
 
-            for(auto key_idx = 0; key_idx < f.keycount; ++key_idx)
+            for (u8 key_idx = 0; key_idx < f.keycount; ++key_idx)  // BUG WAS: auto (deduced int)
             {
                 char field_key_fmtbuf[config_t::ini_t::field_key_fmtbuf_size];
                 auto field_key = f.get_key_for_idx(f.key, {field_key_fmtbuf, sizeof(field_key_fmtbuf)}, key_idx);
 
-                if(!matches(field_key, section, raw_key)) continue;
+                if (!matches(field_key, section, raw_key)) continue;
                 found = true;
 
-                if(keys_to_parse.size())
+                if (keys_to_parse.size())
                 {
                     bool in_list = false;
-                    for(auto k : keys_to_parse) {
-                        if(matches(field_key, ""_text, k)) {
+                    for (auto k : keys_to_parse) {
+                        if (matches(field_key, ""_text, k)) {
                             in_list = true;
                             break;
                         }
                     }
-                    if(!in_list) continue;
+                    if (!in_list) continue;
                 }
 
-                if(keys_to_skip.size())
+                if (keys_to_skip.size())
                 {
                     bool in_list = false;
-                    for(auto k : keys_to_skip) {
-                        if(matches(field_key, ""_text, k)) {
+                    for (auto k : keys_to_skip) {
+                        if (matches(field_key, ""_text, k)) {
                             in_list = true;
                             break;
                         }
                     }
-                    if(in_list) continue;
+                    if (in_list) continue;
                 }
 
                 auto r = f.parse(value, args, field_key, key_idx);
-                if(r != parse_result::ok) {
+                if (r != parse_result::ok) {
                     last_error = r;
                     // Field-level parse errors log internally — we continue to allow
                     // duplicate keys later in the document to overwrite with valid values.
@@ -453,8 +456,8 @@ auto lm::ini::parse(
             }
         }
 
-        if(!found && args.log_ignored) {
-            if(section.size > 0)
+        if (!found && args.log_ignored) {
+            if (section.size > 0)
                 lm::log::debug("[ini] unknown key [%.*s.%.*s]\n",
                     (int)section.size, section.data,
                     (int)raw_key.size, raw_key.data);

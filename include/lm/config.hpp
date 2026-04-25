@@ -30,23 +30,6 @@ namespace lm
     // - Dynamic fields (runtime stuff) customizable by regular assignment.
     struct config_t
     {
-        // To get around some C++ limitations.
-        template <st Rows, st Cols>
-        struct table {
-            static constexpr st rows = Rows;
-            static constexpr st cols = Cols;
-
-            char data[rows][cols]{};
-            st   size[rows]{};
-
-            constexpr auto copy(auto dst_idx, const auto& src) -> void
-            {
-                // TODO: Some asserts of size and handling '\0' would be nice here.
-                size[dst_idx] = src.size;
-                for(st i = 0; i < src.size; ++i) data[dst_idx][i] = src.data[i];
-            };
-        };
-
         struct system_t
         {
             feature use_seed = feature::off;
@@ -266,6 +249,11 @@ namespace lm
                 halt,
             };
             after_test after_unit = proceed;
+
+            #ifndef LM_CONFIG_TEST_MAX_UNIT_SUITES
+            #define LM_CONFIG_TEST_MAX_UNIT_SUITES 128
+            #endif
+            static constexpr auto max_unit_suites = LM_CONFIG_TEST_MAX_UNIT_SUITES;
         } test;
 
         // These are only valid if you are using the launcher.

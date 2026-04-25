@@ -2,13 +2,15 @@
 #include "lm/log.hpp"
 #include "lm/core/hash.hpp"
 
+#include "lm/config.hpp"
+
 // ── Registry storage ──────────────────────────────────────────────────────────
 // Static arrays, zero-initialized before dynamic init.
 // max_suites is a hard limit — no heap allocation.
 
 namespace
 {
-    static constexpr lm::st max_suites = 32;
+    static constexpr lm::st max_suites = lm::config.test.max_unit_suites;
 
     struct unit_entry {
         const char*          name = nullptr;
