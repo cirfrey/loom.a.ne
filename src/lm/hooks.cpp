@@ -100,14 +100,16 @@ auto lm::hook::framework_final_config_override(config_t& config) -> void
             (int)uuid.size, uuid.data
         );
     }
-    if(std::strcmp(config.usbip.string_descriptors.serial, "00:00:00:00:00:00") == 0)
-    {
-        std::snprintf(
-            config.usbip.string_descriptors.serial,
-            config_t::usbcommon::string_descriptor_max_len,
-            "%.*s",
-            (int)uuid.size, uuid.data
-        );
+    for(auto i = 0; i < config_t::usbip_t::instance_count; ++i) {
+        if(std::strcmp(config.usbip[i].string_descriptors.serial, "00:00:00:00:00:00") == 0)
+        {
+            std::snprintf(
+                config.usbip[i].string_descriptors.serial,
+                config_t::usbcommon::string_descriptor_max_len,
+                "%.*s",
+                (int)uuid.size, uuid.data
+            );
+        }
     }
 }
 

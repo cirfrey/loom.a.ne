@@ -39,6 +39,8 @@ namespace lm::strands
 
         ri& info;
 
+        u8 instance_id = 0;
+
         usbip(ri& info);
         auto on_ready()     -> status;
         auto before_sleep() -> status;
@@ -182,8 +184,8 @@ namespace lm::strands
 
                 u8 address = 0;
 
-                transmitting_t() {
-                    out_event_q   = fabric::queue<fabric::event>(config.usbip.out_event_queue_size);
+                transmitting_t(u8 instance_id) {
+                    out_event_q   = fabric::queue<fabric::event>(config.usbip[instance_id].out_event_queue_size);
                     out_event_tok = fabric::bus::subscribe(out_event_q, fabric::topic::output);
                 }
             } transmitting;

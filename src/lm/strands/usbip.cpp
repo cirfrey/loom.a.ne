@@ -17,7 +17,7 @@ lm::strands::usbip::usbip(ri& info) : info{info}
         config_descriptor,
         string_descriptors,
         device_descriptor,
-        config.usbip,
+        config.usbip[instance_id],
         config.audio.backend.usbip,
         config.cdc.backend.usbip,
         config.hid.backend.usbip,
@@ -44,7 +44,7 @@ lm::strands::usbip::usbip(ri& info) : info{info}
         ),
         veil::forward<decltype(args)>(args)...
     ); };
-    usb::debug::print_ep_table(config.usbip.endpoints, printer, {"\t", 1});
+    usb::debug::print_ep_table(config.usbip[instance_id].endpoints, printer, {"\t", 1});
 }
 
 auto lm::strands::usbip::on_ready() -> status
@@ -114,7 +114,7 @@ auto lm::strands::usbip::transition_state(state_t to) -> bool
         case listening:    { new (&state_data.listening)    state_data_t::listening_t();    break; }
         case handshaking:  { new (&state_data.handshaking)  state_data_t::handshaking_t();  break; }
         case exported:     { new (&state_data.exported)     state_data_t::exported_t();     break; }
-        case transmitting: { new (&state_data.transmitting) state_data_t::transmitting_t(); break; }
+        case transmitting: { new (&state_data.transmitting) state_data_t::transmitting_t(instance_id); break; }
         default:           { return false; }
     }
 
@@ -123,14 +123,14 @@ auto lm::strands::usbip::transition_state(state_t to) -> bool
 
 auto lm::strands::usbip::do_initializing_state() -> desired_strand_action
 {
-    listen_sock = chip::net::make_listen_socket(config.usbip.port);
+    listen_sock = chip::net::make_listen_socket(config.usbip[instance_id].port);
     if (listen_sock == chip::invalid_socket) {
-        log::error("[usbip] Failed to open listen socket on port %i\n", config.usbip.port);
+        log::error("[usbip] Failed to open listen socket on port %i\n", config.usbip[instance_id].port);
         return desired_strand_action::die;
     }
 
     chip::net::set_nonblocking(listen_sock);
-    log::info("[usbip] Listening on port %i\n", config.usbip.port);
+    log::info("[usbip] Listening on port %i\n", config.usbip[instance_id].port);
     transition_state(listening);
     return desired_strand_action::loop;
 }
@@ -277,8 +277,8 @@ auto lm::strands::usbip::handshaking_process_req_devlist() -> void
         .bNumConfigurations  = device_descriptor.bNumConfigurations,
         .bNumInterfaces      = config_descriptor[4],
     };
-    std::snprintf(dev_info.path,  sizeof(dev_info.path),  "%s", config.usbip.path);
-    std::snprintf(dev_info.busid, sizeof(dev_info.busid), "%s", config.usbip.busid);
+    std::snprintf(dev_info.path,  sizeof(dev_info.path),  "%s", config.usbip[instance_id].path);
+    std::snprintf(dev_info.busid, sizeof(dev_info.busid), "%s", config.usbip[instance_id].busid);
 
     if (!chip::net::send_exact(conn_sock, &dev_info, sizeof(dev_info)))
     {
@@ -316,7 +316,7 @@ auto lm::strands::usbip::handshaking_process_req_devlist() -> void
 
     // Now we hopefully wait for OP_REQ_IMPORT, but we *may* need to close the socket first.
     log::info("[usbip] Sucessfully sent OP_REP_DEVLIST\n");
-    data.status = config.usbip.close_conn_after_devlist == feature::on
+    data.status = config.usbip[instance_id].close_conn_after_devlist == feature::on
         ? data.want_to_go_back_to_listening
         : data.waiting_for_header;
 }
@@ -348,8 +348,8 @@ auto lm::strands::usbip::handshaking_process_req_import() -> void
             .bNumInterfaces      = config_descriptor[4],
         }
     };
-    std::snprintf(pkt.device.path,  sizeof(pkt.device.path),  "%s", config.usbip.path);
-    std::snprintf(pkt.device.busid, sizeof(pkt.device.busid), "%s", config.usbip.busid);
+    std::snprintf(pkt.device.path,  sizeof(pkt.device.path),  "%s", config.usbip[instance_id].path);
+    std::snprintf(pkt.device.busid, sizeof(pkt.device.busid), "%s", config.usbip[instance_id].busid);
 
     if (!chip::net::send_exact(conn_sock, &pkt, sizeof(pkt)))
     {
@@ -629,7 +629,7 @@ auto lm::strands::usbip::transmitting_handle_setup(
     // If we get here, it's an unhandled setup or we need to STALL.
     // Return a RET_SUBMIT with status 0 and 0 length to avoid hanging the host,
     // or return a non-zero status to simulate a STALL.
-    return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
+    return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip[instance_id].stall_status_code, nullptr, 0);
 }
 
 auto lm::strands::usbip::transmitting_handle_in(
@@ -789,12 +789,12 @@ auto lm::strands::usbip::setup_handle_get_descriptor(const u8 setup[8], u32 seqn
             }
 
             // String not found: STALL
-            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
+            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip[instance_id].stall_status_code, nullptr, 0);
         }
 
         default: {
             // STALL — descriptor type not supported
-            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip.stall_status_code, nullptr, 0);
+            return send_ret_submit(seqnum, 0, lm::usbip::USBIP_DIR_IN, config.usbip[instance_id].stall_status_code, nullptr, 0);
         }
     }
 }

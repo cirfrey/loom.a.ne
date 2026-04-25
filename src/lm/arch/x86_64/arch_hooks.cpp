@@ -30,9 +30,9 @@ namespace lm::arch_config
     st   inipath_size = 0;
 
     ini::field fields[] = {
-        ini::string_field("native.inipath"_text, inipath, {
+        ini::string_field({"native.inipath"_text}, inipath, {
             .max_len = sizeof(inipath),
-            .size_out = &inipath_size
+            .size_out = [](u8, st v){ inipath_size = v; },
         }),
     };
 }
@@ -68,7 +68,8 @@ auto lm::hook::arch_config(config_t& config) -> void
     //       backend creates its own copy from the template.
     // NOTE: Cannot have multiple usbip instances until the previous commented is implemented.
     config.usb.endpoints    = arch::x86_64::endpoints;
-    config.usbip.endpoints  = lm::strands::usbip_backend::endpoints;
+    for(auto i = 0; i < config_t::usbip_t::instance_count; ++i)
+        config.usbip[i].endpoints  = lm::strands::usbip_backend::endpoints;
 
     config.ini.with_source = [](void* ud, auto cb){
         if(lm::arch_config::inipath_size == 0){

@@ -10,7 +10,9 @@
 static constexpr auto parse_string(
     lm::ini::field const& field,
     lm::text in,
-    [[maybe_unused]] lm::ini::parse_args args
+    [[maybe_unused]] lm::ini::parse_args args,
+    lm::text matched_key,
+    lm::u8 key_idx
 ) -> lm::ini::field_parse_result
 {
     using namespace lm;
@@ -37,18 +39,18 @@ static constexpr auto parse_string(
             final_size = clamp(final_size, 0, field.string_data.max_len) - 1 * field.string_data.add_null_terminator;
     }
 
-    auto* out = static_cast<char*>(field.output);
+    auto* out = static_cast<char*>(field.get_output_for_idx(field.output, key_idx));
     std::memcpy(out, in.data + start, final_size);
     if(field.string_data.size_out != nullptr)
-        *(st*)field.string_data.size_out = final_size;
+        field.string_data.size_out(key_idx, final_size);
     if(field.string_data.add_null_terminator)
         out[final_size + 1] = '\0';
 
     if(args.log_success) {
         log::debug(
             "[%.*s - string] = [%.*s]\n",
-            (int)field.key.size, field.key.data,
-            (int)final_size,     out
+            (int)matched_key.size, matched_key.data,
+            (int)final_size,       out
         );
     }
 
@@ -58,7 +60,9 @@ static constexpr auto parse_string(
 static constexpr auto parse_number(
     lm::ini::field const& field,
     lm::text in,
-    [[maybe_unused]] lm::ini::parse_args args
+    [[maybe_unused]] lm::ini::parse_args args,
+    lm::text matched_key,
+    lm::u8 key_idx
 ) -> lm::ini::field_parse_result
 {
     using namespace lm;
@@ -123,9 +127,10 @@ static constexpr auto parse_number(
 
     #define LM_PARSE_NUMBER_LOG(FMT, OUT) \
         if(args.log_success) \
-            log::debug(FMT, (int)field.key.size, field.key.data, OUT);
+            log::debug(FMT, (int)matched_key.size, matched_key.data, OUT);
 
     // 5. Bounds Check and Cast
+    auto output = field.get_output_for_idx(field.output, key_idx);
     if (field.number_data.output_is_signed)
     {
         i64 sval = is_neg ? -static_cast<i64>(val) : static_cast<i64>(val);
@@ -144,10 +149,10 @@ static constexpr auto parse_number(
             return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<i8* >(field.output) = static_cast<i8>(sval);  LM_PARSE_NUMBER_LOG("[%.*s - i8] = [%"  PRId8  "]\n", *static_cast<i8*>(field.output));  break;
-            case 16: *static_cast<i16*>(field.output) = static_cast<i16>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i16] = [%" PRId16 "]\n", *static_cast<i16*>(field.output)); break;
-            case 32: *static_cast<i32*>(field.output) = static_cast<i32>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i32] = [%" PRId32 "]\n", *static_cast<i32*>(field.output)); break;
-            case 64: *static_cast<i64*>(field.output) = static_cast<i64>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i64] = [%" PRId64 "]\n", *static_cast<i64*>(field.output)); break;
+            case 8:  *static_cast<i8* >(output) = static_cast<i8>(sval);  LM_PARSE_NUMBER_LOG("[%.*s - i8] = [%"  PRId8  "]\n", *static_cast<i8*>(output));  break;
+            case 16: *static_cast<i16*>(output) = static_cast<i16>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i16] = [%" PRId16 "]\n", *static_cast<i16*>(output)); break;
+            case 32: *static_cast<i32*>(output) = static_cast<i32>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i32] = [%" PRId32 "]\n", *static_cast<i32*>(output)); break;
+            case 64: *static_cast<i64*>(output) = static_cast<i64>(sval); LM_PARSE_NUMBER_LOG("[%.*s - i64] = [%" PRId64 "]\n", *static_cast<i64*>(output)); break;
             default: return field_parse_result::number_outside_bounds;
         }
     }
@@ -161,10 +166,10 @@ static constexpr auto parse_number(
         if (val > effective_max) return field_parse_result::number_outside_bounds;
 
         switch (field.number_data.output_bits) {
-            case 8:  *static_cast<u8* >(field.output) = static_cast<u8>(val);  LM_PARSE_NUMBER_LOG("[%.*s - u8] = [%"  PRIu8  "]\n", *static_cast<u8*>(field.output));  break;
-            case 16: *static_cast<u16*>(field.output) = static_cast<u16>(val); LM_PARSE_NUMBER_LOG("[%.*s - u16] = [%" PRIu16 "]\n", *static_cast<u16*>(field.output)); break;
-            case 32: *static_cast<u32*>(field.output) = static_cast<u32>(val); LM_PARSE_NUMBER_LOG("[%.*s - u32] = [%" PRIu32 "]\n", *static_cast<u32*>(field.output)); break;
-            case 64: *static_cast<u64*>(field.output) = static_cast<u64>(val); LM_PARSE_NUMBER_LOG("[%.*s - u64] = [%" PRIu64 "]\n", *static_cast<u64*>(field.output)); break;
+            case 8:  *static_cast<u8* >(output) = static_cast<u8>(val);  LM_PARSE_NUMBER_LOG("[%.*s - u8] = [%"  PRIu8  "]\n", *static_cast<u8*>(output));  break;
+            case 16: *static_cast<u16*>(output) = static_cast<u16>(val); LM_PARSE_NUMBER_LOG("[%.*s - u16] = [%" PRIu16 "]\n", *static_cast<u16*>(output)); break;
+            case 32: *static_cast<u32*>(output) = static_cast<u32>(val); LM_PARSE_NUMBER_LOG("[%.*s - u32] = [%" PRIu32 "]\n", *static_cast<u32*>(output)); break;
+            case 64: *static_cast<u64*>(output) = static_cast<u64>(val); LM_PARSE_NUMBER_LOG("[%.*s - u64] = [%" PRIu64 "]\n", *static_cast<u64*>(output)); break;
             default: return field_parse_result::number_unknown_size;
         }
     }
@@ -175,36 +180,41 @@ static constexpr auto parse_number(
 static constexpr auto parse_enumeration(
     lm::ini::field const& field,
     lm::text in,
-    lm::ini::parse_args args
+    lm::ini::parse_args args,
+    lm::text matched_key,
+    lm::u8 key_idx
 ) -> lm::ini::field_parse_result
 {
     using field_parse_result = lm::ini::field_parse_result;
 
     if (field.enumeration_data.parse)
-        return field.enumeration_data.parse(field, in, args);
+        return field.enumeration_data.parse(field, in, args, key_idx);
 
     if(!args.log_ignored) {
         lm::log::warn(
             "Skipped field: enum parse function pointer is null for [%.*s]\n",
-            (int)field.key.size, field.key.data
+            (int)matched_key.size, matched_key.data
         );
     }
     return field_parse_result::ok;
 }
 
-auto lm::ini::field::parse(text in, parse_args args) const -> field_parse_result
+auto lm::ini::field::parse(text in, parse_args args, text matched_key, u8 key_idx) const -> field_parse_result
 {
-    if(key.data == nullptr || key.size == 0)
+    if(key.data == nullptr || key.size == 0 || keycount == 0)
         return field_parse_result::empty_key;
     if(!output)
         return field_parse_result::empty_output;
 
+    if(matched_key.data == nullptr || matched_key.size == 0)
+        matched_key = key;
+
     switch (type)
     {
         case none:        return field_parse_result::none_type;
-        case string:      return parse_string(*this, in, args);
-        case number:      return parse_number(*this, in, args);
-        case enumeration: return parse_enumeration(*this, in, args);
+        case string:      return parse_string(*this, in, args, matched_key, key_idx);
+        case number:      return parse_number(*this, in, args, matched_key, key_idx);
+        case enumeration: return parse_enumeration(*this, in, args, matched_key, key_idx);
         default:          return field_parse_result::unknown_type;
     }
 }
@@ -261,17 +271,18 @@ auto lm::ini::parse(
     // Match condition: field.key == section + "." + raw_key   (when section non-empty)
     //              or: field.key == raw_key                    (when section empty)
 
-    auto matches = [](field const& f, text sec, text key) -> bool {
+    auto matches = [](text fieldkey, text sec, text key) -> bool
+    {
         if(key.size == 0) return false;
         if(sec.size == 0) {
-            if(f.key.size != key.size) return false;
-            return __builtin_memcmp(f.key.data, key.data, key.size) == 0;
+            if(fieldkey.size != key.size) return false;
+            return __builtin_memcmp(fieldkey.data, key.data, key.size) == 0;
         }
-        // f.key must be exactly: sec + '.' + key
-        if(f.key.size != sec.size + 1 + key.size) return false;
-        if(__builtin_memcmp(f.key.data, sec.data, sec.size) != 0) return false;
-        if(f.key.data[sec.size] != '.') return false;
-        return __builtin_memcmp(f.key.data + sec.size + 1, key.data, key.size) == 0;
+        // fieldkey must be exactly: sec + '.' + key
+        if(fieldkey.size != sec.size + 1 + key.size) return false;
+        if(__builtin_memcmp(fieldkey.data, sec.data, sec.size) != 0) return false;
+        if(fieldkey.data[sec.size] != '.') return false;
+        return __builtin_memcmp(fieldkey.data + sec.size + 1, key.data, key.size) == 0;
     };
 
     // ── Main parse loop ───────────────────────────────────────────────────────
@@ -396,43 +407,50 @@ auto lm::ini::parse(
         if(raw_key.size == 0) continue; // blank key (= value with nothing before it)
 
         bool found = false;
+        bool matched = false;
         for(auto& f : fields) {
-            if(!matches(f, section, raw_key)) continue;
-            found = true;
+            if(matched && args.match_only_one_field) break;
 
-            if(keys_to_parse.size())
+            for(auto key_idx = 0; key_idx < f.keycount; ++key_idx)
             {
-                bool in_list = false;
-                for(auto k : keys_to_parse) {
-                    if(matches(f, ""_text, k)) {
-                        in_list = true;
-                        break;
+                char field_key_fmtbuf[config_t::ini_t::field_key_fmtbuf_size];
+                auto field_key = f.get_key_for_idx(f.key, {field_key_fmtbuf, sizeof(field_key_fmtbuf)}, key_idx);
+
+                if(!matches(field_key, section, raw_key)) continue;
+                found = true;
+
+                if(keys_to_parse.size())
+                {
+                    bool in_list = false;
+                    for(auto k : keys_to_parse) {
+                        if(matches(field_key, ""_text, k)) {
+                            in_list = true;
+                            break;
+                        }
                     }
+                    if(!in_list) continue;
                 }
-                if(!in_list) continue;
-            }
 
-            if(keys_to_skip.size())
-            {
-                bool in_list = false;
-                for(auto k : keys_to_skip) {
-                    if(matches(f, ""_text, k)) {
-                        in_list = true;
-                        break;
+                if(keys_to_skip.size())
+                {
+                    bool in_list = false;
+                    for(auto k : keys_to_skip) {
+                        if(matches(field_key, ""_text, k)) {
+                            in_list = true;
+                            break;
+                        }
                     }
+                    if(in_list) continue;
                 }
-                if(in_list) continue;
-            }
 
-            auto r = f.parse(value, args);
-            if(r != parse_result::ok) {
-                last_error = r;
-                // Field-level parse errors log internally — we continue to allow
-                // duplicate keys later in the document to overwrite with valid values.
+                auto r = f.parse(value, args, field_key, key_idx);
+                if(r != parse_result::ok) {
+                    last_error = r;
+                    // Field-level parse errors log internally — we continue to allow
+                    // duplicate keys later in the document to overwrite with valid values.
+                }
+                matched = true;
             }
-
-            if(args.match_only_one_field)
-                break; // only dispatch to the first matching field
         }
 
         if(!found && args.log_ignored) {

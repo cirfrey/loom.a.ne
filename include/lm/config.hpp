@@ -50,7 +50,8 @@ namespace lm
         struct system_t
         {
             feature use_seed = feature::off;
-            u32     random_seed[8]  = {42, 0, 0, 0, 0, 0, 0, 0};
+            static constexpr u8 random_seed_count = 8;
+            u32     random_seed[random_seed_count]  = {42, 0, 0, 0, 0, 0, 0, 0};
         } system;
 
         struct ini_t
@@ -59,6 +60,11 @@ namespace lm
             using with_source_t = void(*)(void* userdata, with_source_cb_t cb);
             // Generally set by lm::hook::arch_config.
             with_source_t with_source = nullptr;
+
+            #ifndef LM_CONFIG_INI_FIELD_KEY_FMTBUF_SIZE
+            #define LM_CONFIG_INI_FIELD_KEY_FMTBUF_SIZE 64
+            #endif
+            static constexpr u16 field_key_fmtbuf_size = LM_CONFIG_INI_FIELD_KEY_FMTBUF_SIZE;
         } ini;
 
         struct network_t
@@ -419,7 +425,7 @@ namespace lm
             #define LM_CONFIG_USBIP_MAX_ENDPOINTS 8
             #endif
             static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
-        } usbip_;
+        };
 
         struct usbip_instance_t
         {
@@ -442,7 +448,7 @@ namespace lm
 
             usbcommon::device_descriptor  device_descriptor;
             usbcommon::string_descriptors string_descriptors;
-        } usbip;
+        } usbip[usbip_t::instance_count];
 
         struct audio_t
         {

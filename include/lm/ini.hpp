@@ -38,7 +38,7 @@ namespace lm::ini
     // TODO: sure would be nice to have a printable description on error.
     struct field
     {
-        [[nodiscard]] auto parse(text, parse_args = parse_args{}) const -> field_parse_result;
+        [[nodiscard]] auto parse(text, parse_args = parse_args{}, text matched_key = {}, u8 key_idx = 1) const -> field_parse_result;
 
         text key = {nullptr, 0};
         void* output = nullptr;
@@ -50,6 +50,14 @@ namespace lm::ini
             string, // Expects .variable to be a char[string_data.max_len], null terminated.
             enumeration,
         } type = none;
+
+        u8 keycount = 1;
+        // Only necessary to override if keycount > 1.
+        using get_key_for_idx_t = text(*)(text key, mut_text buf, u8 key_idx);
+        get_key_for_idx_t get_key_for_idx = [](text key, mut_text, u8){ return key; };
+        // Only necessary to override if keycount > 1.
+        using get_output_for_idx_t = void*(*)(void* output, u8 key_idx);
+        get_output_for_idx_t get_output_for_idx = [](void* output, u8){ return output; };
 
         struct number_data_t {
             u8   output_bits      = 8;
@@ -73,11 +81,11 @@ namespace lm::ini
             } too_large_behaviour = error;
             bool add_null_terminator = false;
 
-            // Expects this to be an lm::st.
-            void* size_out = nullptr;
+            using size_out_t = void(*)(u8, st);
+            size_out_t size_out = nullptr;
         };
         struct enumeration_data_t {
-            using parse_t = field_parse_result(*)(field const& field, text input, parse_args);
+            using parse_t = field_parse_result(*)(field const& field, text input, parse_args, u8 key_idx);
             // Given a lm::text, writes to .output if valid, otherwise should print
             // the valid enumerations for the user to debug.
             // - true = parsed successfully
@@ -101,39 +109,98 @@ namespace lm::ini
         static constexpr auto default_enum_parser_for() -> enumeration_data_t::parse_t;
     };
 
+    struct key_info_t
+    {
+        text key = {};
+        u8 keycount = 1;
+        field::get_key_for_idx_t key_formatter = nullptr;
+        field::get_output_for_idx_t output_redirector = nullptr;
+    };
+
     template <typename Num>
-    constexpr auto number_field(text key, Num& num, field::number_data_t data) -> field
+    constexpr auto number_field_raw(key_info_t key, void* output, field::number_data_t data) -> field
     {
         auto ret = field{};
-        ret.key = key;
-        ret.output = &num;
+        ret.key = key.key;
+        ret.output = output;
         ret.type = field::number;
         ret.number_data = data;
         ret.number_data.output_bits      = sizeof(Num) * 8;
         ret.number_data.output_is_signed = veil::is_signed_v<Num>;
+
+        ret.keycount = key.keycount;
+        if(key.key_formatter)     ret.get_key_for_idx    = key.key_formatter;
+        if(key.output_redirector) ret.get_output_for_idx = key.output_redirector;
+
         return ret;
     }
 
-    constexpr auto string_field(text key, mut_text str, field::string_data_t data) -> field
+    template <typename Num>
+    constexpr auto number_field(key_info_t key, Num& num, field::number_data_t data) -> field
+    { return number_field_raw<Num>(key, &num, data); }
+
+    constexpr auto string_field(key_info_t key, mut_text str, field::string_data_t data) -> field
     {
         auto ret = field{};
-        ret.key = key;
+        ret.key = key.key;
         ret.output = str.data;
         ret.type = field::string;
         ret.string_data = data;
         ret.string_data.max_len = str.size;
+
+        ret.keycount = key.keycount;
+        if(key.key_formatter)     ret.get_key_for_idx    = key.key_formatter;
+        if(key.output_redirector) ret.get_output_for_idx = key.output_redirector;
+
         return ret;
     }
 
     // In this case you *need* to supply the size.
-    constexpr auto string_field(text key, char* str, field::string_data_t data) -> field
+    constexpr auto string_field_raw(key_info_t key, void* out, field::string_data_t data) -> field
     {
         auto ret = field{};
-        ret.key = key;
-        ret.output = str;
+        ret.key = key.key;
+        ret.output = out;
         ret.type = field::string;
         ret.string_data = data;
         ret.string_data.add_null_terminator = true;
+
+        ret.keycount = key.keycount;
+        if(key.key_formatter)     ret.get_key_for_idx    = key.key_formatter;
+        if(key.output_redirector) ret.get_output_for_idx = key.output_redirector;
+
+        return ret;
+    }
+
+    // In this case you *need* to supply the size.
+    constexpr auto string_field(key_info_t key, char* str, field::string_data_t data) -> field
+    {
+        return string_field_raw(key, str, data);
+    }
+
+    template <
+        typename EnumPretend,
+        typename EnumActual,
+        field::enumeration_data_t::normalize_t Normalizer,
+        int Lo = -128,
+        int Hi = 128
+    >
+    constexpr auto normalized_enumeration_field_raw(
+        key_info_t key,
+        void* output
+    ) -> field
+    {
+        auto ret = field{};
+        ret.key = key.key;
+        ret.output = output;
+        ret.type = field::enumeration;
+        ret.enumeration_data.normalize = Normalizer;
+        ret.enumeration_data.parse     = field::default_enum_parser_for<EnumPretend, Lo, Hi>();
+
+        ret.keycount = key.keycount;
+        if(key.key_formatter)     ret.get_key_for_idx    = key.key_formatter;
+        if(key.output_redirector) ret.get_output_for_idx = key.output_redirector;
+
         return ret;
     }
 
@@ -145,32 +212,31 @@ namespace lm::ini
         int Hi = 128
     >
     constexpr auto normalized_enumeration_field(
-        text key,
+        key_info_t key,
         EnumActual& val
     ) -> field
-    {
-        auto ret = field{};
-        ret.key = key;
-        ret.output = &val;
-        ret.type = field::enumeration;
-        ret.enumeration_data.normalize = Normalizer;
-        ret.enumeration_data.parse     = field::default_enum_parser_for<EnumPretend, Lo, Hi>();
-        return ret;
-    }
+    { return normalized_enumeration_field_raw<EnumPretend, EnumActual, Normalizer, Lo, Hi>(key, &val); }
+
+
 
     template <int Lo = -128, int Hi = 128, typename Enum>
     constexpr auto enumeration_field(
-        text key,
+        key_info_t key,
         Enum& val,
         field::enumeration_data_t::parse_t parser =
             field::default_enum_parser_for<Enum, Lo, Hi>()
     ) -> field
     {
         auto ret = field{};
-        ret.key = key;
+        ret.key = key.key;
         ret.output = &val;
         ret.type = field::enumeration;
         ret.enumeration_data.parse = parser;
+
+        ret.keycount = key.keycount;
+        if(key.key_formatter)     ret.get_key_for_idx    = key.key_formatter;
+        if(key.output_redirector) ret.get_output_for_idx = key.output_redirector;
+
         return ret;
     }
 
@@ -218,12 +284,16 @@ namespace lm::ini
 template <typename Enum, int Lo, int Hi>
 constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::parse_t
 {
-    return [](ini::field const& field, text input, parse_args args){
+    // TODO: implement key_idx.
+    return [](ini::field const& field, text input, parse_args args, u8 key_idx){
         using re = renum<Enum, Lo, Hi>;
         constexpr auto enum_name = type_name<Enum>();
 
         auto on_exists = [&](auto v){
-            *(Enum*)field.output = v;
+            void* out = field.output;
+            if(key_idx >= 1) out = field.get_output_for_idx(out, key_idx);
+
+            *(Enum*)out = v;
             if(field.enumeration_data.normalize)
                 field.enumeration_data.normalize(field);
             if(!args.log_success) return;

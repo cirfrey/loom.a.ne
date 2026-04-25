@@ -33,16 +33,95 @@ namespace lm::config_ini
     };
 
     // Some aliases.
+
+    // NOTE: unary plus (+) forces a lambda to decay to function pointer.
+    #define LM_INI_MULTIKEY( TO ) +[](u8 i){ return & TO; }
+    #define LM_INI_MULTIKEY_STR( TO ) +[](u8 i){ return TO; }
+
+    using formatter_t = ini::field::get_key_for_idx_t;
+    constexpr formatter_t default_key_formatter = [](text key, mut_text buf, u8 key_idx) -> text
+        { return {buf.data, (st)std::snprintf(buf.data, buf.size, key.data, key_idx)}; };
+    template <typename Enum, int Lo = -128, int Hi = 128>
+    constexpr formatter_t renum_formatter = [](text key, mut_text buf, u8 key_idx) -> text
+    {
+        auto re = renum<Enum, Lo, Hi>::unqualified((Enum)key_idx);
+        return {buf.data, (st)std::snprintf(buf.data, buf.size, key.data, (int)re.size, re.data)};
+    };
+
+    template <typename Getter>
+    constexpr auto multikey(
+        char const* key_pattern,
+        u8 size,
+        Getter,
+        formatter_t formatter = default_key_formatter
+    ) -> ini::key_info_t
+    {
+        return {
+            .key = key_pattern | to_text,
+            .keycount = size,
+            .key_formatter = formatter,
+            .output_redirector = [](void* output, u8 key_idx) -> void*
+                { return ((Getter)output)(key_idx); },
+        };
+    }
+
     template <int Lo = -128, int Hi = 128, typename Enum>
     constexpr auto enumeration(char const* key, Enum& val) -> ini::field
-    { return ini::enumeration_field(key | to_text, val); }
+    { return ini::enumeration_field({.key = key | to_text}, val); }
+
     constexpr auto feature(char const* key, lm::feature& f) -> ini::field
-    { return ini::normalized_enumeration_field<feature_ini, lm::feature, feature_normalizer, 0, 5>(key | to_text, f); }
+    { return ini::normalized_enumeration_field<feature_ini, lm::feature, feature_normalizer, 0, 5>({.key = key | to_text}, f); }
+
+    inline auto feature_multikey(
+        char const* key_pattern,
+        lm::feature*(*getter)(u8),
+        u8 size,
+        formatter_t formatter = default_key_formatter
+    )
+    {
+        return ini::normalized_enumeration_field_raw< feature_ini, lm::feature, feature_normalizer, 0, 5 >(
+            multikey(key_pattern, size, getter, formatter),
+            (void*)getter
+        );
+    }
+
     template <typename Num>
     constexpr auto number(char const* key, Num& num, ini::field::number_data_t data = {}) -> ini::field
-    { return ini::number_field(key | to_text, num, data); }
+    { return ini::number_field({.key = key | to_text}, num, data); }
+
+    template <typename Num>
+    inline auto number_multikey(
+        const char* key_pattern,
+        Num*(*getter)(u8),
+        u8 size,
+        ini::field::number_data_t data = {},
+        formatter_t formatter = default_key_formatter
+    ) -> ini::field
+    {
+        return ini::number_field_raw<Num>(
+            multikey(key_pattern, size, getter, formatter),
+            (void*)getter,
+            data
+        );
+    }
+
     constexpr auto string(char const* key, char* str, ini::field::string_data_t data) -> ini::field
-    { return ini::string_field(key | to_text, str, data); }
+    { return ini::string_field({.key = key | to_text}, str, data); }
+
+    inline auto string_multikey(
+        char const* key_pattern,
+        char*(*getter)(u8),
+        u8 size,
+        ini::field::string_data_t data,
+        formatter_t formatter = default_key_formatter
+    ) -> ini::field
+    {
+        return ini::string_field_raw(
+            multikey(key_pattern, size, getter, formatter),
+            (void*)getter,
+            data
+        );
+    }
 
     // All the fields we want to expose to ini configuration.
     // This is usually read in lm::hooks::arch_config().
@@ -53,16 +132,8 @@ namespace lm::config_ini
         string("native.inipath", nullptr, {}),
 
         /// --- System ---
-        feature("system.use_seed",        config_rw.system.use_seed),
-        number("system.random_seed.0",    config_rw.system.random_seed[0]),
-        number("system.random_seed.1",    config_rw.system.random_seed[1]),
-        number("system.random_seed.2",    config_rw.system.random_seed[2]),
-        number("system.random_seed.3",    config_rw.system.random_seed[3]),
-        number("system.random_seed.4",    config_rw.system.random_seed[4]),
-        number("system.random_seed.5",    config_rw.system.random_seed[5]),
-        number("system.random_seed.6",    config_rw.system.random_seed[6]),
-        number("system.random_seed.7",    config_rw.system.random_seed[7]),
-
+        feature("system.use_seed",               config_rw.system.use_seed),
+        number_multikey("system.random_seed.%u", LM_INI_MULTIKEY(config_rw.system.random_seed[i]), config_t::system_t::random_seed_count),
 
         /// --- Network ---
         string("network.ssid",     config_rw.network.ssid, {.max_len = config_rw.network.ssid_max_len}),
@@ -72,35 +143,14 @@ namespace lm::config_ini
         number("framework.manager_announce_window_ms", config_rw.framework.manager_announce_window_ms),
 
         /// --- Logging ---
-        feature("logging.debug.toggle",     config_rw.logging.level[config_t::logging_t::level_t::debug].enabled),
-        feature("logging.test.toggle",      config_rw.logging.level[config_t::logging_t::level_t::test].enabled),
-        feature("logging.assertion.toggle", config_rw.logging.level[config_t::logging_t::level_t::assertion].enabled),
-        feature("logging.info.toggle",      config_rw.logging.level[config_t::logging_t::level_t::info].enabled),
-        feature("logging.regular.toggle",   config_rw.logging.level[config_t::logging_t::level_t::regular].enabled),
-        feature("logging.warn.toggle",      config_rw.logging.level[config_t::logging_t::level_t::warn].enabled),
-        feature("logging.error.toggle",     config_rw.logging.level[config_t::logging_t::level_t::error].enabled),
-        feature("logging.panic.toggle",     config_rw.logging.level[config_t::logging_t::level_t::panic].enabled),
-        string("logging.debug.ansi",       config_rw.logging.level[config_t::logging_t::level_t::debug].ansi_storage,       {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::debug].ansi_len}),
-        string("logging.test.ansi",        config_rw.logging.level[config_t::logging_t::level_t::test].ansi_storage,        {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::test].ansi_len}),
-        string("logging.assertion.ansi",   config_rw.logging.level[config_t::logging_t::level_t::assertion].ansi_storage,   {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::assertion].ansi_len}),
-        string("logging.info.ansi",        config_rw.logging.level[config_t::logging_t::level_t::info].ansi_storage,        {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::info].ansi_len}),
-        string("logging.regular.ansi",     config_rw.logging.level[config_t::logging_t::level_t::regular].ansi_storage,     {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::regular].ansi_len}),
-        string("logging.warn.ansi",        config_rw.logging.level[config_t::logging_t::level_t::warn].ansi_storage,        {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::warn].ansi_len}),
-        string("logging.error.ansi",       config_rw.logging.level[config_t::logging_t::level_t::error].ansi_storage,       {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::error].ansi_len}),
-        string("logging.panic.ansi",       config_rw.logging.level[config_t::logging_t::level_t::panic].ansi_storage,       {.max_len = config_t::logging_t::ansi_max_len,   .size_out = &config_rw.logging.level[config_t::logging_t::level_t::panic].ansi_len}),
-        string("logging.debug.prefix",     config_rw.logging.level[config_t::logging_t::level_t::debug].prefix_storage,     {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::debug].prefix_len}),
-        string("logging.test.prefix",      config_rw.logging.level[config_t::logging_t::level_t::test].prefix_storage,      {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::test].prefix_len}),
-        string("logging.assertion.prefix", config_rw.logging.level[config_t::logging_t::level_t::assertion].prefix_storage, {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::assertion].prefix_len}),
-        string("logging.info.prefix",      config_rw.logging.level[config_t::logging_t::level_t::info].prefix_storage,      {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::info].prefix_len}),
-        string("logging.regular.prefix",   config_rw.logging.level[config_t::logging_t::level_t::regular].prefix_storage,   {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::regular].prefix_len}),
-        string("logging.warn.prefix",      config_rw.logging.level[config_t::logging_t::level_t::warn].prefix_storage,      {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::warn].prefix_len}),
-        string("logging.error.prefix",     config_rw.logging.level[config_t::logging_t::level_t::error].prefix_storage,     {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::error].prefix_len}),
-        string("logging.panic.prefix",     config_rw.logging.level[config_t::logging_t::level_t::panic].prefix_storage,     {.max_len = config_t::logging_t::prefix_max_len, .size_out = &config_rw.logging.level[config_t::logging_t::level_t::panic].prefix_len}),
         enumeration("logging.timestamp", config_rw.logging.timestamp),
         enumeration("logging.filename",  config_rw.logging.filename),
-        feature("logging.color",  config_rw.logging.color),
-        feature("logging.prefix", config_rw.logging.prefix),
-        feature("logging.toggle", config_rw.logging.toggle),
+        feature("logging.color",         config_rw.logging.color),
+        feature("logging.prefix",        config_rw.logging.prefix),
+        feature("logging.toggle",        config_rw.logging.toggle),
+        feature_multikey("logging.%.*s.toggle", LM_INI_MULTIKEY(config_rw.logging.level[i | toe].enabled),            config_t::logging_t::level_count,                                                                                                                                   renum_formatter<config_t::logging_t::level_t>),
+        string_multikey("logging.%.*s.ansi",    LM_INI_MULTIKEY_STR(config_rw.logging.level[i | toe].ansi_storage),   config_t::logging_t::level_count, {.max_len = config_t::logging_t::ansi_max_len,   .size_out = [](u8 i, st v){ config_rw.logging.level[i | toe].ansi_len = v; }},   renum_formatter<config_t::logging_t::level_t>),
+        string_multikey("logging.%.*s.prefix",  LM_INI_MULTIKEY_STR(config_rw.logging.level[i | toe].prefix_storage), config_t::logging_t::level_count, {.max_len = config_t::logging_t::prefix_max_len, .size_out = [](u8 i, st v){ config_rw.logging.level[i | toe].prefix_len = v; }}, renum_formatter<config_t::logging_t::level_t>),
 
         /// --- Test ---
         feature("test.unit", config_rw.test.unit),
@@ -110,12 +160,12 @@ namespace lm::config_ini
         /// TODO: --- Strandman ---
 
         /// --- Usb ---
-        number("usb.device.class",    config_rw.usb.device_descriptor.device_class),
-        number("usb.device.subclass", config_rw.usb.device_descriptor.device_subclass),
-        number("usb.device.protocol", config_rw.usb.device_descriptor.device_protocol),
-        number("usb.device.vendor",   config_rw.usb.device_descriptor.vendor_id),
-        number("usb.device.product",  config_rw.usb.device_descriptor.product_id),
-        number("usb.device.bcd",      config_rw.usb.device_descriptor.bcd_device),
+        number("usb.device.class",        config_rw.usb.device_descriptor.device_class),
+        number("usb.device.subclass",     config_rw.usb.device_descriptor.device_subclass),
+        number("usb.device.protocol",     config_rw.usb.device_descriptor.device_protocol),
+        number("usb.device.vendor",       config_rw.usb.device_descriptor.vendor_id),
+        number("usb.device.product",      config_rw.usb.device_descriptor.product_id),
+        number("usb.device.bcd",          config_rw.usb.device_descriptor.bcd_device),
         string("usb.string.manufacturer", config_rw.usb.string_descriptors.manufacturer, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
         string("usb.string.product",      config_rw.usb.string_descriptors.product,      {.max_len = config_t::usbcommon::string_descriptor_max_len}),
         string("usb.string.serial",       config_rw.usb.string_descriptors.serial,       {.max_len = config_t::usbcommon::string_descriptor_max_len}),
@@ -126,30 +176,26 @@ namespace lm::config_ini
         string("usb.string.msc",          config_rw.usb.string_descriptors.msc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
 
         /// --- Usbip ---
-        number("usbip.port", config_rw.usbip.port),
-        feature("usbip.close_conn_after_devlist", config_rw.usbip.close_conn_after_devlist),
-
-        number("usbip.stall_status_code", config_rw.usbip.stall_status_code),
-
-        string("usbip.path",  config_rw.usbip.path,  {.max_len = sizeof(config_t::usbip_instance_t::path)}),
-        string("usbip.busid", config_rw.usbip.busid, {.max_len = sizeof(config_t::usbip_instance_t::busid)}),
-
-        number("usbip.out_event_queue_size", config_rw.usbip.out_event_queue_size),
-
-        number("usbip.device.class",    config_rw.usbip.device_descriptor.device_class),
-        number("usbip.device.subclass", config_rw.usbip.device_descriptor.device_subclass),
-        number("usbip.device.protocol", config_rw.usbip.device_descriptor.device_protocol),
-        number("usbip.device.vendor",   config_rw.usbip.device_descriptor.vendor_id),
-        number("usbip.device.product",  config_rw.usbip.device_descriptor.product_id),
-        number("usbip.device.bcd",      config_rw.usbip.device_descriptor.bcd_device),
-        string("usbip.string.manufacturer", config_rw.usbip.string_descriptors.manufacturer, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.product",      config_rw.usbip.string_descriptors.product,      {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.serial",       config_rw.usbip.string_descriptors.serial,       {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.midi",         config_rw.usbip.string_descriptors.midi,         {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.hid",          config_rw.usbip.string_descriptors.hid,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.uac",          config_rw.usbip.string_descriptors.uac,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.cdc",          config_rw.usbip.string_descriptors.cdc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-        string("usbip.string.msc",          config_rw.usbip.string_descriptors.msc,          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        number_multikey("usbip.%u.port",                      LM_INI_MULTIKEY(config_rw.usbip[i].port),                                config_t::usbip_t::instance_count),
+        feature_multikey("usbip.%u.close_conn_after_devlist", LM_INI_MULTIKEY(config_rw.usbip[i].close_conn_after_devlist),            config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.stall_status_code",         LM_INI_MULTIKEY(config_rw.usbip[i].stall_status_code),                   config_t::usbip_t::instance_count),
+        string_multikey("usbip.%u.path",                      LM_INI_MULTIKEY_STR(config_rw.usbip[i].path),                            config_t::usbip_t::instance_count, {.max_len = sizeof(config_t::usbip_instance_t::path)}),
+        string_multikey("usbip.%u.busid",                     LM_INI_MULTIKEY_STR(config_rw.usbip[i].busid),                           config_t::usbip_t::instance_count, {.max_len = sizeof(config_t::usbip_instance_t::busid)}),
+        number_multikey("usbip.%u.out_event_queue_size",      LM_INI_MULTIKEY(config_rw.usbip[i].out_event_queue_size),                config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.class",              LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.device_class),      config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.subclass",           LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.device_subclass),   config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.protocol",           LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.device_protocol),   config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.vendor",             LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.vendor_id),         config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.product",            LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.product_id),        config_t::usbip_t::instance_count),
+        number_multikey("usbip.%u.device.bcd",                LM_INI_MULTIKEY(config_rw.usbip[i].device_descriptor.bcd_device),        config_t::usbip_t::instance_count),
+        string_multikey("usbip.%u.string.manufacturer",       LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.manufacturer), config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.product",            LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.product),      config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.serial",             LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.serial),       config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.midi",               LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.midi),         config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.hid",                LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.hid),          config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.uac",                LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.uac),          config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.cdc",                LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.cdc),          config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
+        string_multikey("usbip.%u.string.msc",                LM_INI_MULTIKEY_STR(config_rw.usbip[i].string_descriptors.msc),          config_t::usbip_t::instance_count, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
 
         /// --- Audio ---
         number("audio.usb.microphone_channels",   config_rw.audio.backend.usb.microphone_channels,   {.max = config_rw.audio.backend.usb.max_channels}),
