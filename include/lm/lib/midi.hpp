@@ -1,10 +1,9 @@
 #pragma once
 
 #include "lm/core/math.hpp"
+#include "lm/core/primitives/bitset.hpp"
 
 #include "lm/config.hpp"
-
-#include <bitset>
 
 namespace lm::midi
 {
@@ -68,13 +67,18 @@ namespace lm::midi
 
     struct payload
     {
-        std::bitset<backend::count> backend = 0;
-        packet pkt;
-
-        static constexpr auto note_on(packet::constructor c) -> payload
-        { c.code = cin::note_on; c.type = status::note_on; return payload(0, c); }
+        bitset<config_t::usbip_t::instance_count> target_usbip_instances;
+        bitset<backend::count> target_backend;
 
         auto to(std::initializer_list<midi::backend> target_backends) -> payload&
-        { backend.reset() ; for(auto b : target_backends) backend.set(b); return *this; }
-    };
+        { target_backend.clear_all() ; for(auto b : target_backends) target_backend.set(b); return *this; }
+    }; static_assert(sizeof(payload) <= 8, "The payload must fit in a fabric::event::v0");
+
+    struct extension
+    {
+        packet packets[6];
+
+        constexpr auto note_on(packet::constructor c, u8 idx) -> extension&
+        { c.code = cin::note_on; c.type = status::note_on; packets[idx] = packet(c); return *this; }
+    }; static_assert(sizeof(extension) <= 24, "The extension must fit in a fabric::event");
 }

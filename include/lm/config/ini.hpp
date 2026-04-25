@@ -54,7 +54,6 @@ namespace lm::config_ini
 
         /// --- System ---
         feature("system.use_seed",        config_rw.system.use_seed),
-        number("system.random_seed",      config_rw.system.random_seed[0]),
         number("system.random_seed.0",    config_rw.system.random_seed[0]),
         number("system.random_seed.1",    config_rw.system.random_seed[1]),
         number("system.random_seed.2",    config_rw.system.random_seed[2]),
@@ -132,8 +131,8 @@ namespace lm::config_ini
 
         number("usbip.stall_status_code", config_rw.usbip.stall_status_code),
 
-        string("usbip.path", config_rw.usbip.path,  {.max_len = sizeof(config_t::usbip_t::path)}),
-        string("usbip.busid", config_rw.usbip.busid, {.max_len = sizeof(config_t::usbip_t::busid)}),
+        string("usbip.path",  config_rw.usbip.path,  {.max_len = sizeof(config_t::usbip_instance_t::path)}),
+        string("usbip.busid", config_rw.usbip.busid, {.max_len = sizeof(config_t::usbip_instance_t::busid)}),
 
         number("usbip.out_event_queue_size", config_rw.usbip.out_event_queue_size),
 

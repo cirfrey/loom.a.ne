@@ -7,21 +7,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - uses: actions/cache@v4
+      - name: Cache PlatformIO & Pipx
+        uses: actions/cache@v4
         with:
-          path: ~/.platformio
-          key: pio-${{ hashFiles('platformio.ini', 'dependencies.lock') }}
-          restore-keys: pio-
+          path: |
+            ~/.platformio
+            ~/.local/share/pipx
+            ~/.local/bin
+          # The cache key is tied to our config; if platformio.ini changes, it refreshes
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: pip install platformio && echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: |
+          # 1. Ensure pipx is installed (default on GitHub, might be missing in some act images)
+          if ! command -v pipx &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y pipx
+          fi
+
+          # 2. Only install PlatformIO if 'pio' isn't already in the PATH
+          # This saves massive time in 'act' if the container or cache persists
+          if ! command -v pio &> /dev/null; then
+            pipx install platformio
+          fi
+
+          # 3. Ensure the pipx binary folder is added to the shared GitHub Path
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build (native)
         run: pio run -e native
 
       - name: Unit tests
-        run: .pio/build/native/program test.unit=on test.after_unit=halt
+        run: |
+          .pio/build/native/program test.unit=on test.after_unit=halt

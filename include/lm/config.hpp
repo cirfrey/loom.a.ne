@@ -395,6 +395,34 @@ namespace lm
 
         struct usbip_t
         {
+            #ifndef LM_CONFIG_USBIP_INSTANCE_COUNT
+            #define LM_CONFIG_USBIP_INSTANCE_COUNT 1
+            #endif
+            static constexpr auto instance_count = LM_CONFIG_USBIP_INSTANCE_COUNT;
+
+            #ifndef LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE
+            // The descriptor can get very large when you enable multiple things.
+            // This should be able to handle UAC + HID + MIDI (16 cables)
+            #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
+            #endif
+            static constexpr u16 config_descriptor_max_size = LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE;
+
+            #ifndef LM_CONFIG_USBIP_MIDI_BUFFER
+            #define LM_CONFIG_USBIP_MIDI_BUFFER 256
+            #endif
+            static constexpr auto midi_buffer = LM_CONFIG_USBIP_MIDI_BUFFER;
+
+            #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
+            // Since this is virtual and doesn't connect to real hardware, we
+            // can have as many endpoints as we need. Just know each endpoint
+            // takes some memory. 8 is more than enough for all features.
+            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 8
+            #endif
+            static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
+        } usbip_;
+
+        struct usbip_instance_t
+        {
             u16 port = 3240;
             feature close_conn_after_devlist = feature::on;
 
@@ -409,23 +437,8 @@ namespace lm
             // Remember this is includes extensions and all output events.
             u16 out_event_queue_size = 256;
 
-            #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
-            // Since this is virtual and doens't connect to real hardware, we
-            // can have as many endpoints as we need. Just know each endpoint
-            // takes some memory. 8 is more than enough for all features.
-            #define LM_CONFIG_USBIP_MAX_ENDPOINTS 8
-            #endif
-            static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
             // Generally set in lm::hook::arch_config.
             std::span<usb::ep_t> endpoints;
-
-
-            #ifndef LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE
-            // The descriptor can get very large when you enable multiple things.
-            // This should be able to handle UAC + HID + MIDI (16 cables)
-            #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
-            #endif
-            static constexpr u16 config_descriptor_max_size = LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE;
 
             usbcommon::device_descriptor  device_descriptor;
             usbcommon::string_descriptors string_descriptors;
