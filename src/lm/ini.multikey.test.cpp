@@ -4,9 +4,10 @@
 using namespace lm;
 
 static constexpr auto loud = ini::parse_args{
-    .log_success = true,
-    .log_error   = true,
-    .log_ignored = true,
+    .log_success     = true,
+    .log_parse_err   = true,
+    .log_bad_config  = true,
+    .log_unknown_key = true,
 };
 
 // ── EXPECTED-PASS tests ───────────────────────────────────────────────────────

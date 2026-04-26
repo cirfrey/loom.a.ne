@@ -41,6 +41,9 @@ namespace lm::arch_config
 
 auto lm::hook::arch_config(config_t& config) -> void
 {
+    // Set arch defaults.
+    config.test.unit = feature::off;
+
     // Override all fields that are *ours*.
     for(auto& f : config_ini::fields) {
         for(auto& my_f : lm::arch_config::fields) {

@@ -47,13 +47,23 @@ namespace lm::ini
         string_too_big,
 
         enumeration_not_found,
+        enumeration_bad_config,
     };
 
     struct parse_args
     {
         bool log_success = true;
-        bool log_error   = true;
-        bool log_ignored = true;
+        bool log_parse_err = true;
+        bool log_bad_config = true;
+        bool log_unknown_key = true;
+
+        bool dry_run = false;
+
+        enum parse_policy {
+            noop_on_any_error, // If anything errors at all, nothing should be written.
+            skip_on_error,
+            stop_on_error,
+        } policy = skip_on_error;
 
         bool match_only_one_field = false;
     };
@@ -88,9 +98,10 @@ namespace lm::ini
             i64 min = lm::signed_min<64>;
             u64 max = lm::unsigned_max<64>;
 
-            bool allow_hex    = true;
-            bool allow_oct    = true;
-            bool allow_binary = true;
+            bool allow_decimal = true;
+            bool allow_hex     = true;
+            bool allow_oct     = true;
+            bool allow_binary  = true;
         };
         struct string_data_t {
             st   max_len = 256;
@@ -414,7 +425,12 @@ namespace lm::ini
     // keys_to_parse: when non-empty, only these keys are dispatched.
     // keys_to_skip:  when non-empty, these keys are skipped.
 
-    using parse_result = field_parse_result;
+    enum class parse_result
+    {
+        ok,
+        sytax_error,
+        field_error,
+    };
 
     [[nodiscard]] auto parse(
         text,
@@ -435,10 +451,14 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
         constexpr auto enum_name = type_name<Enum>();
 
         auto on_exists = [&](auto v) {
-            void* out = field.get_output_for_idx(field.output, key_idx);
-            *(Enum*)out = v;
-            if (field.enumeration_data.normalize)
-                field.enumeration_data.normalize(field, out, key_idx);
+            if(!args.dry_run)
+            {
+                void* out = field.get_output_for_idx(field.output, key_idx);
+                *(Enum*)out = v;
+                if (field.enumeration_data.normalize)
+                    field.enumeration_data.normalize(field, out, key_idx);
+            }
+
             if (!args.log_success) return;
             log::debug(
                 "[%.*s - %.*s] = [%.*s]\n",
@@ -447,9 +467,9 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
                 (int)input.size,       input.data
             );
         };
-        if (re::check_exists(input, on_exists)) return field_parse_result::ok;
+        if(re::check_exists(input, on_exists)) return field_parse_result::ok;
 
-        if (!args.log_error) return field_parse_result::enumeration_not_found;
+        if(!args.log_parse_err) return field_parse_result::enumeration_not_found;
 
         char fmtbuf[256];
         auto fmtbuf_offset = 0_st;
@@ -476,16 +496,21 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
             if (fmtbuf_offset >= sizeof(fmtbuf)) fmtbuf_offset = sizeof(fmtbuf);
         }
 
-        // TODO: fixme! this is relying on a an implicit '\0' at the end of data.
-        auto yellow = config.logging.level.data[log::level::warn];
-        auto gray   = config.logging.level.data[log::level::debug];
-        auto white  = config.logging.level.data[log::level::regular];
+        auto yellow = config.logging.level[log::level::warn].ansi();
+        auto gray   = config.logging.level[log::level::debug].ansi();
+        auto white  = config.logging.level[log::level::regular].ansi();
+        #define LM_WHITE  (int)white.size,white.data
+        #define LM_GRAY   (int)gray.size,gray.data
+        #define LM_YELLOW (int)yellow.size,yellow.data
         log::warn<128 * 3>(
-            "Ignoring %s[%s%.*s%s]%s for %s[%.*s%s(%.*s%s)]%s\n\t> Allowed values are: %s[%.*s%s]\n",
-            white, gray, (int)input.size, input.data, white, yellow,
-            white, (int)field.key.size, field.key.data, gray, (int)enum_name.size, enum_name.data, white, yellow,
-            white, (int)fmtbuf_offset, fmtbuf, white
+            "Ignoring %.*s[%.*s%.*s%.*s]%.*s for %.*s[%.*s%.*s(%.*s%.*s)]%.*s\n\t> Allowed values are: %.*s[%.*s%.*s]\n",
+           LM_WHITE, LM_GRAY, (int)input.size, input.data, LM_WHITE, LM_YELLOW,
+           LM_WHITE, (int)field.key.size, field.key.data, LM_GRAY, (int)enum_name.size, enum_name.data, LM_WHITE, LM_YELLOW,
+           LM_WHITE, (int)fmtbuf_offset, fmtbuf, LM_WHITE
         );
+        #undef LM_WHITE
+        #undef LM_GRAY
+        #undef LM_YELLOW
 
         return field_parse_result::enumeration_not_found;
     };

@@ -4,39 +4,40 @@
 using namespace lm;
 
 static constexpr auto loud = ini::parse_args{
-    .log_success = true,
-    .log_error   = true,
-    .log_ignored = true,
+    .log_success     = true,
+    .log_parse_err   = true,
+    .log_bad_config  = true,
+    .log_unknown_key = true,
 };
 
 // ── num field — direct parse ──────────────────────────────────────────────────
 
 LM_TEST_SUITE("ini.num.decimal",
 {
-    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse("42"_text,  loud) == ini::parse_result::ok, "parse ok");    check(out == 42u,  "value correct"); }
-    { u32 out = 99; auto f = ini::num("x"_text, out); check(f.parse("0"_text,   loud) == ini::parse_result::ok, "zero ok");     check(out == 0u,   "zero correct"); }
-    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse("  99"_text,loud) == ini::parse_result::ok, "leading ws");  check(out == 99u,  "ws stripped"); }
-    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse(""_text,    loud) != ini::parse_result::ok, "empty input rejected"); }
+    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse("42"_text,  loud) == ini::field_parse_result::ok, "parse ok");    check(out == 42u,  "value correct"); }
+    { u32 out = 99; auto f = ini::num("x"_text, out); check(f.parse("0"_text,   loud) == ini::field_parse_result::ok, "zero ok");     check(out == 0u,   "zero correct"); }
+    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse("  99"_text,loud) == ini::field_parse_result::ok, "leading ws");  check(out == 99u,  "ws stripped"); }
+    { u32 out = 0;  auto f = ini::num("x"_text, out); check(f.parse(""_text,    loud) != ini::field_parse_result::ok, "empty input rejected"); }
 });
 
 LM_TEST_SUITE("ini.num.hex",
 {
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0xFF"_text,   loud) == ini::parse_result::ok, "0xFF ok");   check(out == 255u,    "0xFF"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0x00"_text,   loud) == ini::parse_result::ok, "0x00 ok");   check(out == 0u,      "0x00"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0xDEAD"_text, loud) == ini::parse_result::ok, "0xDEAD ok"); check(out == 0xDEADu, "0xDEAD"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0xFF"_text,   loud) == ini::field_parse_result::ok, "0xFF ok");   check(out == 255u,    "0xFF"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0x00"_text,   loud) == ini::field_parse_result::ok, "0x00 ok");   check(out == 0u,      "0x00"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0xDEAD"_text, loud) == ini::field_parse_result::ok, "0xDEAD ok"); check(out == 0xDEADu, "0xDEAD"); }
 });
 
 LM_TEST_SUITE("ini.num.binary",
 {
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0b1010"_text, loud) == ini::parse_result::ok, "binary ok"); check(out == 10u, "0b1010 == 10"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0b0"_text,    loud) == ini::parse_result::ok, "0b0 ok");    check(out == 0u,  "0b0 == 0"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0b1010"_text, loud) == ini::field_parse_result::ok, "binary ok"); check(out == 10u, "0b1010 == 10"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("0b0"_text,    loud) == ini::field_parse_result::ok, "0b0 ok");    check(out == 0u,  "0b0 == 0"); }
 });
 
 LM_TEST_SUITE("ini.num.separators",
 {
     // '_' and '\'' are allowed digit separators
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("1_000_000"_text, loud) == ini::parse_result::ok, "underscores"); check(out == 1000000u, "1_000_000"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("1'000"_text,     loud) == ini::parse_result::ok, "tick sep");   check(out == 1000u,    "1'000"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("1_000_000"_text, loud) == ini::field_parse_result::ok, "underscores"); check(out == 1000000u, "1_000_000"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out); check(f.parse("1'000"_text,     loud) == ini::field_parse_result::ok, "tick sep");   check(out == 1000u,    "1'000"); }
 });
 
 LM_TEST_SUITE("ini.num.bounds.u8",
@@ -46,30 +47,30 @@ LM_TEST_SUITE("ini.num.bounds.u8",
         u8 out = 0;
         auto f = ini::num("x"_text, out);
         auto r = f.parse("256"_text, loud);
-        check(r != ini::parse_result::ok, "u8 256 rejected");
+        check(r != ini::field_parse_result::ok, "u8 256 rejected");
         check(out == 0u, "out unchanged on overflow");
     }
     // Negative into unsigned rejected
     {
         u8 out = 0;
         auto f = ini::num("x"_text, out);
-        check(f.parse("-1"_text, loud) != ini::parse_result::ok, "negative u8 rejected");
+        check(f.parse("-1"_text, loud) != ini::field_parse_result::ok, "negative u8 rejected");
     }
     // Exactly u8 max accepted
     {
         u8 out = 0;
         auto f = ini::num("x"_text, out);
-        check(f.parse("255"_text, loud) == ini::parse_result::ok, "u8 max ok");
+        check(f.parse("255"_text, loud) == ini::field_parse_result::ok, "u8 max ok");
         check(out == 255u, "u8 max correct");
     }
 });
 
 LM_TEST_SUITE("ini.num.bounds.i8",
 {
-    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("-128"_text, loud) == ini::parse_result::ok, "i8 min ok");  check(out == -128, "i8 min"); }
-    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("127"_text,  loud) == ini::parse_result::ok, "i8 max ok");  check(out == 127,  "i8 max"); }
-    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("128"_text,  loud) != ini::parse_result::ok, "i8+1 rejected"); }
-    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("-129"_text, loud) != ini::parse_result::ok, "i8-1 rejected"); }
+    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("-128"_text, loud) == ini::field_parse_result::ok, "i8 min ok");  check(out == -128, "i8 min"); }
+    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("127"_text,  loud) == ini::field_parse_result::ok, "i8 max ok");  check(out == 127,  "i8 max"); }
+    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("128"_text,  loud) != ini::field_parse_result::ok, "i8+1 rejected"); }
+    { i8 out = 0; auto f = ini::num("x"_text, out); check(f.parse("-129"_text, loud) != ini::field_parse_result::ok, "i8-1 rejected"); }
 });
 
 LM_TEST_SUITE("ini.num.bounds.custom_max",
@@ -78,22 +79,22 @@ LM_TEST_SUITE("ini.num.bounds.custom_max",
     {
         u32 out = 0;
         auto f = ini::num("x"_text, out, {.max = 10});
-        check(f.parse("10"_text, loud) == ini::parse_result::ok, "at max ok");
+        check(f.parse("10"_text, loud) == ini::field_parse_result::ok, "at max ok");
         check(out == 10u, "at max value");
     }
     {
         u32 out = 99;
         auto f = ini::num("x"_text, out, {.max = 10});
-        check(f.parse("11"_text, loud) != ini::parse_result::ok, "above max rejected");
+        check(f.parse("11"_text, loud) != ini::field_parse_result::ok, "above max rejected");
         check(out == 99u, "out unchanged");
     }
 });
 
 LM_TEST_SUITE("ini.num.disallowed_base",
 {
-    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_hex=false});    check(f.parse("0xFF"_text,   loud) != ini::parse_result::ok, "hex disallowed"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_binary=false}); check(f.parse("0b1010"_text, loud) != ini::parse_result::ok, "bin disallowed"); }
-    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_oct=false});    check(f.parse("0o77"_text,   loud) != ini::parse_result::ok, "oct disallowed"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_hex=false});    check(f.parse("0xFF"_text,   loud) != ini::field_parse_result::ok, "hex disallowed"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_binary=false}); check(f.parse("0b1010"_text, loud) != ini::field_parse_result::ok, "bin disallowed"); }
+    { u32 out = 0; auto f = ini::num("x"_text, out, {.allow_oct=false});    check(f.parse("0o77"_text,   loud) != ini::field_parse_result::ok, "oct disallowed"); }
 });
 
 // ── str field — direct parse ──────────────────────────────────────────────────
@@ -102,7 +103,7 @@ LM_TEST_SUITE("ini.str.basic",
 {
     char buf[32] = {};
     auto f = ini::str("s"_text, buf, {.max_len = sizeof(buf)});
-    check(f.parse("hello"_text, loud) == ini::parse_result::ok, "str parse ok");
+    check(f.parse("hello"_text, loud) == ini::field_parse_result::ok, "str parse ok");
     check(std::memcmp(buf, "hello", 5) == 0, "content correct");
     check(buf[5] == '\0', "null terminated");
 });
@@ -112,7 +113,7 @@ LM_TEST_SUITE("ini.str.strip",
     // Stripping enabled by default for str builder
     char buf[32] = {};
     auto f = ini::str("s"_text, buf, {.max_len = sizeof(buf), .strip = true});
-    check(f.parse("  hello  "_text, loud) == ini::parse_result::ok, "strip parse ok");
+    check(f.parse("  hello  "_text, loud) == ini::field_parse_result::ok, "strip parse ok");
     check(std::memcmp(buf, "hello", 5) == 0, "whitespace stripped");
     check(buf[5] == '\0', "null terminated after strip");
 });
@@ -121,7 +122,7 @@ LM_TEST_SUITE("ini.str.too_large_error",
 {
     char buf[4] = {};
     auto f = ini::str("s"_text, buf, {.max_len = sizeof(buf), .too_large_behaviour = ini::field::string_data_t::error});
-    check(f.parse("toolong"_text, loud) == ini::parse_result::string_too_big, "error on overflow");
+    check(f.parse("toolong"_text, loud) == ini::field_parse_result::string_too_big, "error on overflow");
 });
 
 LM_TEST_SUITE("ini.str.too_large_truncate",
@@ -130,7 +131,7 @@ LM_TEST_SUITE("ini.str.too_large_truncate",
     std::memset(buf, 0xAB, sizeof(buf));
     // max_len=4, add_null_terminator=true → effective capacity = 3 chars + null
     auto f = ini::str("s"_text, buf, {.max_len = sizeof(buf), .too_large_behaviour = ini::field::string_data_t::truncate});
-    check(f.parse("toolong"_text, loud) == ini::parse_result::ok, "truncate ok");
+    check(f.parse("toolong"_text, loud) == ini::field_parse_result::ok, "truncate ok");
     check(buf[3] == '\0', "null at capacity boundary");
 });
 
@@ -140,9 +141,9 @@ LM_TEST_SUITE("ini.str.null_terminator_off_by_one_fix",
     // out[final_size] uninitialised. After fix: out[final_size] is '\0'.
     static char buf[8];
     std::memset(buf, 0xAB, sizeof(buf));
-    ini::field fields[] = { ini::str("s"_text, buf, {.max_len = sizeof(buf)}) };
-    auto r = ini::parse("s=hello\n"_text, fields, loud);
-    check(r == ini::parse_result::ok, "null terminator fix: parse ok");
+    auto f = ini::str("s"_text, buf, {.max_len = sizeof(buf)});
+    auto r = f.parse("hello\n"_text, loud);
+    check(r == ini::field_parse_result::ok, "null terminator fix: parse ok");
     check(std::memcmp(buf, "hello", 5) == 0, "content correct");
     check(buf[5] == '\0',   "buf[final_size] is null");
     check(buf[6] == '\xAB', "buf[final_size+1] is poison — no OOB write");
@@ -153,7 +154,7 @@ LM_TEST_SUITE("ini.str.mut_text_variant",
     // mut_text overload infers max_len from the view
     char buf[32] = {};
     auto f = ini::str("s"_text, mut_text{buf, sizeof(buf)});
-    check(f.parse("world"_text, loud) == ini::parse_result::ok, "mut_text parse ok");
+    check(f.parse("world"_text, loud) == ini::field_parse_result::ok, "mut_text parse ok");
     check(std::memcmp(buf, "world", 5) == 0, "content correct");
 });
 
@@ -164,7 +165,7 @@ LM_TEST_SUITE("ini.enm.basic",
     enum class color : u8 { red, green, blue };
     color out = color::red;
     auto f = ini::enm("c"_text, out);
-    check(f.parse("green"_text, loud) == ini::parse_result::ok, "enm parse ok");
+    check(f.parse("green"_text, loud) == ini::field_parse_result::ok, "enm parse ok");
     check(out == color::green, "enum value correct");
 });
 
@@ -173,7 +174,7 @@ LM_TEST_SUITE("ini.enm.not_found",
     enum class color : u8 { red, green, blue };
     color out = color::red;
     auto f = ini::enm("c"_text, out);
-    check(f.parse("purple"_text, loud) == ini::parse_result::enumeration_not_found, "unknown enum rejected");
+    check(f.parse("purple"_text, loud) == ini::field_parse_result::enumeration_not_found, "unknown enum rejected");
     check(out == color::red, "out unchanged on not-found");
 });
 
@@ -195,7 +196,7 @@ LM_TEST_SUITE("ini.feat.all_vocabulary",
         lm::feature out = lm::feature::off;
         auto f = ini::feat("x"_text, out);
         auto r = f.parse(word, loud);
-        check(r == ini::parse_result::ok, "feat parse ok");
+        check(r == ini::field_parse_result::ok, "feat parse ok");
         check(out == expected, "feat normalized correctly");
     }
 });
@@ -204,7 +205,7 @@ LM_TEST_SUITE("ini.feat.not_found",
 {
     lm::feature out = lm::feature::off;
     auto f = ini::feat("x"_text, out);
-    check(f.parse("maybe"_text, loud) == ini::parse_result::enumeration_not_found, "bad feat rejected");
+    check(f.parse("maybe"_text, loud) == ini::field_parse_result::enumeration_not_found, "bad feat rejected");
     check(out == lm::feature::off, "out unchanged");
 });
 
@@ -212,7 +213,7 @@ LM_TEST_SUITE("ini.feat.not_found",
 
 LM_TEST_SUITE("ini.parse.empty_input",
 {
-    check(ini::parse(""_text, {}, loud) == ini::parse_result::empty_input, "empty string is empty_input");
+    check(ini::parse(""_text, {}, loud) == ini::parse_result::ok, "empty string is ok");
 });
 
 LM_TEST_SUITE("ini.parse.basic",
