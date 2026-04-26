@@ -193,9 +193,6 @@ auto lm::hook::framework_main() -> void
             chip::system::halt(1);
         }
     }
-
-    // TODO: subscribe to strandman and wait for it to boot, then send request
-    //       to start all the strands we need from lm::config.
 }
 
 [[gnu::weak]] auto lm::hook::init(config_t&) -> void {}

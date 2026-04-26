@@ -5,7 +5,7 @@
 
 #include "lm/arch/x86_64/program_args.hpp"
 
-#if LM_PORT_IS_POSIX || LM_PORT_ENV_MINGW
+#if LM_PORT_IS_POSIX
     #include <unistd.h>
 #endif
 
@@ -24,18 +24,19 @@ auto lm::chip::system::init() -> void
 auto lm::chip::system::reboot(st code) -> void
 {
     // POSIX / MinGW Soft Reboot (exec)
-    #if LM_PORT_IS_POSIX
+    if constexpr(lm::port::is_posix) {
         if (!lm::arch::x86_64::program_args.empty()) {
             // execvp uses the PATH to find the binary and replaces the process.
             // execvp requires the last element of the array (argv[argc]) to be nullptr.
             char* const* argv = lm::arch::x86_64::program_args.data();
             execvp(argv[0], argv);
         }
-    #endif
+    }
 
     // Windows Native Soft Reboot
     // TODO: test outside mingw.
-    #if LM_PORT_HOST_WINDOWS
+    if constexpr(lm::port::host == lm::port::host_t::windows)
+    {
         LPWSTR lpCmdLine = GetCommandLineW();
 
         STARTUPINFOW si{};
@@ -58,9 +59,8 @@ auto lm::chip::system::reboot(st code) -> void
         {
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
-            std::exit(code);
         }
-    #endif
+    }
 
     // Fallback: If reboot fails or isn't supported, halt.
     halt(code);
