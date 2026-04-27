@@ -32,9 +32,10 @@ static constexpr auto parse_string(
         if (field.string_data.too_large_behaviour == field.string_data.error) {
             if(args.log_parse_err)
                 log::warn(
-                    "[%.*s]... too big for field [%.*s - string(%lu)]: Truncation is off\n",
-                    clamp(final_size, 0, 24), in.data + start,
-                    (int)matched_key.size, matched_key.data, field.string_data.max_len
+                    "[%.*s] string [%.*s] too big (%lu) for field (%lu) and truncation is off\n",
+                    (int)matched_key.size, matched_key.data,
+                    final_size, in.data + start,
+                    final_size, field.string_data.max_len
                 );
             return field_parse_result::string_too_big;
         }

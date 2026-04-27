@@ -496,21 +496,13 @@ constexpr auto lm::ini::field::default_enum_parser_for() -> enumeration_data_t::
             if (fmtbuf_offset >= sizeof(fmtbuf)) fmtbuf_offset = sizeof(fmtbuf);
         }
 
-        auto yellow = config.logging.level[log::level::warn].ansi();
-        auto gray   = config.logging.level[log::level::debug].ansi();
-        auto white  = config.logging.level[log::level::regular].ansi();
-        #define LM_WHITE  (int)white.size,white.data
-        #define LM_GRAY   (int)gray.size,gray.data
-        #define LM_YELLOW (int)yellow.size,yellow.data
+        auto warn = config.logging.level[log::level::warn].ansi();
         log::warn<128 * 3>(
-            "Ignoring %.*s[%.*s%.*s%.*s]%.*s for %.*s[%.*s%.*s(%.*s%.*s)]%.*s\n\t> Allowed values are: %.*s[%.*s%.*s]\n",
-           LM_WHITE, LM_GRAY, (int)input.size, input.data, LM_WHITE, LM_YELLOW,
-           LM_WHITE, (int)field.key.size, field.key.data, LM_GRAY, (int)enum_name.size, enum_name.data, LM_WHITE, LM_YELLOW,
-           LM_WHITE, (int)fmtbuf_offset, fmtbuf, LM_WHITE
+            "[%.*s - %.*s] bad value [%.*s]\n\t%.*s> Allowed values are: [%.*s%.*s]\n",
+            (int)field.key.size, field.key.data, (int)enum_name.size, enum_name.data,
+            (int)input.size, input.data,
+            (int)warn.size, warn.data, (int)fmtbuf_offset, fmtbuf, (int)warn.size, warn.data
         );
-        #undef LM_WHITE
-        #undef LM_GRAY
-        #undef LM_YELLOW
 
         return field_parse_result::enumeration_not_found;
     };

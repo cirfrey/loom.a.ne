@@ -9,7 +9,7 @@
     #include <unistd.h>
 #endif
 
-#if LM_PORT_HOST_WINDOWS
+#if LM_PORT_HOST_WINDOWS && !LM_PORT_IS_POSIX
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 #endif
@@ -24,19 +24,17 @@ auto lm::chip::system::init() -> void
 auto lm::chip::system::reboot(st code) -> void
 {
     // POSIX / MinGW Soft Reboot (exec)
-    if constexpr(lm::port::is_posix) {
+    #if LM_PORT_IS_POSIX
         if (!lm::arch::x86_64::program_args.empty()) {
             // execvp uses the PATH to find the binary and replaces the process.
             // execvp requires the last element of the array (argv[argc]) to be nullptr.
             char* const* argv = lm::arch::x86_64::program_args.data();
             execvp(argv[0], argv);
         }
-    }
+    #endif
 
     // Windows Native Soft Reboot
-    // TODO: test outside mingw.
-    if constexpr(lm::port::host == lm::port::host_t::windows)
-    {
+    #if LM_PORT_HOST_WINDOWS && !LM_PORT_IS_POSIX
         LPWSTR lpCmdLine = GetCommandLineW();
 
         STARTUPINFOW si{};
@@ -60,7 +58,7 @@ auto lm::chip::system::reboot(st code) -> void
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
         }
-    }
+    #endif
 
     // Fallback: If reboot fails or isn't supported, halt.
     halt(code);

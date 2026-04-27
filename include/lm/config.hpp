@@ -69,9 +69,9 @@ namespace lm
 
         struct framework_t
         {
-            // Refers to the manager_announce event.
+            // Refers to the manager_announce and manager_resolve events.
             // This is the window you should expect responses from.
-            u16 manager_announce_window_ms = 100;
+            u16 manager_request_timeout_ms = 100;
         } framework;
 
         struct logging_t

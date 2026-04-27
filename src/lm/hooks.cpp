@@ -165,9 +165,9 @@ auto lm::hook::framework_main() -> void
     {
         lm::log::debug(
             "Waiting for %ums and checking if strandman is up\n",
-            lm::config.framework.manager_announce_window_ms
+            lm::config.framework.manager_request_timeout_ms
         );
-        fabric::strand::sleep_ms(lm::config.framework.manager_announce_window_ms);
+        fabric::strand::sleep_ms(lm::config.framework.manager_request_timeout_ms);
     }
 
     for(auto& info : {

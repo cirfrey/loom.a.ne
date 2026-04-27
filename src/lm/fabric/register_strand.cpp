@@ -15,13 +15,7 @@ namespace
     // One cache entry is enough for the common case.
     // Invalidated on manager_cant_handle_more_strands.
 
-    struct manager_cache_t {
-        bool valid           = false;
-        u8   manager_id      = 0;
-        u16  safe_timeout_ms = 10;   // conservative default
-        st   available_slots = 0;
-    };
-
+    using manager_cache_t = lm::fabric::manager_info_t;
     manager_cache_t g_manager_cache{};
 
     // ── Seqnum ───────────────────────────────────────────────────────────────
@@ -107,8 +101,13 @@ namespace
 
 // ── Public ───────────────────────────────────────────────────────────────────
 
-auto lm::fabric::discover_manager(st queue_size) -> bool
+auto lm::fabric::discover_manager(st queue_size, manager_info_t* out) -> bool
 {
+    if(g_manager_cache.valid) {
+        if(out) *out = g_manager_cache;
+        return true;
+    }
+
     using request  = fabric::topic::framework_t::request_manager_announce;
     using response = fabric::topic::framework_t::response_manager_announce;
 
@@ -137,7 +136,7 @@ auto lm::fabric::discover_manager(st queue_size) -> bool
 
 
     // Collect all responses within the window, pick the richest manager.
-    fabric::strand::sleep_ms(config.framework.manager_announce_window_ms);
+    fabric::strand::sleep_ms(config.framework.manager_request_timeout_ms);
     manager_cache_t best{};
 
     for(auto const& e : resp_q.consume<fabric::event>()) {
@@ -148,6 +147,7 @@ auto lm::fabric::discover_manager(st queue_size) -> bool
 
     if(!best.valid) return false;
     g_manager_cache = best;
+    if(out) *out = g_manager_cache;
     return true;
 }
 

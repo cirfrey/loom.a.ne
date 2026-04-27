@@ -12,8 +12,10 @@ lm::strands::strandman::strandman([[maybe_unused]] st max_strands, std::span<str
 {
     strandman_q = fabric::queue<fabric::event>(config.strandman.strandman_queue_size);
     strandman_tok = fabric::bus::subscribe(strandman_q, fabric::topic::framework, {
+        fabric::topic::framework_t::request_manager_resolve::type,
         fabric::topic::framework_t::request_manager_announce::type,
         fabric::topic::framework_t::request_register_strand::type,
+        fabric::topic::framework_t::request_strand_running::type,
     }, [](void* _manager_strand, std::span<fabric::event> events){
         using request_register_strand = fabric::topic::framework_t::request_register_strand;
 
@@ -45,179 +47,282 @@ auto lm::strands::strandman::do_loop(st max_strands, std::span<strand_t>& strand
     return true;
 }
 
-auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>& strands) -> void
+auto lm::strands::strandman::get_strand_named(u32 name_hash, std::span<strand_t>& strands) -> u8
 {
-    // Handle registering strands.
-    for (auto const& e : strandman_q.consume<fabric::event>())
-    {
-        using request_register_strand   = fabric::topic::framework_t::request_register_strand;
-        using response_register_strand  = fabric::topic::framework_t::response_register_strand;
-        using request_manager_announce  = fabric::topic::framework_t::request_manager_announce;
-        using response_manager_announce = fabric::topic::framework_t::response_manager_announce;
+    for(auto& s : strands)
+        if(fnv1a_32(to_text(s.name)) == name_hash)
+            return s.id;
+    return 0;
+}
 
-        auto consume = [&](i32 count = -1){
-            if(count < 0) count = e.extension_count();
-            for([[maybe_unused]] auto const& _ : strandman_q.consume<fabric::event>(count));
-        };
+auto lm::strands::strandman::on_event_request_manager_announce(
+    fabric::event const& e,
+    st max_strands,
+    std::span<strand_t>& strands
+) -> st
+{
+    using request  = fabric::topic::framework_t::request_manager_announce;
+    using response = fabric::topic::framework_t::response_manager_announce;
 
-        // Protect against future dummy-dum-dums.
-        if(!(e.type == request_register_strand::type || e.type == request_manager_announce::type)) {
-            consume();
-            continue;
-        }
+    auto data = e.get_payload<request>();
+    fabric::bus::publish(fabric::event{
+        .topic     = fabric::topic::framework,
+        .type      = response::type,
+        .strand_id = strands[0].id,
+    }.with_payload(response{
+        .seqnum          = data.seqnum,
+        .safe_timeout_ms = clamp(strands[0].sleep_ms, 1, strands[0].sleep_ms) * 3 | toe,
+        .available_slots = clamp(max_strands - strands.size(), 0, unsigned_max<16>) | toe,
+    }));
 
-        // If it's an announce request it's much simpler.
-        if(e.type == request_manager_announce::type) {
-            auto data = e.get_payload<request_manager_announce>();
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_manager_announce::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_manager_announce{
-                .seqnum          = data.seqnum,
-                .safe_timeout_ms = clamp(strands[0].sleep_ms, 1, strands[0].sleep_ms) * 3 | toe,
-                .available_slots = clamp(max_strands - strands.size(), 0, unsigned_max<16>) | toe,
-            }));
-            continue;
-        }
+    return 1;
+}
 
-        auto data = e.get_payload<request_register_strand>();
+auto lm::strands::strandman::on_event_request_manager_resolve(
+    fabric::event const& e,
+    [[maybe_unused]] st max_strands,
+    std::span<strand_t>& strands
+) -> st
+{
+    using request = fabric::topic::framework_t::request_manager_resolve;
+    using response = fabric::topic::framework_t::response_manager_resolve;
 
-        // If we're too late me we'll discard it.
-        auto register_micros = 1 * 1000;
-        if(chip::time::uptime() + register_micros > e.timestamp + data.timeout_micros)
-        {
-            consume();
-            continue;
-        }
+    auto data = e.get_payload<request>();
+    u8 id = get_strand_named(data.name_hash, strands);
+    if(id == 0) return 1;
 
-        // If we are already full we don't register the strand.
-        if(strands.size() == max_strands) {
-            consume();
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_register_strand::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_register_strand{
-                .requester_id = e.strand_id,
-                .seqnum       = data.seqnum,
-                .result       = response_register_strand::manager_cant_handle_more_strands,
-                .id           = 0,
-            }));
-            continue;
-        }
+    fabric::bus::publish(fabric::event{
+        .topic = fabric::topic::framework,
+        .type    = response::type,
+        .strand_id = strands[0].id,
+    }.with_payload(response{
+        .resolved_id  = id,
+        .seqnum       = data.seqnum,
+        .requester_id = e.strand_id,
+    }));
 
-        // If its malformed we ignore it.
-        if(e.extension_count() < request_register_strand::min_extension_count || !e.is_local()) {
-            consume();
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_register_strand::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_register_strand{
-                .requester_id = e.strand_id,
-                .seqnum       = data.seqnum,
-                .result       = response_register_strand::request_malformed,
-                .id           = 0,
-            }));
-            continue;
-        }
+    return 1;
+}
 
-        auto [register_status, newstrand_id] = data.autoassign_id
-            ? registry::strand_id.reserve()
-            : registry::strand_id.reserve(data.id);
-        if(register_status == registry::result::error) {
-            consume();
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_register_strand::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_register_strand{
-                .requester_id = e.strand_id,
-                .seqnum       = data.seqnum,
-                .result       = response_register_strand::id_in_use,
-                .id           = data.id,
-            }));
-            continue;
-        }
+auto lm::strands::strandman::on_event_request_register_strand(
+    fabric::event const& e,
+    st max_strands,
+    std::span<strand_t>& strands
+) -> st
+{
+    using request = fabric::topic::framework_t::request_register_strand;
+    using response = fabric::topic::framework_t::response_register_strand;
 
-        request_register_strand::extdata extdata;
-        strandman_q.receive(&extdata, 0);
-        if(extdata.strand == nullptr) {
-            registry::strand_id.unreserve(newstrand_id);
-            consume(e.extension_count() - 1);
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_register_strand::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_register_strand{
-                .requester_id = e.strand_id,
-                .seqnum       = data.seqnum,
-                .result       = response_register_strand::request_malformed,
-                .id           = 0,
-            }));
-            continue;
-        }
+    st consumed = 1;
+    auto data = e.get_payload<request>();
 
-        request_register_strand::extname extname;
-        strandman_q.receive(&extname, 0);
-        // TODO: if we already have a strand with that name we'll inform the user.
+    // If we're too late me we'll discard it.
+    auto register_micros = 1 * 1000;
+    if(chip::time::uptime() + register_micros > e.timestamp + data.timeout_micros)
+        return 1;
 
-        strand_t newstrand {
-            .code       = extdata.strand,
-            .id         = newstrand_id | toe,
-            .stack_size = extdata.stack_size,
-            .sleep_ms   = extdata.sleep_ms,
-            .priority   = extdata.priority,
-            .core_affinity = extdata.core_affinity,
-            .requested_running = extdata.request_running,
-        };
-        std::memcpy(newstrand.name, extname.name, sizeof(request_register_strand::name_t));
-
-        bool too_many_depends = false;
-        auto i = 0;
-        request_register_strand::extdepends extdepends;
-        for(auto a = 0_st; a < e.extension_count() - 2; ++a)
-        {
-            strandman_q.receive(&extdepends, 0);
-            for(auto& dep : extdepends.depends) {
-                if(dep.other == 0) continue;
-                if(i >= config_t::strandman_t::max_depends) {
-                    too_many_depends = true;
-                    continue;
-                }
-                newstrand.depends[i++] = dep;
-            }
-        }
-
-        if(too_many_depends) {
-            registry::strand_id.unreserve(newstrand_id);
-            fabric::bus::publish(fabric::event{
-                .topic     = fabric::topic::framework,
-                .type      = response_register_strand::type,
-                .strand_id = strands[0].id,
-            }.with_payload(response_register_strand{
-                .requester_id = e.strand_id,
-                .seqnum       = data.seqnum,
-                .result       = response_register_strand::too_many_depends,
-                .id           = 0,
-            }));
-            continue;
-        }
-
-        strands = {strands.data(), strands.size() + 1};
-        strands[strands.size() - 1] = newstrand;
+    // If we are already full we don't register the strand.
+    if(strands.size() == max_strands) {
         fabric::bus::publish(fabric::event{
             .topic     = fabric::topic::framework,
-            .type      = response_register_strand::type,
+            .type      = response::type,
             .strand_id = strands[0].id,
-        }.with_payload(response_register_strand{
+        }.with_payload(response{
             .requester_id = e.strand_id,
             .seqnum       = data.seqnum,
-            .result       = response_register_strand::ok,
-            .id           = newstrand.id,
+            .result       = response::manager_cant_handle_more_strands,
+            .id           = 0,
         }));
-        log::debug("Registered strand [%s] with id [%u]\n", newstrand.name, newstrand.id);
+        return consumed;
+    }
+
+    // If its malformed we ignore it.
+    if(e.extension_count() < request::min_extension_count || !e.is_local()) {
+        fabric::bus::publish(fabric::event{
+            .topic     = fabric::topic::framework,
+            .type      = response::type,
+            .strand_id = strands[0].id,
+        }.with_payload(response{
+            .requester_id = e.strand_id,
+            .seqnum       = data.seqnum,
+            .result       = response::request_malformed,
+            .id           = 0,
+        }));
+        return consumed;
+    }
+
+    auto [register_status, newstrand_id] = data.autoassign_id
+        ? registry::strand_id.reserve()
+        : registry::strand_id.reserve(data.id);
+    if(register_status == registry::result::error) {
+        fabric::bus::publish(fabric::event{
+            .topic     = fabric::topic::framework,
+            .type      = response::type,
+            .strand_id = strands[0].id,
+        }.with_payload(response{
+            .requester_id = e.strand_id,
+            .seqnum       = data.seqnum,
+            .result       = response::id_in_use,
+            .id           = data.id,
+        }));
+        return consumed;
+    }
+
+    request::extdata extdata;
+    strandman_q.receive(&extdata, 0);
+    ++consumed;
+    if(extdata.strand == nullptr) {
+        registry::strand_id.unreserve(newstrand_id);
+        fabric::bus::publish(fabric::event{
+            .topic     = fabric::topic::framework,
+            .type      = response::type,
+            .strand_id = strands[0].id,
+        }.with_payload(response{
+            .requester_id = e.strand_id,
+            .seqnum       = data.seqnum,
+            .result       = response::request_malformed,
+            .id           = 0,
+        }));
+        return consumed;
+    }
+
+    request::extname extname;
+    strandman_q.receive(&extname, 0);
+    ++consumed;
+    if(get_strand_named(fnv1a_32(to_text(extname.name)), strands))
+    {
+        registry::strand_id.unreserve(newstrand_id);
+        fabric::bus::publish(fabric::event{
+            .topic     = fabric::topic::framework,
+            .type      = response::type,
+            .strand_id = strands[0].id,
+        }.with_payload(response{
+            .requester_id = e.strand_id,
+            .seqnum       = data.seqnum,
+            .result       = response::name_in_use,
+            .id           = 0,
+        }));
+        return consumed;
+    }
+
+    strand_t newstrand {
+        .code       = extdata.strand,
+        .id         = newstrand_id | toe,
+        .stack_size = extdata.stack_size,
+        .sleep_ms   = extdata.sleep_ms,
+        .priority   = extdata.priority,
+        .core_affinity = extdata.core_affinity,
+        .requested_running = extdata.request_running,
+    };
+    std::memcpy(newstrand.name, extname.name, sizeof(request::name_t));
+
+    bool too_many_depends = false;
+    auto i = 0;
+    request::extdepends extdepends;
+    for(auto a = 0_st; a < e.extension_count() - 2; ++a)
+    {
+        strandman_q.receive(&extdepends, 0);
+        ++consumed;
+        for(auto& dep : extdepends.depends) {
+            if(dep.other == 0) continue;
+            if(i >= config_t::strandman_t::max_depends) {
+                too_many_depends = true;
+                continue;
+            }
+            newstrand.depends[i++] = dep;
+        }
+    }
+
+    if(too_many_depends) {
+        registry::strand_id.unreserve(newstrand_id);
+        fabric::bus::publish(fabric::event{
+            .topic     = fabric::topic::framework,
+            .type      = response::type,
+            .strand_id = strands[0].id,
+        }.with_payload(response{
+            .requester_id = e.strand_id,
+            .seqnum       = data.seqnum,
+            .result       = response::too_many_depends,
+            .id           = 0,
+        }));
+        return consumed;
+    }
+
+    strands = {strands.data(), strands.size() + 1};
+    strands[strands.size() - 1] = newstrand;
+    fabric::bus::publish(fabric::event{
+        .topic     = fabric::topic::framework,
+        .type      = response::type,
+        .strand_id = strands[0].id,
+    }.with_payload(response{
+        .requester_id = e.strand_id,
+        .seqnum       = data.seqnum,
+        .result       = response::ok,
+        .id           = newstrand.id,
+    }));
+    log::debug("Registered strand [%s] with id [%u]\n", newstrand.name, newstrand.id);
+    return consumed;
+}
+
+auto lm::strands::strandman::on_event_request_strand_running(
+    fabric::event const& e,
+    [[maybe_unused]] st max_strands,
+    std::span<strand_t>& strands
+) -> st
+{
+    using request = fabric::topic::framework_t::request_strand_running;
+    using response = fabric::topic::framework_t::response_strand_running;
+
+    auto data = e.get_payload<request>();
+
+    strand_t* s = nullptr;
+    for(auto& st : strands)
+        if(st.id == data.strand_id) {
+            s = &st;
+            break;
+        }
+    if(!s) return 1;
+
+    if(data.set_running_state)
+        s->requested_running = data.new_running_state;
+
+    fabric::bus::publish(fabric::event{
+        .topic     = fabric::topic::framework,
+        .type      = response::type,
+        .strand_id = strands[0].id
+    }.with_payload(response{
+        .requester_id  = e.strand_id,
+        .seqnum        = data.seqnum,
+        .running_state = data.new_running_state,
+    }));
+
+    return 1;
+}
+
+auto lm::strands::strandman::process_events(st max_strands, std::span<strand_t>& strands) -> void
+{
+    // Handle general requests.
+    for (auto const& e : strandman_q.consume<fabric::event>())
+    {
+        using namespace fabric::topic::framework_t;
+
+        st consumed = 1;
+        switch(e.type){
+            case request_manager_announce::type:
+                consumed = on_event_request_manager_announce(e, max_strands, strands);
+                break;
+            case request_manager_resolve::type:
+                consumed = on_event_request_manager_resolve(e, max_strands, strands);
+                break;
+            case request_register_strand::type:
+                consumed = on_event_request_register_strand(e, max_strands, strands);
+                break;
+            case request_strand_running::type:
+                consumed = on_event_request_strand_running(e, max_strands, strands);
+                break;
+        }
+        auto remaning = e.extension_count() + 1 - consumed;
+        for([[maybe_unused]] auto const& _ : strandman_q.consume<fabric::event>(remaning));
     }
 
     // Handle strand updates.

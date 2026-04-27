@@ -49,6 +49,14 @@ namespace lm::strands
         auto process_events(st, std::span<strand_t>&) -> void;
         auto manage_strands(st, std::span<strand_t>&) -> void;
 
+        // Every one of these returns how many events/extensions it consumed.
+        auto on_event_request_manager_announce(fabric::event const&, st, std::span<strand_t>&) -> st;
+        auto on_event_request_manager_resolve(fabric::event const&,  st, std::span<strand_t>&) -> st;
+        auto on_event_request_register_strand(fabric::event const&,  st, std::span<strand_t>&) -> st;
+        auto on_event_request_strand_running(fabric::event const&,   st, std::span<strand_t>&) -> st;
+
+        auto get_strand_named(u32 name_hash, std::span<strand_t>&) -> u8;
+
         fabric::queue_t status_q;
         fabric::bus::subscribe_token status_q_tok;
 

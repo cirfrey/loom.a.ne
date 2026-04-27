@@ -12,6 +12,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Boost
+        uses: MarkusJx/install-boost@v2
+        with:
+          boost_version: 1.81.0 # Or your preferred version
+
       - name: Cache PlatformIO & Pipx
         uses: actions/cache@v4
         with:

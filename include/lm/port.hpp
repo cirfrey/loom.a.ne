@@ -36,6 +36,12 @@
 #else
     #define LM_PORT_CPP __cplusplus
 #endif
+#define LM_PORT_CPP98 199711L
+#define LM_PORT_CPP11 201103L
+#define LM_PORT_CPP14 201402L
+#define LM_PORT_CPP17 201703L
+#define LM_PORT_CPP20 202002L
+#define LM_PORT_CPP23 202302L
 
 // --- Environment Layer ---
 #define LM_PORT_ENV_FREESTANDING 0
@@ -182,13 +188,27 @@
 #endif
 
 // --- Utility ---
-#define LM_PORT_IS_64_BIT (LM_PORT_PTR_SIZE == 8)
-#define LM_PORT_IS_32_BIT (LM_PORT_PTR_SIZE == 4)
-#define LM_PORT_IS_POSIX  \
-    (LM_PORT_HOST_LINUX || \
+#if LM_PORT_PTR_SIZE == 8
+    #define LM_PORT_IS_64_BIT 1
+#else
+    #define LM_PORT_IS_64_BIT 0
+#endif
+
+#if LM_PORT_PTR_SIZE == 4
+    #define LM_PORT_IS_32_BIT 1
+#else
+    #define LM_PORT_IS_32_BIT 0
+#endif
+
+#if (LM_PORT_HOST_LINUX || \
     LM_PORT_HOST_MACOS || \
     LM_PORT_HOST_IOS ||   \
     LM_PORT_ENV_CYGWIN)
+    #define LM_PORT_IS_POSIX 1
+#else
+    #define LM_PORT_IS_POSIX 0
+#endif
+
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
     #define LM_PORT_HAS_EXCEPTIONS 1
 #else
@@ -219,14 +239,13 @@ namespace lm::port
     enum class endian_t { unknown, little, big };
 
     enum class cpp_std_t : long {
-        cpp98 = 199711L,
-        cpp11 = 201103L,
-        cpp14 = 201402L,
-        cpp17 = 201703L,
-        cpp20 = 202002L,
-        cpp23 = 202302L
+        cpp98 = LM_PORT_CPP98,
+        cpp11 = LM_PORT_CPP11,
+        cpp14 = LM_PORT_CPP14,
+        cpp17 = LM_PORT_CPP17,
+        cpp20 = LM_PORT_CPP20,
+        cpp23 = LM_PORT_CPP23,
     };
-
 
     inline constexpr compiler_t compiler =
         #if   LM_PORT_COMPILER_CLANG
@@ -307,7 +326,7 @@ namespace lm::port
             endian_t::unknown;
         #endif
 
-    inline constexpr cpp_std_t standard =
+    inline constexpr cpp_std_t cpp =
         LM_PORT_CPP >= (long)cpp_std_t::cpp23 ? cpp_std_t::cpp23 :
         LM_PORT_CPP >= (long)cpp_std_t::cpp20 ? cpp_std_t::cpp20 :
         LM_PORT_CPP >= (long)cpp_std_t::cpp17 ? cpp_std_t::cpp17 :

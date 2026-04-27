@@ -28,7 +28,7 @@ namespace lm::config_ini
         ini::str("network.password"_text, config_rw.network.password, {.max_len = config_rw.network.password_max_len}),
 
         /// --- Framework ---
-        ini::num("framework.manager_announce_window_ms"_text, config_rw.framework.manager_announce_window_ms),
+        ini::num("framework.manager_request_timeout_ms"_text, config_rw.framework.manager_request_timeout_ms),
 
         /// --- Logging ---
         ini::enm("logging.timestamp"_text, config_rw.logging.timestamp),

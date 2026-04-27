@@ -84,7 +84,15 @@ namespace lm::fabric
     [[nodiscard]] auto register_strand(register_params const&) -> register_result;
     [[nodiscard]] auto register_strand(register_params const&) -> register_result;
 
-    auto discover_manager(st queue_size = 4) -> bool;
+
+    struct manager_info_t {
+        bool valid           = false;
+        u8   manager_id      = 0;
+        u16  safe_timeout_ms = 10;   // conservative default
+        st   available_slots = 0;
+    };
+
+    auto discover_manager(st queue_size = 4, manager_info_t* out = nullptr) -> bool;
     // Convenience: invalidate the cached manager, force fresh discovery.
     // Call this if you get manager_cant_handle_more_strands and want to re-probe.
     auto invalidate_manager_cache() -> void;

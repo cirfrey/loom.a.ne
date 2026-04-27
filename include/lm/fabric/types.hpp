@@ -10,28 +10,37 @@ namespace lm::fabric
     namespace event_versions {
         struct [[gnu::packed]] v0 {
             static constexpr auto protocol_version = 0;
+            static constexpr auto protocol_size = 24;
+
+            static constexpr auto loom_bits = 6;
+            static constexpr auto mesh_bits = 2;
+
             static constexpr auto local_loom = 0;
             static constexpr auto unidentified_strand = 0;
 
             // Protocol metadata.
             u8 version = protocol_version;
-            u8 size    = sizeof(v0); // Useful if you receive an event with
-                                     // a version you don't even know about and just want to step over it.
-                                     // Also used for event extensions, must always be multiple of sizeof(v0),
-                                     // but this is handled by the bus.
+            u8 size    = protocol_size; // Useful if you receive an event with
+                                        // a version you don't even know about and just want to step over it.
+                                        // Also used for event extensions, must always be multiple of sizeof(v0),
+                                        // but this is handled by the bus.
 
             // Event metadata.
             u8 topic;
             u8 type;
-            u8 loom_id = local_loom;
             u8 strand_id = unidentified_strand;
+            u8 loom_id : loom_bits = local_loom;
+            u8 mesh_id : mesh_bits = 0;
             alignas(8) u64 timestamp = 0; // In microseconds.
 
             // Payload (what is actually being sent).
             alignas(8) u8 payload[8] = {0};
 
-            constexpr auto is_local()        const -> bool { return loom_id == 0; }
-            constexpr auto extension_count() const -> st   { return (size / sizeof(v0)) - 1; }
+            constexpr auto is_local()        const -> bool { return loom_id == local_loom; }
+            constexpr auto extension_count() const -> st {
+                auto rounded_up = ((size + protocol_size - 1) / protocol_size) * protocol_size;
+                return rounded_up - 1;
+            }
 
             // Payload management stuff.
             template <typename As>
@@ -75,7 +84,7 @@ namespace lm::fabric
                 return *std::launder(reinterpret_cast<As*>(this));
             }
         };
-        static_assert(sizeof(v0) == 24, "loom.a.ne Event v0 must be exactly 24 bytes");
+        static_assert(sizeof(v0) == v0::protocol_size, "loom.a.ne Event v0 must be exactly 24 bytes");
     }
     using event = event_versions::v0;
 
@@ -88,6 +97,9 @@ namespace lm::fabric
                 strand_loop_timing,
                 strand_signal,
 
+                request_manager_resolve,
+                response_manager_resolve,
+
                 request_manager_announce,
                 response_manager_announce,
 
@@ -96,6 +108,24 @@ namespace lm::fabric
 
                 request_strand_running,
                 response_strand_running,
+
+
+                // usb_ctr_[direction]_[event].
+                // Where [direction] is 2 characters that represent who sends what to where.
+                // e.g:
+                // - usb_ctrl_cd: Controller -> Device.
+                // - usb_ctrl_tc: Transport  -> Controller.
+                // Its simple, you get it.
+
+                usb_ctrl_ct_device_info,
+                usb_ctrl_dc_device_register,
+                usb_ctrl_cd_device_register_ack,
+                usb_ctrl_dc_device_deregister,
+                usb_ctrl_tc_setup_request,
+                usb_ctrl_ct_setup_response,
+                usb_ctrl_tc_data,
+                usb_ctrl_ct_data,
+                usb_ctrl_ct_reenumerate,
             }; }
 
             struct strand_status
@@ -115,6 +145,22 @@ namespace lm::fabric
                 static constexpr auto type = types::strand_signal;
                 u8 target_strand;
                 enum signal_t { start, stop, die } signal;
+            }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
+
+
+            struct request_manager_resolve
+            {
+                static constexpr auto type = types::request_manager_resolve;
+                u32 name_hash;
+                u8 seqnum;
+            }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
+
+            struct response_manager_resolve
+            {
+                static constexpr auto type = types::response_manager_resolve;
+                u8 resolved_id;
+                u8 seqnum;
+                u8 requester_id;
             }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
 
             struct request_manager_announce
@@ -212,24 +258,17 @@ namespace lm::fabric
                 u8 seqnum;
 
                 u8 strand_id;
-                bool running_state = false;
+                bool set_running_state = false;
+                bool new_running_state = false;
             }; static_assert(sizeof(request_strand_running) <= sizeof(fabric::event::payload));
 
             struct response_strand_running
             {
                 static constexpr auto type = types::response_strand_running;
 
-                enum result_t : u8
-                {
-                    ok,
-                    id_doesnt_exist,
-                };
-
                 u8 requester_id;
                 u8 seqnum;
 
-                result_t result;
-                // Only valid if result = ok.
                 bool running_state = false;
             }; static_assert(sizeof(response_strand_running) <= sizeof(fabric::event::payload));
         }
