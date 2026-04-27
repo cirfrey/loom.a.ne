@@ -1,7 +1,7 @@
 // Use this as a starting point for your strand.
 #pragma once
 
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 
 namespace lm::strands
 {

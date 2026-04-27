@@ -1,6 +1,6 @@
 #include "lm/fabric/register_strand.hpp"
 
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 #include "lm/chip/time.hpp"
 #include "lm/config.hpp"
 #include "lm/log.hpp"

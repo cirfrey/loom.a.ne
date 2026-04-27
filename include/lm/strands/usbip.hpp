@@ -8,7 +8,7 @@
 #include "lm/usb/common.hpp"
 
 #include "lm/config.hpp"
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 
 #include <common/tusb_types.h>
 

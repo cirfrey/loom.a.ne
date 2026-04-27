@@ -1,7 +1,7 @@
 #pragma once
 
 #include "lm/core/types.hpp"
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 #include "lm/core/primitives/stopwatch.hpp"
 
 #include <bitset>

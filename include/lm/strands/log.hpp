@@ -1,7 +1,7 @@
 // TODO: rename this strand to ::logger.
 #pragma once
 
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 #include "lm/config.hpp"
 
 #include "lm/core/primitives/stopwatch.hpp"

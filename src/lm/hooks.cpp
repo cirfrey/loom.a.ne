@@ -1,11 +1,11 @@
 #include "lm/hooks.hpp"
 
-#include "lm/core.hpp"
+#include "lm/core/all.hpp"
 #include "lm/board.hpp"
 #include "lm/registry.hpp"
 #include "lm/log.hpp"
-#include "lm/chip.hpp"
-#include "lm/fabric.hpp"
+#include "lm/chip/all.hpp"
+#include "lm/fabric/all.hpp"
 #include "lm/build.hpp"
 #include "lm/banner.hpp"
 

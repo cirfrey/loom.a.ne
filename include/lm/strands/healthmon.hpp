@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 
 namespace lm::strands
 {

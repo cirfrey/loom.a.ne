@@ -1,8 +1,8 @@
 #include "lm/hooks.hpp"
 
 #include "lm/board.hpp"
-#include "lm/chip.hpp"
-#include "lm/core.hpp"
+#include "lm/chip/all.hpp"
+#include "lm/core/all.hpp"
 #include "lm/ini.hpp"
 #include "lm/log.hpp"
 

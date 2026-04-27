@@ -1,10 +1,10 @@
 #include "lm/strands/strandman.hpp"
 
-#include "lm/core.hpp"
-#include "lm/fabric.hpp"
+#include "lm/core/all.hpp"
+#include "lm/fabric/all.hpp"
 #include "lm/registry.hpp"
 #include "lm/log.hpp"
-#include "lm/chip.hpp"
+#include "lm/chip/all.hpp"
 
 #include <cstring>
 

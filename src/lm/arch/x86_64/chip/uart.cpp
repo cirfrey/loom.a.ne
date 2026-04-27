@@ -1,5 +1,5 @@
-#include "lm/chip.hpp"
-#include "lm/core.hpp"
+#include "lm/chip/all.hpp"
+#include "lm/core/all.hpp"
 
 #include <cstdio>
 

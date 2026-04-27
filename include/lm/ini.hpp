@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lm/core.hpp"
+#include "lm/core/all.hpp"
 #include "lm/log.hpp"
 
 namespace lm::ini

@@ -1,6 +1,6 @@
-#include "lm/chip.hpp"
+#include "lm/chip/all.hpp"
 
-#include "lm/core.hpp"
+#include "lm/core/all.hpp"
 
 #include <esp_private/usb_phy.h>
 #include <esp_chip_info.h>

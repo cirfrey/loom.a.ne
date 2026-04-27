@@ -1,7 +1,7 @@
 #pragma once
 
 #include "lm/core/types.hpp"
-#include "lm/fabric.hpp"
+#include "lm/fabric/all.hpp"
 
 namespace lm::strands
 {
