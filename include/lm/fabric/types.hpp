@@ -41,6 +41,7 @@ namespace lm::fabric
                 auto rounded_up = ((size + protocol_size - 1) / protocol_size) * protocol_size;
                 return rounded_up - 1;
             }
+            constexpr auto extension_bytes() const -> st { return size - protocol_size; }
 
             // Payload management stuff.
             template <typename As>
@@ -109,24 +110,212 @@ namespace lm::fabric
                 request_strand_running,
                 response_strand_running,
 
-
-                // usb_ctr_[direction]_[event].
-                // Where [direction] is 2 characters that represent who sends what to where.
-                // e.g:
-                // - usb_ctrl_cd: Controller -> Device.
-                // - usb_ctrl_tc: Transport  -> Controller.
-                // Its simple, you get it.
-
-                usb_ctrl_ct_device_info,
-                usb_ctrl_dc_device_register,
-                usb_ctrl_cd_device_register_ack,
-                usb_ctrl_dc_device_deregister,
-                usb_ctrl_tc_setup_request,
-                usb_ctrl_ct_setup_response,
-                usb_ctrl_tc_data,
-                usb_ctrl_ct_data,
-                usb_ctrl_ct_reenumerate,
+                // ───────────────────────────────────────────────────────────────────────────
+                //  USB Control Protocol — 4 events
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  Participants:
+                //    Device     — produces/consumes endpoint data (MIDI, HID, CDC, libusb proxy, ...)
+                //    Transport  — drives a real or virtual USB bus (TinyUSB, USB-IP, dummy HCD, ...)
+                //    Aggregator — sits between them in composite/hub mode; speaks both sides
+                //
+                //  The protocol is symmetric. An Aggregator is a Transport to its Devices
+                //  and a Device to its Transport. Passthrough needs no Aggregator.
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  usb_ctrl_capability  —  connection lifecycle
+                //
+                //    status: announcing | attach | detach | reenumeration
+                //    role:   device | transport
+                //
+                //    Transport binds to Device/Aggregator:
+                //      Transport  → {announcing, transport}
+                //      Device     → {attach, device}       — accepted
+                //                 → {detach, device}       — refused (e.g. endpoint budget)
+                //
+                //    Device binds to Aggregator (same flow, roles swapped):
+                //      Device     → {announcing, device}
+                //      Aggregator → {attach, aggregator} / {detach, aggregator}
+                //
+                //    Either side detaches:
+                //      any        → {detach, <role>}
+                //
+                //    Aggregator triggers reenumeration (descriptor tree changed):
+                //      Aggregator → {reenumeration, device}   — Transport reconnects bus, no reply expected
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  usb_ctrl_setup_request  —  EP0 control transfer from host
+                //
+                //    Transport/Aggregator → Device/Aggregator.
+                //    Carries the raw USB setup packet. wLength is implicit in extension_bytes().
+                //    Only one in flight at a time — EP0 state machine enforces ordering.
+                //    Device responds with usb_ctrl_data on EP0, targeting event.strand_id.
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  usb_ctrl_data  —  endpoint data, both directions; also EP0 responses
+                //
+                //    ep == 0  (control response):
+                //      stall=0, ep_info=control_has_data  → ACK with data in extensions
+                //      stall=0, ep_info=control_no_data   → ACK, zero-length status stage
+                //      stall=1                            → STALL
+                //
+                //    ep != 0  (bulk / interrupt / iso):
+                //      ep_info = iso | bulk | interrupt
+                //      ep_direction = in (device→host) | out (host→device)
+                //      data[4] + extensions carry the payload
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  usb_ctrl_interface_status  —  interface state change notification
+                //
+                //    Sent by Transport/Aggregator to Device after SET_CONFIGURATION,
+                //    SET_INTERFACE, or suspend/resume. Keeps Devices from parsing
+                //    standard USB requests themselves.
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //
+                //  Typical flow (passthrough, Device ↔ Transport):
+                //
+                //    Transport  → capability {announcing}
+                //    Device     → capability {attach}
+                //    Transport  → setup_request            GET_DESCRIPTOR(device)
+                //    Device     → data {EP0, has_data}     device descriptor
+                //    Transport  → setup_request            SET_CONFIGURATION
+                //    Device     → data {EP0, no_data}
+                //    Transport  → interface_status         {interface 0, configured}
+                //    Device     → data {EP1 IN}            MIDI note on
+                //    Transport  → data {EP1 OUT}           MIDI note on from host
+                //    Transport  → capability {detach}
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                //  Typical flow (composite, Device ↔ Aggregator ↔ Transport):
+                //
+                //    -- Aggregator binds its Device --
+                //    Device       → capability {announcing, device}
+                //    Aggregator   → capability {attach, aggregator}
+                //
+                //    -- Transport binds to Aggregator (Aggregator acts as Device) --
+                //    Transport    → capability {announcing, transport}
+                //    Aggregator   → capability {attach, device}
+                //
+                //    -- Host enumerates (Transport forwards to Aggregator, Aggregator routes internally) --
+                //    Transport    → setup_request              GET_DESCRIPTOR(device)
+                //    Aggregator   → data {EP0, has_data}       composite device descriptor
+                //    Transport    → setup_request              GET_DESCRIPTOR(config)
+                //    Aggregator   → data {EP0, has_data}       composite config descriptor (stitched)
+                //    Transport    → setup_request              SET_CONFIGURATION
+                //    Aggregator   → data {EP0, no_data}
+                //    Aggregator   → interface_status           {interface 0, configured}   → Device
+                //
+                //    -- Runtime data --
+                //    Device       → data {EP1 IN}              MIDI note on   → Aggregator remaps → Transport
+                //    Transport    → data {EP2 OUT}             HID report     → Aggregator remaps → Device
+                //
+                //    -- Device detaches, Aggregator rebuilds and reenumerates --
+                //    Device       → capability {detach, device}
+                //    Aggregator   → capability {reenumeration, device}        → Transport reconnects bus
+                //
+                // ───────────────────────────────────────────────────────────────────────────
+                usb_ctrl_capability,
+                usb_ctrl_data,
+                usb_ctrl_setup_request,
+                usb_ctrl_interface_status,
             }; }
+
+            struct usb_ctrl_capability
+            {
+                enum status_t : u8 { announcing = 0, reenumeration = 1, attach = 2, detach = 3 };
+                enum role_t : u8 { device = 0, transport = 1 };
+
+                static constexpr auto type = types::usb_ctrl_capability;
+                u8 target_strand_id;
+                u8 target_loom_id : event::loom_bits;
+                u8 target_mesh_id : event::mesh_bits;
+
+                u8 ep_in_count : 4;
+                u8 ep_out_count : 4;
+
+                // bool supports_control : 1; // Is implicitly always true, so we don't need it.
+                bool supports_iso : 1;
+                bool supports_bulk : 1;
+                bool supports_interrupt : 1;
+                role_t role : 1;
+                status_t status : 2;
+
+                u8 seqnum;
+            }; static_assert(sizeof(usb_ctrl_capability) <= sizeof(fabric::event::payload));
+
+            struct usb_ctrl_data
+            {
+                enum direction_t : u8 { in = 0, out = 1 };
+                enum ep_info_t : u8 {
+                    // When ep == 0 its always a control endpoint, so we use the bits for this other signal.
+                    control_has_data = 0,
+                    control_no_data = 1,
+
+                    // Otherwise we just use it to signal what type of endpoint it is.
+                    iso = 0,
+                    bulk = 1,
+                    interrupt = 2,
+                };
+
+                static constexpr auto type = types::usb_ctrl_data;
+                u8 target_strand_id;
+                u8 target_loom_id : event::loom_bits;
+                u8 target_mesh_id : event::mesh_bits;
+
+                u8 seqnum;
+
+                u8 ep : 4;
+                ep_info_t ep_info : 2;
+                bool stall : 1;
+                direction_t ep_direction : 1;
+
+                // So these are the first few bytes, the rest are in the extensions. The size is set
+                // directly on the event (sizeof(data) = event.extension_bytes() - 5), not in this payload.
+                u8 data[4];
+
+                struct ext_extra_data
+                {
+                    u8 data[24];
+                }; static_assert(sizeof(ext_extra_data) <= sizeof(fabric::event));
+            }; static_assert(sizeof(usb_ctrl_data) <= sizeof(fabric::event::payload));
+
+            struct usb_ctrl_setup_request
+            {
+                static constexpr auto type = types::usb_ctrl_setup_request;
+                u8 target_strand_id;
+                u8 target_loom_id : event::loom_bits;
+                u8 target_mesh_id : event::mesh_bits;
+
+                u8 bmRequestType;
+                u8 bRequest;
+                u16 wValue;
+                u16 wIndex;
+                // Wlength can be extracted from event.extension_bytes().
+                struct ext_extra_data
+                {
+                    u8 data[24];
+                }; static_assert(sizeof(ext_extra_data) <= sizeof(fabric::event));
+            }; static_assert(sizeof(usb_ctrl_setup_request) <= sizeof(fabric::event::payload));
+
+            struct usb_ctrl_interface_status
+            {
+                enum status_t : u8 { configured = 0, suspended = 1, idle = 2 };
+
+                static constexpr auto type = types::usb_ctrl_interface_status;
+                u8 target_strand_id;
+                u8 target_loom_id : event::loom_bits;
+                u8 target_mesh_id : event::mesh_bits;
+
+                u8 interface_number;
+                status_t status : 2;
+
+                u8 seqnum;
+            }; static_assert(sizeof(usb_ctrl_interface_status) <= sizeof(fabric::event::payload));
 
             struct strand_status
             {
@@ -147,18 +336,17 @@ namespace lm::fabric
                 enum signal_t { start, stop, die } signal;
             }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
 
-
             struct request_manager_resolve
             {
                 static constexpr auto type = types::request_manager_resolve;
-                u32 name_hash;
+                u32 name_hash_or_id;
                 u8 seqnum;
             }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
 
             struct response_manager_resolve
             {
                 static constexpr auto type = types::response_manager_resolve;
-                u8 resolved_id;
+                u32 name_hash_or_id;
                 u8 seqnum;
                 u8 requester_id;
             }; static_assert(sizeof(strand_signal) <= sizeof(fabric::event::payload));
@@ -297,5 +485,7 @@ namespace lm::fabric
             namespace framework_t = framework_topic_versions::v0;
         }
     }
+
     namespace topic = topic_versions::v0;
+    namespace framework_topic_versions::v0 { static constexpr auto topic = topic::framework; }
 }

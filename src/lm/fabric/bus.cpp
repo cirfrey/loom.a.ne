@@ -98,7 +98,9 @@ namespace lm::fabric::bus
         if(!events.size()) return;
 
         auto& header = events[0];
-        header.size  = events.size() * sizeof(event);
+        // Override size if the user didn't specify.
+        if(header.size == fabric::event::protocol_size)
+            header.size = events.size() * sizeof(event);
         // TODO: works for now, will break when mesh is implemented.
         header.timestamp = chip::time::uptime();
 

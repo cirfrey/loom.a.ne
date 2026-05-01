@@ -1,4 +1,4 @@
 .pio
 .vscode
-build/
+.artifact
 __pycache__

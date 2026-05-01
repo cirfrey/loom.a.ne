@@ -1,3 +1,0 @@
-[submodule "thirdparty/tinyusb"]
-	path = thirdparty/tinyusb
-	url = https://github.com/hathach/tinyusb

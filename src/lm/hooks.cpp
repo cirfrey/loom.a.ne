@@ -10,8 +10,8 @@
 #include "lm/banner.hpp"
 
 #include "lm/config.hpp"
-#include "lm/config/ini.hpp"
-#include "lm/config/boot.hpp"
+#include "lm/config/config_ini.hpp"
+#include "lm/config/config_rw.hpp"
 
 #include "lm/strands/strandman.hpp"
 #include "lm/strands/log.hpp"
@@ -19,7 +19,7 @@
 #include "lm/strands/blink.hpp"
 #include "lm/strands/busmon.hpp"
 #include "lm/strands/usbd.hpp"
-#include "lm/strands/usbip.hpp"
+#include "lm/strands/usb/transport/usbip.hpp"
 
 // TODO: allow override.
 auto lm::hook::launcher() -> void
@@ -63,7 +63,8 @@ auto lm::hook::framework_config(config_t& config) -> void
     config.launcher.blink.code     = fabric::strand::managed<strands::blink>();
     config.launcher.busmon.code    = fabric::strand::managed<strands::busmon>();
     config.launcher.usbd.code      = fabric::strand::managed<strands::usbd>();
-    config.launcher.usbip.code     = fabric::strand::managed<strands::usbip>();
+    for(auto& usbip : config.usbip)
+        usbip.strand.code     = fabric::strand::managed<strands::usb::transport::usbip>();
 }
 
 auto lm::hook::parse_ini(config_t& config) -> void
@@ -91,26 +92,17 @@ auto lm::hook::framework_final_config_override(config_t& config) -> void
 {
     // Override the serials IIF they were defaulted.
     auto uuid = chip::info::uuid();
-    if(std::strcmp(config.usb.string_descriptors.serial, "00:00:00:00:00:00") == 0)
-    {
-        std::snprintf(
-            config.usb.string_descriptors.serial,
-            config_t::usbcommon::string_descriptor_max_len,
-            "%.*s",
-            (int)uuid.size, uuid.data
-        );
-    }
-    for(auto i = 0; i < config_t::usbip_t::instance_count; ++i) {
-        if(std::strcmp(config.usbip[i].string_descriptors.serial, "00:00:00:00:00:00") == 0)
+    #if LM_CONFIG_CONTROLLER_COUNT >= 1
+        for(auto i = 0; i < config_t::controller_count; ++i)
         {
             std::snprintf(
-                config.usbip[i].string_descriptors.serial,
-                config_t::usbcommon::string_descriptor_max_len,
+                config.controller[i].serial,
+                sizeof(config.controller[i].serial),
                 "%.*s",
                 (int)uuid.size, uuid.data
             );
         }
-    }
+    #endif
 }
 
 auto lm::hook::framework_main() -> void
@@ -170,15 +162,7 @@ auto lm::hook::framework_main() -> void
         fabric::strand::sleep_ms(lm::config.framework.manager_request_timeout_ms);
     }
 
-    for(auto& info : {
-        lm::config.launcher.log,
-        lm::config.launcher.healthmon,
-        lm::config.launcher.blink,
-        lm::config.launcher.busmon,
-        lm::config.launcher.usbd,
-        lm::config.launcher.usbip,
-    })
-    {
+    auto register_strand = [](auto& info){
         if(!fabric::register_strand({
             .name          = info.name | rc<char const*> | to_text,
             .stack_size    = info.stack_size,
@@ -192,7 +176,20 @@ auto lm::hook::framework_main() -> void
             lm::log::panic("Failed to register strand [%s]! Something very bad happened.\n", info.name);
             chip::system::halt(1);
         }
-    }
+    };
+
+    for(auto& info : {
+        lm::config.launcher.log,
+        lm::config.launcher.healthmon,
+        lm::config.launcher.blink,
+        lm::config.launcher.busmon,
+        lm::config.launcher.usbd,
+    })
+    { register_strand(info); }
+
+
+    for(auto& info : lm::config.controller) { register_strand(info.strand); }
+    for(auto& info : lm::config.usbip) { register_strand(info.strand); }
 }
 
 [[gnu::weak]] auto lm::hook::init(config_t&) -> void {}

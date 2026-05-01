@@ -7,7 +7,7 @@
 // NOTE: In USB-speak: IN always means "Into the Computer."
 namespace lm::usb
 {
-    enum class ept_t
+    enum class ept_t : u8
     {
         unassigned, // Mark this port/direction as currently unused (free to be used).
         unavailable, // Mark this port/direction as not assignable.
@@ -45,7 +45,7 @@ namespace lm::usb
         msc_bulk_out, // [Host -> Device] For data/commands
     };
 
-    enum class itf_t
+    enum class itf_t : u8
     {
         unassigned = 0,
         control = 1,
@@ -60,13 +60,20 @@ namespace lm::usb
         msc = 8,
     };
 
+    struct ep
+    {
+        ept_t ep : 4 = ept_t::unassigned;
+        itf_t itf : 4 = itf_t::unassigned;
+        u8 itf_idx = 0;
+    };
+
     struct ep_t
     {
-        ept_t in      = ept_t::unassigned;
+        ept_t in : 4     = ept_t::unassigned;
         u8 in_itf_idx = 0; // What interface is using this endpoint.
         itf_t in_itf  = itf_t::unassigned;
 
-        ept_t out      = ept_t::unassigned;
+        ept_t out  : 4    = ept_t::unassigned;
         u8 out_itf_idx = 0;
         itf_t out_itf  = itf_t::unassigned;
     };

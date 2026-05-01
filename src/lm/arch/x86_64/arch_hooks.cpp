@@ -8,7 +8,7 @@
 
 #include "lm/arch/x86_64/endpoints.hpp"
 #include "lm/arch/x86_64/program_args.hpp"
-#include "lm/strands/usbip.hpp"
+#include "lm/strands/usb/transport/usbip.hpp"
 
 #include <cstdio>
 #include <iostream>
@@ -37,7 +37,7 @@ namespace lm::arch_config
     };
 }
 
-#include "lm/config/ini.hpp"
+#include "lm/config/config_ini.hpp"
 
 auto lm::hook::arch_config(config_t& config) -> void
 {
@@ -71,7 +71,7 @@ auto lm::hook::arch_config(config_t& config) -> void
     //       backend creates its own copy from the template.
     // NOTE: Cannot have multiple usbip instances until the previous commented is implemented.
     config.usb.endpoints    = arch::x86_64::endpoints;
-    for(auto i = 0; i < config_t::usbip_t::instance_count; ++i)
+    for(auto i = 0; i < config_t::usbip_count; ++i)
         config.usbip[i].endpoints  = lm::strands::usbip_backend::endpoints;
 
     config.ini.with_source = [](void* ud, auto cb){

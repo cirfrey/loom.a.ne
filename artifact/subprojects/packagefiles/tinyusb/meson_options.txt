@@ -1,0 +1,10 @@
+option(
+    'portability',
+    type: 'combo',
+    choices: [
+        'none',
+        'synopsys-dwc2',
+    ],
+    value: 'none',
+    description: 'What portability files to compile'
+)

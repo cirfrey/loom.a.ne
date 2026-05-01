@@ -88,17 +88,28 @@ auto lm::strands::strandman::on_event_request_manager_resolve(
     using response = fabric::topic::framework_t::response_manager_resolve;
 
     auto data = e.get_payload<request>();
-    u8 id = get_strand_named(data.name_hash, strands);
-    if(id == 0) return 1;
+    u32 out = 0;
+    for(auto& s : strands)
+    {
+        if(s.id == data.name_hash_or_id) {
+            out = fnv1a_32(s.name | to_text);
+            break;
+        }
+        if(fnv1a_32(s.name | to_text) == data.name_hash_or_id) {
+            out = s.id;
+            break;
+        }
+    }
+    if(out == 0) return 1;
 
     fabric::bus::publish(fabric::event{
-        .topic = fabric::topic::framework,
-        .type    = response::type,
+        .topic     = fabric::topic::framework,
+        .type      = response::type,
         .strand_id = strands[0].id,
     }.with_payload(response{
-        .resolved_id  = id,
-        .seqnum       = data.seqnum,
-        .requester_id = e.strand_id,
+        .name_hash_or_id  = out,
+        .seqnum           = data.seqnum,
+        .requester_id     = e.strand_id,
     }));
 
     return 1;

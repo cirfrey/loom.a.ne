@@ -258,6 +258,17 @@ namespace lm
             static constexpr auto max_unit_suites = LM_CONFIG_TEST_MAX_UNIT_SUITES;
         } test;
 
+        struct strand_info {
+            using name_t = char[24];
+            name_t name;
+            fabric::strand::function_t code = nullptr; // Set by lm::hook::framework_init.
+            u16 stack_size;
+            u16 sleep_ms        = 1;
+            u16 core_affinity   = ~u16{0};
+            u8 priority         = 5;
+            feature set_running : 1 = feature::on;
+        };
+
         // These are only valid if you are using the launcher.
         struct launcher_t
         {
@@ -266,62 +277,46 @@ namespace lm
             #endif
             static constexpr u16 strandman_max_strands = LM_CONFIG_LAUNCHER_STRANDMAN_MAX_STRANDS;
 
-            struct info {
-                char name[24];
-                u16 stack_size;
-                u16 sleep_ms        = 1;
-                u8 priority         = 5;
-                u16 core_affinity   = ~u16{0};
-                feature set_running = feature::on;
-                // Set by lm::hook::framework_init.
-                fabric::strand::function_t code = nullptr;
-            };
-
-            info strandman = info{
+            strand_info strandman = strand_info{
                 .name        = "lm.strandman",
                 .stack_size  = 26 * 128,
                 .sleep_ms    = 10,
             };
 
-            info log = info{
+            strand_info log = strand_info{
                 .name        = "lm.log",
                 .stack_size  = 24 * 128,
                 .sleep_ms    = 100,
             };
 
-            info healthmon = info{
+            strand_info healthmon = strand_info{
                 .name        = "lm.healthmon",
                 .stack_size  = 22 * 128,
                 .sleep_ms    = 5000,
             };
 
-            info blink = info{
+            strand_info blink = strand_info{
                 .name        = "lm.blink",
                 .stack_size  = 11 * 128,
                 .sleep_ms    = 10,
             };
 
-            info busmon = info{
+            strand_info busmon = strand_info{
                 .name        = "lm.busmon",
                 .stack_size  = 18 * 128,
                 .sleep_ms    = 10,
                 .set_running = feature::off,
             };
 
-            info usbd = info{
+            strand_info usbd = strand_info{
                 .name        = "lm.usbd",
                 .stack_size  = 64 * 128,
                 .set_running = feature::off,
             };
 
             // Internal to usbd, not managed.
-            info tud = info{
+            strand_info tud = strand_info{
                 .name        = "lm.usbd.tud",
-                .stack_size  = 64 * 128,
-            };
-
-            info usbip = info{
-                .name        = "lm.usbip",
                 .stack_size  = 64 * 128,
             };
 
@@ -389,24 +384,90 @@ namespace lm
             usbcommon::string_descriptors string_descriptors;
         } usb = {};
 
+        #ifndef LM_CONFIG_CONTROLLER_COUNT
+        #define LM_CONFIG_CONTROLLER_COUNT 2
+        #endif
+        static constexpr auto controller_count = LM_CONFIG_CONTROLLER_COUNT;
+        struct controller_t
+        {
+            #ifndef LM_CONFIG_CONTROLLER_CONFIG_DESCRIPTOR_MAX_SIZE
+            // The descriptor can get very large in composite mode when you enable multiple things.
+            // This should be able to handle UAC + HID + MIDI (16 cables)
+            #define LM_CONFIG_CONTROLLER_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
+            #endif
+            static constexpr u16 config_descriptor_max_size = LM_CONFIG_CONTROLLER_CONFIG_DESCRIPTOR_MAX_SIZE;
+
+            #ifndef LM_CONFIG_CONTROLLER_EPIN_COUNT
+            #define LM_CONFIG_CONTROLLER_EPIN_COUNT 10
+            #endif
+            static constexpr u16 epin_count = LM_CONFIG_CONTROLLER_EPIN_COUNT;
+
+            #ifndef LM_CONFIG_CONTROLLER_EPOUT_COUNT
+            #define LM_CONFIG_CONTROLLER_EPOUT_COUNT 10
+            #endif
+            static constexpr u16 epout_count = LM_CONFIG_CONTROLLER_EPOUT_COUNT;
+
+            // How much to wait when a new device is registered to trigger reenumeration.
+            u16 reenumerate_wait_ms = 256;
+
+            enum mode_t
+            {
+                passthrough, // Only 1 port available, the device is passthrough as-is.
+                composite,   // N ports available, the devices are remapped into 1 composite device.
+                             // - Uses manufacturer, product, serial and all the descriptors under composite_mode.
+                hub,         // Exposes a hub with N ports, each device is attached to a port in the hub.
+                             // - Uses manufacturer, product and serial for the hub's descriptor, and each device
+                             //   is passed through transparently via ports.
+            } mode = passthrough;
+
+            u16 ports = 1;
+
+            std::span<usb::ep_t const> endpoints;
+
+            strand_info strand = {
+                .name = "lm.usb.controller",
+                .stack_size = 12 * 128,
+            };
+
+            u16 vendor_id  = 0x0000;
+            u16 product_id = 0x0000;
+            u16 bcd_device = 0x0000;
+
+            #ifndef LM_CONFIG_CONTROLLER_STRING_DESCRIPTOR_MAX_LEN
+            #define LM_CONFIG_CONTROLLER_STRING_DESCRIPTOR_MAX_LEN 32
+            #endif
+            static constexpr u8 string_descriptor_max_len = LM_CONFIG_CONTROLLER_STRING_DESCRIPTOR_MAX_LEN;
+
+            using string_descriptor = char[string_descriptor_max_len];
+            string_descriptor manufacturer = "Cirfrey Inc.";
+            string_descriptor product      = "loom.a.ne";
+            // Usually overriden in lm::hook::arch_config(), since the ini parsing and lm::hook::config()
+            // run after that, it means you can actually override what the arch_config puts here.
+            // If for whatever reason you were so inclined...
+            string_descriptor serial       = "00:00:00:00:00:00";
+
+            struct passthrough_mode_t {} passthrough_mode;
+            struct composite_mode_t {
+                string_descriptor midi         = "loom.a.ne MIDI";
+                string_descriptor hid          = "loom.a.ne HID";
+                string_descriptor uac          = "loom.a.ne UAC";
+                string_descriptor cdc          = "loom.a.ne CDC";
+                string_descriptor msc          = "loom.a.ne MSC";
+            } composite_mode;
+            struct hub_mode_t {} hub_mode;
+        };
+        #if LM_CONFIG_CONTROLLER_COUNT >= 1
+        controller_t controller[controller_count];
+        #endif
+
         struct usbip_t
         {
-            #ifndef LM_CONFIG_USBIP_INSTANCE_COUNT
-            #define LM_CONFIG_USBIP_INSTANCE_COUNT 1
-            #endif
-            static constexpr auto instance_count = LM_CONFIG_USBIP_INSTANCE_COUNT;
-
             #ifndef LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE
             // The descriptor can get very large when you enable multiple things.
             // This should be able to handle UAC + HID + MIDI (16 cables)
             #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
             #endif
             static constexpr u16 config_descriptor_max_size = LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE;
-
-            #ifndef LM_CONFIG_USBIP_MIDI_BUFFER
-            #define LM_CONFIG_USBIP_MIDI_BUFFER 256
-            #endif
-            static constexpr auto midi_buffer = LM_CONFIG_USBIP_MIDI_BUFFER;
 
             #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
             // Since this is virtual and doesn't connect to real hardware, we
@@ -415,10 +476,9 @@ namespace lm
             #define LM_CONFIG_USBIP_MAX_ENDPOINTS 8
             #endif
             static constexpr u8 max_endpoints = LM_CONFIG_USBIP_MAX_ENDPOINTS;
-        };
 
-        struct usbip_instance_t
-        {
+            strand_info::name_t controller;
+
             u16 port = 3240;
             feature close_conn_after_devlist = feature::on;
 
@@ -438,7 +498,19 @@ namespace lm
 
             usbcommon::device_descriptor  device_descriptor;
             usbcommon::string_descriptors string_descriptors;
-        } usbip[usbip_t::instance_count];
+
+            strand_info strand = strand_info{
+                .name        = "lm.usbip",
+                .stack_size  = 64 * 128,
+            };
+        };
+        #ifndef LM_CONFIG_USBIP_COUNT
+        #define LM_CONFIG_USBIP_COUNT 1
+        #endif
+        static constexpr auto usbip_count = LM_CONFIG_USBIP_COUNT;
+        #if LM_CONFIG_USBIP_COUNT >= 1
+        usbip_t usbip[usbip_count];
+        #endif
 
         struct audio_t
         {
@@ -536,6 +608,42 @@ namespace lm
                 } usbip;
             } backend;
         } midi;
+
+        struct midi_t_
+        {
+            enum mode_t : u8
+            {
+                in,
+                out,
+                inout
+            };
+
+            #ifndef LM_CONFIG_MIDI_CONFIG_DESCRIPTOR_MAX_SIZE
+            #define LM_CONFIG_MIDI_CONFIG_DESCRIPTOR_MAX_SIZE 256
+            #endif
+            static constexpr u16 config_descriptor_max_size = LM_CONFIG_MIDI_CONFIG_DESCRIPTOR_MAX_SIZE;
+
+            static constexpr u8 max_cables = 16;
+
+            // If not an empty string, the device attaches to this aggregator when it is created.
+            // Otherwise it behaves as a normal device waiting for a transport to attach to it.
+            strand_info::name_t aggregator = "";
+
+            strand_info strand = {
+                .name = "lm.midi",
+                .stack_size = 128 * 12,
+            };
+
+            u8 cable_count : 4 = 1;
+            mode_t mode : 2 = mode_t::inout;
+        };
+        #ifndef LM_CONFIG_MIDI_COUNT
+        #define LM_CONFIG_MIDI_COUNT 1
+        #endif
+        static constexpr auto midi_count = LM_CONFIG_MIDI_COUNT;
+        #if LM_CONFIG_MIDI_COUNT >= 1
+        midi_t_ midi_[midi_count];
+        #endif
 
         struct msc_t
         {

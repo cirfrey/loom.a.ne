@@ -67,11 +67,8 @@ namespace lm::midi
 
     struct payload
     {
-        bitset<config_t::usbip_t::instance_count> target_usbip_instances;
-        bitset<backend::count> target_backend;
-
-        auto to(std::initializer_list<midi::backend> target_backends) -> payload&
-        { target_backend.clear_all() ; for(auto b : target_backends) target_backend.set(b); return *this; }
+        u32 controller;
+        packet midi;
     }; static_assert(sizeof(payload) <= 8, "The payload must fit in a fabric::event::v0");
 
     struct extension

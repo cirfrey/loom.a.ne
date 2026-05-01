@@ -2,7 +2,6 @@ import argparse
 import hid  # pip install hidapi
 import time
 
-
 def pick_device(devices, vendor_usage_page):
     for d in devices:
         if d.get("usage_page") == vendor_usage_page:

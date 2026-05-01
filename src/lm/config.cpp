@@ -1,6 +1,6 @@
 // Yes, this is really all there is to it.
 #include "lm/config.hpp"
-#include "lm/config/boot.hpp"
+#include "lm/config/config_rw.hpp"
 
 namespace lm::config_detail
 {
