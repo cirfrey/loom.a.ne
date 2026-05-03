@@ -88,10 +88,10 @@ auto lm::hook::parse_ini(config_t& config) -> void
 
 auto lm::hook::framework_post_parse([[maybe_unused]] config_t& config) -> void {}
 
-auto lm::hook::framework_final_config_override(config_t& config) -> void
+auto lm::hook::framework_final_config_override([[maybe_unused]] config_t& config) -> void
 {
     // Override the serials IIF they were defaulted.
-    auto uuid = chip::info::uuid();
+    [[maybe_unused]] auto uuid = chip::info::uuid();
     #if LM_CONFIG_CONTROLLER_COUNT >= 1
         for(auto i = 0; i < config_t::controller_count; ++i)
         {
@@ -163,7 +163,7 @@ auto lm::hook::framework_main() -> void
     }
 
     auto register_strand = [](auto& info){
-        if(!fabric::register_strand({
+        auto ret = fabric::register_strand({
             .name          = info.name | rc<char const*> | to_text,
             .stack_size    = info.stack_size,
             .sleep_ms      = info.sleep_ms,
@@ -171,9 +171,16 @@ auto lm::hook::framework_main() -> void
             .core_affinity = info.core_affinity,
             .start         = info.set_running == feature::on,
             .code          = info.code,
-        }).ok())
+        });
+
+        if(!ret.ok())
         {
-            lm::log::panic("Failed to register strand [%s]! Something very bad happened.\n", info.name);
+            auto re = renum<decltype(ret.result)>::unqualified(ret.result);
+            lm::log::panic(
+                "Failed to register strand [%s]: ret.result is [%.*s].\n",
+                info.name,
+                (int)re.size, re.data
+            );
             chip::system::halt(1);
         }
     };
@@ -187,8 +194,9 @@ auto lm::hook::framework_main() -> void
     })
     { register_strand(info); }
 
-
+    #if LM_CONFIG_CONTROLLER_COUNT >= 1
     for(auto& info : lm::config.controller) { register_strand(info.strand); }
+    #endif
     for(auto& info : lm::config.usbip) { register_strand(info.strand); }
 }
 

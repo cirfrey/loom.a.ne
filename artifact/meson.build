@@ -11,6 +11,7 @@ python = import('python').find_installation('python3')
 environment = meson.get_external_property('environment', 'native')
 board       = meson.get_external_property('board',       'native')
 arch        = meson.get_external_property('arch',        'x86_64')
+toolchain   = meson.get_external_property('toolchain',   'native')
 
 src = meson.current_source_dir()/'..'/'src'
 include = meson.current_source_dir()/'..'/'include'

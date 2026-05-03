@@ -23,9 +23,11 @@ auto lm::strands::usb::controller::get_cfg(get_cfg_args args) -> config_t::contr
     if(args.name_hash == 0)
         args.name_hash = fabric::resolve_to_name(args.id, args.tries, args.timeout);
 
+    #if LM_CONFIG_CONTROLLER_COUNT >= 1
     for(auto& c : config.controller)
         if(fnv1a_32(c.strand.name | to_text) == args.name_hash)
             return &c;
+    #endif
     return nullptr;
 }
 

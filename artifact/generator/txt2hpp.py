@@ -1,12 +1,12 @@
 from pathlib import Path
-import sys
 
 def main():
-    infile = sys.argv[1]
+    import sys
+    convert(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else 16)
 
-    with open(infile, 'r') as f:
-        content = f.read()
-    delim = rand_alpha(16)
+def convert(infile, delim_size):
+    with open(infile, 'r') as f: content = f.read()
+    delim = rand_alpha(delim_size)
     print(f'// Generated from [{Path(infile).resolve()}].')
     print(f'static constexpr char {Path(infile).stem}[] = R"{delim}({content}){delim}";')
 

@@ -385,7 +385,7 @@ namespace lm
         } usb = {};
 
         #ifndef LM_CONFIG_CONTROLLER_COUNT
-        #define LM_CONFIG_CONTROLLER_COUNT 2
+        #define LM_CONFIG_CONTROLLER_COUNT 0
         #endif
         static constexpr auto controller_count = LM_CONFIG_CONTROLLER_COUNT;
         struct controller_t
