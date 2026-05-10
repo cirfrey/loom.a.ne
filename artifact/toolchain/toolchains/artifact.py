@@ -18,13 +18,11 @@ import platform
 import re
 import subprocess
 import sys
+import shutil
 from pathlib import Path
-from packaging.version import Version, parse as parse_version
 
-from artifact.util import log, die, run, download_and_extract
-from artifact.toolchain.flags  import ToolchainFlags, parse_flags
-from artifact.toolchain.state  import ToolchainState, is_installed, save, load
-from artifact.toolchain.shim   import install as install_shims, activate
+from artifact.util import log, logdepth, die, run, download_and_extract, newenv
+from artifact.toolchain.shim import activate, write_activate, write_shim
 
 TOOLCHAIN_NAME = "artifact"
 DEPENDS: list[str] = []
@@ -35,7 +33,6 @@ if _machine == "amd64":
     _machine = "x86_64"
 _exe = ".exe" if _sys == "windows" else ""
 
-MESON_VERSION = "1.10.0"
 NINJA_VERSION = "1.12.1"
 
 _NINJA_ARCHIVES: dict[tuple[str, str], str] = {
@@ -46,131 +43,94 @@ _NINJA_ARCHIVES: dict[tuple[str, str], str] = {
     ("windows", "x86_64"):  "ninja-win.zip",
 }
 
+def fetch(s: settings, args: list[str]):
+    tc_dir = (s.toolchain_dir/TOOLCHAIN_NAME).resolve()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Contract
-# ─────────────────────────────────────────────────────────────────────────────
+    write_activate(s, tc_dir)
 
-def resolve(prefix: Path, dldir: Path, flags: ToolchainFlags) -> ToolchainState:
-    """Pure resolution — probe what meson/ninja would be used."""
-    meson = _find_meson(prefix, flags)
-    ninja = _find_ninja(prefix, flags)
-    return ToolchainState(
-        name  = TOOLCHAIN_NAME,
-        tools = {"meson": meson, "ninja": ninja},
-        metadata = {
-            "meson_version": _version_str(meson),
-            "ninja_version": _version_str(ninja),
+    with newenv('artifact-fetch'):
+        activate(tc_dir)
+        _ensure_packages(tc_dir, s.download_dir)
+
+        meson = write_shim(tc_dir/'bin', TOOLCHAIN_NAME, 'meson', Path(sys.executable), ['-m', 'mesonbuild.mesonmain'])
+        ninja = _ensure_ninja(tc_dir, s.download_dir)
+        ninja = write_shim(tc_dir/'bin', TOOLCHAIN_NAME, 'ninja', Path(ninja))
+
+def _extract_bundled_pip(target_dir):
+    import ensurepip
+    import zipfile
+
+    target_path = Path(target_dir).resolve()
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    # ensurepip vendors its wheels inside its _bundled directory
+    bundled_dir = Path(ensurepip.__file__).parent / "_bundled"
+
+    # Locate the bundled pip .whl file
+    pip_wheel = next(bundled_dir.glob("pip-*.whl"), None)
+    if not pip_wheel:
+        raise FileNotFoundError("Could not locate the bundled pip wheel file.")
+
+    log(f"📦 Extracting {pip_wheel.name} directly into {target_path}...")
+
+    # Unpack the wheel directly to your /pylib folder
+    with zipfile.ZipFile(pip_wheel, 'r') as wheel:
+        # Filter out metadata directories if you want only the raw library files
+        for member in wheel.namelist():
+            if not member.startswith("pip-") and not member.startswith("setuptools-"):
+                wheel.extract(member, target_path)
+
+    log("✅ Pip installation complete!")
+
+
+def _ensure_packages(tc_dir: Path, dldir: Path):
+    """Ensures dependencies required by the script itself are present."""
+    def invalidate_and_try(dep):
+        # Ensure it is importable
+        import importlib
+        importlib.invalidate_caches()
+        __import__(dep)
+
+    try:
+        import pip
+    except ImportError:
+        _extract_bundled_pip(tc_dir/"pylib")
+        invalidate_and_try('pip')
+
+    deps = [
+        {
+            'pip': 'rich',
+            'module': 'rich',
         },
-    )
-
-
-def install(prefix: Path, dldir: Path, flags: ToolchainFlags) -> ToolchainState:
-    tc_dir = _tc_dir(prefix)
-
-    meson = _ensure_meson(tc_dir, dldir, flags)
-    ninja = _ensure_ninja(tc_dir, dldir, flags)
-
-    state = ToolchainState(
-        name  = TOOLCHAIN_NAME,
-        tools = {"meson": meson, "ninja": ninja},
-        metadata = {
-            "meson_version": _version_str(meson),
-            "ninja_version": _version_str(ninja),
+        {
+            'pip': 'packaging',
+            'module': 'packaging',
         },
-    )
-    save(tc_dir, state)
-    install_shims(tc_dir, state)
-    activate(tc_dir)
-    log(f"✓ artifact  meson={state.metadata['meson_version']}  ninja={state.metadata['ninja_version']}")
-    return state
+        {
+            'pip': 'meson',
+            'module': 'mesonbuild'
+        }
+    ]
+    for dep in deps:
+        try:
+            __import__(dep['module'])
+        except ImportError:
+            log(f"📦 Installing dependency: {dep['pip']}...")
+            run([
+                sys.executable, "-m", "pip", "install", dep['pip'],
+                "--target", str(tc_dir/"pylib"),
+                "--no-cache-dir",
+            ])
+
+            # Ensure it is importable
+            invalidate_and_try(dep['module'])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Meson
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _find_meson(prefix: Path, flags: ToolchainFlags) -> Path:
-    """Return the meson path that install() would use, without installing."""
-    if flags.use_system:
-        p = _system_meson()
-        if p:
-            return p
-    local = _tc_dir(prefix) / "pylib" / "bin" / f"meson{_exe}"
-    if local.exists():
-        return local
-    # Probe can't predict pip install paths precisely; return a placeholder.
-    return Path(f"<meson:{MESON_VERSION}:would-install>")
-
-
-def _ensure_meson(tc_dir: Path, dldir: Path, flags: ToolchainFlags) -> Path:
-    if flags.use_system:
-        p = _system_meson()
-        if p:
-            log(f"✓ System meson {_version_str(p)}  ({p})")
-            return p
-
-    # Install via pip into tc_dir/pylib/
-    target = tc_dir / "pylib"
-    meson  = target / ("Scripts" if _sys == "windows" else "bin") / f"meson{_exe}"
-    if not meson.exists() or flags.force:
-        log(f"📦 Installing meson {MESON_VERSION} …")
-        target.mkdir(parents=True, exist_ok=True)
-        r = run([
-            sys.executable, "-m", "pip", "install",
-            f"meson=={MESON_VERSION}",
-            "--target", str(target),
-            "--no-cache-dir",
-        ])
-        if r.returncode != 0:
-            die("pip install meson failed")
-        # pip on some platforms puts scripts in a subdirectory with the python version;
-        # walk to find the actual executable.
-        if not meson.exists():
-            meson = _find_in(target, f"meson{_exe}")
-            if not meson:
-                die(f"meson not found under {target} after pip install")
-
-    _prepend_path(meson.parent)
-    log(f"✓ Local meson {_version_str(meson)} at {meson}")
-    return meson
-
-
-def _system_meson() -> Path | None:
-    import shutil
-    exe = shutil.which("meson")
-    if not exe:
-        return None
-    ver = _version_str(Path(exe))
-    if ver and parse_version(ver) >= parse_version(MESON_VERSION):
-        return Path(exe)
-    log(f"  System meson {ver} < {MESON_VERSION}")
-    return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Ninja
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _find_ninja(prefix: Path, flags: ToolchainFlags) -> Path:
-    if flags.use_system:
-        import shutil
-        exe = shutil.which("ninja")
-        if exe:
-            return Path(exe)
-    local = _tc_dir(prefix) / "bin" / f"ninja{_exe}"
-    if local.exists():
-        return local
-    return Path(f"<ninja:{NINJA_VERSION}:would-install>")
-
-
-def _ensure_ninja(tc_dir: Path, dldir: Path, flags: ToolchainFlags) -> Path:
-    import shutil as _shutil
-    if flags.use_system:
-        exe = _shutil.which("ninja")
-        if exe:
-            log(f"✓ System ninja {_version_str(Path(exe))}  ({exe})")
-            return Path(exe)
+# TODO: build ninja from source, it really doesnt take very long and we already
+#       have python.
+def _ensure_ninja(tc_dir: Path, dldir: Path) -> Path:
+    exe = shutil.which("ninja")
+    if exe: return Path(exe)
 
     dest = tc_dir / "bin" / f"ninja{_exe}"
     if dest.exists() and not flags.force:
@@ -188,38 +148,6 @@ def _ensure_ninja(tc_dir: Path, dldir: Path, flags: ToolchainFlags) -> Path:
         die(f"ninja binary not found in extracted archive at {extract_dir}")
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    import shutil
     shutil.copy2(src, dest)
     dest.chmod(0o755)
-    log(f"✓ Ninja {NINJA_VERSION} at {dest}")
     return dest
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _tc_dir(prefix: Path) -> Path:
-    return (prefix / "toolchains" / TOOLCHAIN_NAME).resolve()
-
-
-def _version_str(exe: Path) -> str | None:
-    try:
-        r = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=10)
-        m = re.search(r"(\d+\.\d+(?:\.\d+)?)", r.stdout + r.stderr)
-        return m.group(1) if m else None
-    except Exception:
-        return None
-
-
-def _find_in(root: Path, name: str) -> Path | None:
-    for p in root.rglob(name):
-        if p.is_file():
-            return p
-    return None
-
-
-def _prepend_path(d: Path) -> None:
-    s = str(d)
-    if s not in os.environ.get("PATH", "").split(os.pathsep):
-        os.environ["PATH"] = s + os.pathsep + os.environ.get("PATH", "")

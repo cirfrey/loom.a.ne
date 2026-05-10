@@ -28,7 +28,7 @@ if _machine == "amd64":
     _machine = "x86_64"
 _exe = ".exe" if _sys == "windows" else ""
 
-LLVM_VERSION  = "18.1.8"
+LLVM_VERSION  = "22.1.4"
 LLVM_TARGETS  = "X86;Xtensa"   # add RISCV32 here when ESP32-C3 support is needed
 
 _PREBUILTS: dict[tuple[str, str], str] = {

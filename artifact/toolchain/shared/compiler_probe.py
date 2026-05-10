@@ -2,11 +2,21 @@
 Compiler detection utilities shared across toolchain modules.
 
 Provides:
-  find_compiler(order)  → (cc, cxx, version, identity) or None
-  probe_version(exe)    → (version, identity)
-  CC_ORDER              platform-appropriate search order
-  MIN_VER               minimum versions for C++20 project use
-  CXX_FOR               cc-name → cxx-name companion map
+  find_compiler(min_ver)      → (cc, cxx, version, identity) or None
+  find_bootstrap_compiler()   → (cc_str, cxx_str) or None
+  probe_version(exe, hint)    → (version, identity)
+  is_cygwin_compiler(exe)     → bool
+  CC_ORDER                    platform-appropriate search order
+  MIN_VER                     minimum versions for C++20 project use
+  CXX_FOR                     cc-name → cxx-name companion map
+
+Cygwin note
+───────────
+  Cygwin's gcc may appear on PATH even in a native Windows shell.
+  platform.system() returns "Windows" in that case — platform is the wrong
+  level to detect this.  Use is_cygwin_compiler(exe) which compiles a small
+  probe program that checks __CYGWIN__ at compile time.  This correctly
+  identifies the *target* ABI regardless of which shell is running.
 """
 from __future__ import annotations
 
@@ -14,6 +24,8 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 from packaging.version import Version, parse as parse_version
 
@@ -24,16 +36,19 @@ _machine = platform.machine().lower()
 if _machine == "amd64":
     _machine = "x86_64"
 
+# Path to compiler test sources, sibling to this file.
+_TESTS_DIR = Path(__file__).parent / "compiler_probe"
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 MIN_VER: dict[str, Version] = {
-    "gcc":      Version("11.0"),  "g++":      Version("11.0"),
-    "clang":    Version("13.0"),  "clang++":  Version("13.0"),
+    "gcc":      Version("11.0"),   "g++":     Version("11.0"),
+    "clang":    Version("13.0"),   "clang++": Version("13.0"),
     "clang-cl": Version("13.0"),
-    "nvc":      Version("22.0"),  "nvc++":    Version("22.0"),
-    "pgcc":     Version("22.0"),  "pgc++":    Version("22.0"),
-    "icc":      Version("2021.0"),"icpc":     Version("2021.0"),
-    "icx":      Version("2022.0"),"icpx":     Version("2022.0"),
+    "nvc":      Version("22.0"),   "nvc++":   Version("22.0"),
+    "pgcc":     Version("22.0"),   "pgc++":   Version("22.0"),
+    "icc":      Version("2021.0"), "icpc":    Version("2021.0"),
+    "icx":      Version("2022.0"), "icpx":    Version("2022.0"),
     "icl":      Version("2021.0"),
     "cl":       Version("19.29"),
 }
@@ -65,7 +80,7 @@ def find_compiler(
     Walk CC_ORDER for the current platform. Return (cc, cxx, version, identity)
     for the first compiler meeting the minimum version requirement, or None.
     """
-    _min = min_ver if min_ver is not None else MIN_VER
+    _min  = min_ver if min_ver is not None else MIN_VER
     order = CC_ORDER.get(_sys, CC_ORDER["linux"])
 
     for cc_name in order:
@@ -155,3 +170,36 @@ def probe_version(exe: Path, hint: str) -> tuple[Version | None, str]:
     except Exception as exc:
         log(f"  version probe failed for {exe}: {exc}")
         return None, hint
+
+
+@lru_cache(maxsize=32)
+def is_cygwin_compiler(exe: Path) -> bool:
+    """
+    Return True if exe is a Cygwin-targeted compiler (__CYGWIN__ defined).
+
+    Compiles compiler_tests/cygwin_check.cpp with exe and runs the result.
+    Exit code 0 → Cygwin ABI.  Exit code 1 → not Cygwin.
+
+    Result is cached per exe path so repeated calls (e.g. link test + build)
+    are free after the first probe.
+
+    This is the correct level to check for Cygwin: platform.system() returns
+    "Windows" when Cygwin tools are invoked from a native Windows shell, making
+    OS-level detection wrong.
+    """
+    src = _TESTS_DIR / "cygwin_check.cpp"
+    if not src.exists():
+        log(f"  Warning: cygwin_check.cpp not found at {src}, assuming non-Cygwin")
+        return False
+
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "cygwin_check"
+        r = subprocess.run(
+            [str(exe), str(src), "-o", str(out)],
+            capture_output=True, timeout=30,
+        )
+        if r.returncode != 0:
+            # Compilation failure — can't determine, assume non-Cygwin.
+            return False
+        r2 = subprocess.run([str(out)], capture_output=True, timeout=10)
+        return r2.returncode == 0

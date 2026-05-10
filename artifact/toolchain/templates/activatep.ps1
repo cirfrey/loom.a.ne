@@ -1,11 +1,23 @@
+echo \" <<'RUN_AS_POWERSHELL' >/dev/null # " | Out-Null
+
+$env:PATH = "{{BIN}};$env:PATH"
+$env:CPATH = "{{INCLUDE}};$env:CPATH"
+$env:PKG_CONFIG_PATH = "{{LIB}}/pkgconfig;{{LIB64}}/pkgconfig;$env:PKG_CONFIG_PATH"
+$env:LD_LIBRARY_PATH = "{{LIB}};{{LIB64}};$env:LD_LIBRARY_PATH"
+$env:LIBRARY_PATH = "{{LIB}};{{LIB64}};$env:LIBRARY_PATH"
+$env:PYTHONPATH = "{{ARTIFACT_PYTHONPATH}};$env:PYTHONPATH"
+Write-Host "Toolchain activated: [{{PREFIX}}] :)"
+exit 0
+
+<#
+RUN_AS_POWERSHELL
+
+echo \" <<'RUN_AS_PYTHON' >/dev/null # " | Out-Null
+
 def _loomane_bootstrap_activate():
     import os
     import sys
     from pathlib import Path
-
-    from artifact.util.process import source_pyfile
-    for d in {{ [d.with_suffix('.py').as_posix() for d in DEPENDS] }}:
-        source_pyfile(Path(d))
 
     prefix = Path("{{PREFIX}}")
 
@@ -41,3 +53,17 @@ def _loomane_bootstrap_activate():
 
 _loomane_bootstrap_activate()
 del _loomane_bootstrap_activate
+
+<#
+RUN_AS_PYTHON
+
+export PATH="{{BIN}}:$PATH"
+export CPATH="{{INCLUDE}}:$CPATH"
+export PKG_CONFIG_PATH="{{LIB}}/pkgconfig:{{LIB64}}/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="{{LIB}}:{{LIB64}}:$LD_LIBRARY_PATH"
+export LIBRARY_PATH="{{LIB}}:{{LIB64}}:$LIBRARY_PATH"
+export PYTHONPATH="{{ARTIFACT_PYTHONPATH}}:$PYTHONPATH"
+echo "Toolchain activated: [{{PREFIX}}] :)"
+exit 0
+
+#>

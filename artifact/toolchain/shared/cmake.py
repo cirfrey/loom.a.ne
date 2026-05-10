@@ -26,7 +26,12 @@ _ARCHIVES: dict[tuple[str, str], str] = {
     ("windows", "x86_64"):  f"cmake-{CMAKE_VERSION}-windows-x86_64.zip",
 }
 
-
+# TODO: fixme! This should try to find the highest version of cmake available, then
+#       if not sufficient, it should try to fetch the archives and on a last case build
+#       cmake from source. On unix you just need sh but on windows you'll another earlier
+#       version of cmake itself.
+# TODO: this doesnt work nice on alpine since that uses musl and cmake is compiled with glibc
+#       ideally we just build from source on all linux distros to avoid something like this.
 def ensure_cmake(cmake_prefix: Path, dldir: Path) -> Path:
     """
     Return path to cmake >= CMAKE_VERSION.
@@ -43,9 +48,7 @@ def ensure_cmake(cmake_prefix: Path, dldir: Path) -> Path:
         log(f"  cmake {m.group(1) if m else '?'} < {CMAKE_VERSION} — installing locally")
 
     local = cmake_prefix / "bin" / f"cmake{_exe}"
-    if local.exists():
-        _prepend(cmake_prefix / "bin")
-        return local
+    if local.exists(): return local
 
     log(f"📦 Installing CMake {CMAKE_VERSION} …")
     key = (_sys, "arm64" if _machine in ("arm64", "aarch64") else _machine)
@@ -56,11 +59,5 @@ def ensure_cmake(cmake_prefix: Path, dldir: Path) -> Path:
     )
     if not local.exists():
         die(f"cmake missing after extraction: {local}")
-    _prepend(cmake_prefix / "bin")
     log(f"✓ CMake {CMAKE_VERSION} at {local}")
     return local
-
-
-def _prepend(d: Path) -> None:
-    import os
-    os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")

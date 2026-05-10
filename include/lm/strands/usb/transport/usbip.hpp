@@ -17,15 +17,15 @@
 namespace lm::strands::usbip_backend
 {
     [[maybe_unused]] static std::array<
-        usb::ep_t,
+        lm::usb::ep_t,
         config_t::usbip_t::max_endpoints
     > endpoints = {{
         // Only init the first as control, the rest are defalt-initialized as unassigned.
-        usb::ep_t{
-            .in      = usb::ept_t::control,
-            .in_itf  = usb::itf_t::control,
-            .out     = usb::ept_t::control,
-            .out_itf = usb::itf_t::control
+        lm::usb::ep_t{
+            .in      = lm::usb::ept_t::control,
+            .in_itf  = lm::usb::itf_t::control,
+            .out     = lm::usb::ept_t::control,
+            .out_itf = lm::usb::itf_t::control
         }
     }};
 }
@@ -195,8 +195,8 @@ namespace lm::strands::usb::transport
 
                 u8 address = 0;
 
-                transmitting_t(u8 instance_id) {
-                    out_event_q   = fabric::queue<fabric::event>(config.usbip[instance_id].out_event_queue_size);
+                transmitting_t(config_t::usbip_t const* cfg) {
+                    out_event_q   = fabric::queue<fabric::event>(cfg->out_event_queue_size);
                     out_event_tok = fabric::bus::subscribe(out_event_q, fabric::topic::output);
                 }
             } transmitting;

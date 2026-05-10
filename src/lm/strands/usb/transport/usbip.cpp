@@ -61,9 +61,11 @@ auto lm::strands::usb::transport::usbip::get_cfg(get_cfg_args args) -> config_t:
     if(args.name_hash == 0)
         args.name_hash = fabric::resolve_to_name(args.id, args.tries, args.timeout);
 
+    #if LM_CONFIG_USBIP_COUNT >= 1
     for(auto& c : config.usbip)
         if(fnv1a_32(c.strand.name | to_text) == args.name_hash)
             return &c;
+    #endif
     return nullptr;
 }
 
@@ -134,7 +136,7 @@ auto lm::strands::usb::transport::usbip::transition_state(state_t to) -> bool
         case listening:    { new (&state_data.listening)    state_data_t::listening_t();    break; }
         case handshaking:  { new (&state_data.handshaking)  state_data_t::handshaking_t();  break; }
         case exported:     { new (&state_data.exported)     state_data_t::exported_t();     break; }
-        case transmitting: { new (&state_data.transmitting) state_data_t::transmitting_t(instance_id); break; }
+        case transmitting: { new (&state_data.transmitting) state_data_t::transmitting_t(cfg); break; }
         default:           { return false; }
     }
 

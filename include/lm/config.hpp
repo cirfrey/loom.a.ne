@@ -384,10 +384,6 @@ namespace lm
             usbcommon::string_descriptors string_descriptors;
         } usb = {};
 
-        #ifndef LM_CONFIG_CONTROLLER_COUNT
-        #define LM_CONFIG_CONTROLLER_COUNT 0
-        #endif
-        static constexpr auto controller_count = LM_CONFIG_CONTROLLER_COUNT;
         struct controller_t
         {
             #ifndef LM_CONFIG_CONTROLLER_CONFIG_DESCRIPTOR_MAX_SIZE
@@ -425,7 +421,7 @@ namespace lm
             std::span<usb::ep_t const> endpoints;
 
             strand_info strand = {
-                .name = "lm.usb.controller",
+                .name = {0},
                 .stack_size = 12 * 128,
             };
 
@@ -444,7 +440,7 @@ namespace lm
             // Usually overriden in lm::hook::arch_config(), since the ini parsing and lm::hook::config()
             // run after that, it means you can actually override what the arch_config puts here.
             // If for whatever reason you were so inclined...
-            string_descriptor serial       = "00:00:00:00:00:00";
+            string_descriptor serial       = {0};
 
             struct passthrough_mode_t {} passthrough_mode;
             struct composite_mode_t {
@@ -456,6 +452,10 @@ namespace lm
             } composite_mode;
             struct hub_mode_t {} hub_mode;
         };
+        #ifndef LM_CONFIG_CONTROLLER_COUNT
+        #define LM_CONFIG_CONTROLLER_COUNT 0
+        #endif
+        static constexpr auto controller_count = LM_CONFIG_CONTROLLER_COUNT;
         #if LM_CONFIG_CONTROLLER_COUNT >= 1
         controller_t controller[controller_count];
         #endif
@@ -500,12 +500,12 @@ namespace lm
             usbcommon::string_descriptors string_descriptors;
 
             strand_info strand = strand_info{
-                .name        = "lm.usbip",
+                .name        = {0},
                 .stack_size  = 64 * 128,
             };
         };
         #ifndef LM_CONFIG_USBIP_COUNT
-        #define LM_CONFIG_USBIP_COUNT 1
+        #define LM_CONFIG_USBIP_COUNT 0
         #endif
         static constexpr auto usbip_count = LM_CONFIG_USBIP_COUNT;
         #if LM_CONFIG_USBIP_COUNT >= 1

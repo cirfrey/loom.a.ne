@@ -20,67 +20,56 @@ import platform
 import stat
 from pathlib import Path
 
-from artifact.toolchain.state import ToolchainState
 from artifact.util.template import render_template
-from artifact.util.process import mypath
+from artifact.util.process import mypath, source_pyfile
 
 _sys = platform.system().lower()
 _exe = ".exe" if _sys == "windows" else ""
 
 
-def install(tc_dir: Path, state: ToolchainState) -> None:
-    """
-    Write all shims for the given state, then write activate.py.
-    Called by each toolchain's install() after resolve() succeeds.
-    """
-    bin_dir = tc_dir / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-
-    for role, target in state.tools.items():
-        extra = state.shim_args.get(role, [])
-        _write_shim(bin_dir, state.name, role, target, extra)
-
-    _write_activate(tc_dir)
-
-
-def activate(tc_dir: Path) -> None:
+def activate(tc_dir: Path) -> dict:
     """Prepend tc_dir/bin to PATH for the current process."""
-    bin_dir = str(tc_dir / "bin")
-    if bin_dir not in os.environ.get("PATH", "").split(os.pathsep):
-        os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+    return source_pyfile(tc_dir/'activate.py')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _write_shim(
+def write_shim(
     bin_dir:    Path,
     tc_name:    str,
     role:       str,
-    target:     Path,
-    extra_args: list[str],
+    target:     Path|dict,
+    extra_args: list[str] = None,
 ) -> Path:
     name  = f"artifact-{tc_name}-{role}"
-    extra = (" " + " ".join(extra_args)) if extra_args else ""
+    # TODO: Do i need to remove \n from extra_args?
+    extra = (" ".join(extra_args)) if extra_args else ""
 
     if _sys == "windows":
-        shim = bin_dir / f"{name}.cmd"
-        shim.write_text(f'@echo off\n"{target}"{extra} %*\n')
+        shimtext = f'@echo off\n{target} {extra} %*'
     else:
-        shim = bin_dir / name
-        shim.write_text(f'#!/bin/sh\nexec "{target}"{extra} "$@"\n')
+        shimtext = f'#!/usr/bin/env sh\nexec {target} {extra} "$@"'
+
+    shim = bin_dir/f'{name}.cmd'
+    shim.parent.mkdir(parents=True, exist_ok=True)
+    shim.write_text(shimtext)
+    if _sys != "windows":
         shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     return shim
 
-# TODO: render templates instead.
-def _write_activate(tc_dir: Path) -> None:
+def write_activate(s: settings, tc_dir: Path, depends: list[str] = []) -> None:
     bin_dir = tc_dir / "bin"
     template_dir = mypath(__file__)/'templates'
+
+    depends = [s.toolchain_dir/d/'activate.ps1' for d in depends]
     for f in template_dir.iterdir():
         if not f.is_file(): continue
 
         render_template(f, tc_dir/f.name, {
+            'DEPENDS': depends,
             'PREFIX': (tc_dir).as_posix(),
+            'INCLUDE': (tc_dir / 'include').as_posix(),
             'BIN': (tc_dir / 'bin').as_posix(),
             'LIB': (tc_dir / 'lib').as_posix(),
             'LIB64': (tc_dir / 'lib64').as_posix(),

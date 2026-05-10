@@ -19,6 +19,7 @@
 #include "lm/strands/blink.hpp"
 #include "lm/strands/busmon.hpp"
 #include "lm/strands/usbd.hpp"
+#include "lm/strands/usb/controller.hpp"
 #include "lm/strands/usb/transport/usbip.hpp"
 
 // TODO: allow override.
@@ -63,8 +64,14 @@ auto lm::hook::framework_config(config_t& config) -> void
     config.launcher.blink.code     = fabric::strand::managed<strands::blink>();
     config.launcher.busmon.code    = fabric::strand::managed<strands::busmon>();
     config.launcher.usbd.code      = fabric::strand::managed<strands::usbd>();
+    #if LM_CONFIG_CONTROLLER_COUNT >= 1
+    for(auto& controller : config.controller)
+        controller.strand.code = fabric::strand::managed<strands::usb::controller>();
+    #endif
+    #if LM_CONFIG_USBIP_COUNT >= 1
     for(auto& usbip : config.usbip)
-        usbip.strand.code     = fabric::strand::managed<strands::usb::transport::usbip>();
+        usbip.strand.code      = fabric::strand::managed<strands::usb::transport::usbip>();
+    #endif
 }
 
 auto lm::hook::parse_ini(config_t& config) -> void
@@ -90,17 +97,45 @@ auto lm::hook::framework_post_parse([[maybe_unused]] config_t& config) -> void {
 
 auto lm::hook::framework_final_config_override([[maybe_unused]] config_t& config) -> void
 {
-    // Override the serials IIF they were defaulted.
-    [[maybe_unused]] auto uuid = chip::info::uuid();
+    // Override the serials/names IIF they were defaulted.
     #if LM_CONFIG_CONTROLLER_COUNT >= 1
+        auto uuid = chip::info::uuid();
         for(auto i = 0; i < config_t::controller_count; ++i)
         {
-            std::snprintf(
-                config.controller[i].serial,
-                sizeof(config.controller[i].serial),
-                "%.*s",
-                (int)uuid.size, uuid.data
-            );
+            if(config.controller[i].serial[0] == '\0')
+            {
+                std::snprintf(
+                    config.controller[i].serial,
+                    sizeof(config.controller[i].serial),
+                    "%.*s",
+                    (int)uuid.size, uuid.data
+                );
+            }
+
+            if(config.controller[i].strand.name[0] == '\0')
+            {
+                std::snprintf(
+                    config.controller[i].strand.name,
+                    sizeof(config.controller[i].strand.name),
+                    "lm.controller.%u",
+                    i
+                );
+            }
+        }
+    #endif
+
+    #if LM_CONFIG_USBIP_COUNT >= 1
+        for(auto i = 0; i < config_t::usbip_count; ++i)
+        {
+            if(config.usbip[i].strand.name[0] == '\0')
+            {
+                std::snprintf(
+                    config.usbip[i].strand.name,
+                    sizeof(config.usbip[i].strand.name),
+                    "lm.usbip.%u",
+                    i
+                );
+            }
         }
     #endif
 }
@@ -197,7 +232,9 @@ auto lm::hook::framework_main() -> void
     #if LM_CONFIG_CONTROLLER_COUNT >= 1
     for(auto& info : lm::config.controller) { register_strand(info.strand); }
     #endif
+    #if LM_CONFIG_USBIP_COUNT >= 1
     for(auto& info : lm::config.usbip) { register_strand(info.strand); }
+    #endif
 }
 
 [[gnu::weak]] auto lm::hook::init(config_t&) -> void {}

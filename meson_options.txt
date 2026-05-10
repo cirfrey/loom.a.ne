@@ -1,0 +1,7 @@
+option(
+    'environment',
+    type : 'combo',
+    choices : ['native', 'banner', 'lolin_s2_mini'],
+    value : 'native',
+    description : 'Environent to use',
+)
