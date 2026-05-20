@@ -130,7 +130,7 @@ auto lm::strands::strandman::on_event_request_register_strand(
     // If we're too late me we'll discard it.
     auto register_micros = 1 * 1000;
     if(chip::time::uptime() + register_micros > e.timestamp + data.timeout_micros)
-        return 1;
+        return consumed;
 
     // If we are already full we don't register the strand.
     if(strands.size() == max_strands) {
@@ -165,6 +165,7 @@ auto lm::strands::strandman::on_event_request_register_strand(
     auto [register_status, newstrand_id] = data.autoassign_id
         ? registry::strand_id.reserve()
         : registry::strand_id.reserve(data.id);
+    // If we can't get an ID for the strand we can't register it.
     if(register_status == registry::result::error) {
         fabric::bus::publish(fabric::event{
             .topic     = fabric::topic::framework,
@@ -182,6 +183,7 @@ auto lm::strands::strandman::on_event_request_register_strand(
     request::extdata extdata;
     strandman_q.receive(&extdata, 0);
     ++consumed;
+    // If theres no code to run the request is malformed.
     if(extdata.strand == nullptr) {
         registry::strand_id.unreserve(newstrand_id);
         fabric::bus::publish(fabric::event{
@@ -200,6 +202,7 @@ auto lm::strands::strandman::on_event_request_register_strand(
     request::extname extname;
     strandman_q.receive(&extname, 0);
     ++consumed;
+    // If we already have a strand with the same name the request is malformed.
     if(get_strand_named(fnv1a_32(to_text(extname.name)), strands))
     {
         registry::strand_id.unreserve(newstrand_id);
@@ -227,8 +230,7 @@ auto lm::strands::strandman::on_event_request_register_strand(
     };
     std::memcpy(newstrand.name, extname.name, sizeof(request::name_t));
 
-    bool too_many_depends = false;
-    auto i = 0;
+    auto depend_count = 0;
     request::extdepends extdepends;
     for(auto a = 0_st; a < e.extension_count() - 2; ++a)
     {
@@ -236,15 +238,16 @@ auto lm::strands::strandman::on_event_request_register_strand(
         ++consumed;
         for(auto& dep : extdepends.depends) {
             if(dep.other == 0) continue;
-            if(i >= config_t::strandman_t::max_depends) {
-                too_many_depends = true;
-                continue;
-            }
-            newstrand.depends[i++] = dep;
+
+            if(depend_count < config_t::strandman_t::max_depends)
+            { newstrand.depends[depend_count] = dep; }
+
+            ++depend_count;
         }
     }
 
-    if(too_many_depends) {
+    // If theres too many depends we can't register.
+    if(depend_count >= config_t::strandman_t::max_depends) {
         registry::strand_id.unreserve(newstrand_id);
         fabric::bus::publish(fabric::event{
             .topic     = fabric::topic::framework,

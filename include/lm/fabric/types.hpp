@@ -37,11 +37,12 @@ namespace lm::fabric
             alignas(8) u8 payload[8] = {0};
 
             constexpr auto is_local()        const -> bool { return loom_id == local_loom; }
-            constexpr auto extension_count() const -> st {
-                auto rounded_up = ((size + protocol_size - 1) / protocol_size) * protocol_size;
-                return rounded_up - 1;
-            }
+
             constexpr auto extension_bytes() const -> st { return size - protocol_size; }
+            constexpr auto extension_count() const -> st {
+                // Round up to nearest protocol_size multiple.
+                return (extension_bytes() + protocol_size - 1) / protocol_size;
+            }
 
             // Payload management stuff.
             template <typename As>
