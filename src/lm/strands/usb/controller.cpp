@@ -21,7 +21,7 @@ auto lm::strands::usb::controller::get_cfg(get_cfg_args args) -> config_t::contr
     // We basically ask if any managers know our name hash and use that to match against
     // config.controller[n].strand.name to find the correct config.
     if(args.name_hash == 0)
-        args.name_hash = fabric::resolve_to_name(args.id, args.tries, args.timeout);
+        args.name_hash = fabric::resolve(args.id, args.id, args.tries, args.timeout);
 
     #if LM_CONFIG_CONTROLLER_COUNT >= 1
     for(auto& c : config.controller)

@@ -238,8 +238,6 @@ auto lm::fabric::register_strand(register_params const& p) -> register_result
         }
 
 
-        log::warn("Attempt %d/%d timed out\n", (int)(attempt + 1), (int)p.max_attempts);
-
         // Timed out — backoff
         // TODO: dynamic backoff.
         fabric::strand::sleep_ms(10);
@@ -248,9 +246,10 @@ auto lm::fabric::register_strand(register_params const& p) -> register_result
     return {response::request_malformed};
 }
 
-auto lm::fabric::resolve_to_name(u8 id, u64 max_tries, u64 timeout_ms) -> u32
+auto lm::fabric::resolve(u8 my_strand_id, u32 name_hash_or_id, u64 max_tries, u64 timeout_ms) -> u32
 {
     if(timeout_ms == 0) timeout_ms = config.framework.manager_request_timeout_ms;
+    if(name_hash_or_id == 0) name_hash_or_id = my_strand_id;
 
     namespace framework = fabric::topic::framework_t;
     // We basically ask if any managers know our name hash and use that to match against
@@ -267,11 +266,12 @@ auto lm::fabric::resolve_to_name(u8 id, u64 max_tries, u64 timeout_ms) -> u32
                 ? fabric::bus::pass
                 : fabric::bus::filter;
         },
-        id | smuggle<void*>
+        my_strand_id | smuggle<void*>
     );
 
     bool decrement = max_tries != 0;
     if(max_tries == 0) max_tries = 1;
+    u64 attempt = 1;
     while(max_tries)
     {
         if(decrement) --max_tries;
@@ -279,9 +279,9 @@ auto lm::fabric::resolve_to_name(u8 id, u64 max_tries, u64 timeout_ms) -> u32
         fabric::bus::publish(fabric::event{
             .topic = framework::topic,
             .type  = framework::request_manager_resolve::type,
-            .strand_id = id,
+            .strand_id = my_strand_id,
         }.with_payload(framework::request_manager_resolve{
-            .name_hash_or_id = id,
+            .name_hash_or_id = name_hash_or_id,
             .seqnum          = 0,
         }));
         fabric::strand::sleep_ms(timeout_ms);
@@ -290,6 +290,10 @@ auto lm::fabric::resolve_to_name(u8 id, u64 max_tries, u64 timeout_ms) -> u32
             auto data = e.get_payload<framework::request_manager_resolve>();
             return data.name_hash_or_id;
         }
+
+        log::warn("Resolve attempt %d/%d for %u timed out\n", (int)(attempt + 1), (int)max_tries, name_hash_or_id);
+
+        ++attempt;
     }
 
     return 0;

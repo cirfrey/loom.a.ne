@@ -1,76 +1,78 @@
 #include "lm/strands/usb/transport/usbip.hpp"
 
-#include "lm/chip/net.hpp"
-#include "lm/core/endian.hpp"
-#include "lm/core/cvt.hpp"
+#include "lm/chip/all.hpp"
+#include "lm/core/all.hpp"
 #include "lm/board.hpp"
 #include "lm/log.hpp"
+#include "lm/usb/common.hpp"
 
 #include <cstdio>
 
-#include "lm/usb/backend.hpp"
-#include "lm/usb/debug.hpp"
+#include <common/tusb_types.h>
 
-lm::strands::usb::transport::usbip::usbip(ri& info, config_t::usbip_t const* cfg)
-    : info{info}
-    , cfg{cfg}
+lm::strands::usb::transport::usbip::usbip(ri& _info, config_t::usbip_t const* _cfg)
+    : info{_info}
+    , cfg{_cfg ? _cfg : find_cfg({.id = info.id})}
 {
-    while(!cfg) {
-        cfg = get_cfg({.id = info.id});
-        // if(!cfg) {} // TODO: Error
+    if(!cfg) {
+        // TODO: Error, needs to be passed the cfg or the cfg needs to be findable
+        //       via find_cfg
     }
 
-    auto lens = lm::usb::backend::setup_descriptors(
-        config_descriptor,
-        string_descriptors,
-        device_descriptor,
-        *cfg,
-        config.audio.backend.usbip,
-        config.cdc.backend.usbip,
-        config.hid.backend.usbip,
-        config.midi.backend.usbip,
-        config.msc.backend.usbip
-    );
-    config_descriptor_size = lens.total;
+    if(cfg->controller[0] != '\0')
+    {
+        device_strand_id = fabric::resolve(info.id, fnv1a_32(cfg->controller | to_text));
+        // TODO: What about cross-loom stuff?
+    }
+    else
+    {
+        // TODO: error, a transport without a controller is an error.
+    }
 
-    log::debug<128 * 3>(
-        "Config descriptor len && endpoint map report.\n"
-        "\t+--------+-----+-----+------+-----+-------+-------+\n"
-        "\t| Header | CDC | HID | MIDI | MSC | AUDIO | Total |\n"
-        "\t+--------+-----+-----+------+-----+-------+-------+\n"
-        "\t| %-6u | %-3u | %-3u | %-4u | %-3u | %-5u | %-5u |\n"
-        "\t+--------+-----+-----+------+-----+-------+-------+\n",
-        lens.header, lens.cdc, lens.hid, lens.midi, lens.msc, lens.audio, lens.total
-    );
-    auto printer = [](auto fmt, auto... args){ log::debug<128>(
-        log::fmt_t(log::fmt_t_args::from_config()
-            .with_fmt(fmt)
-            .with_timestamp(log::timestamp_t::no_timestamp)
-            .with_filename(log::filename_t::no_filename)
-            .with_prefix(log::prefix_t::disabled)
-        ),
-        veil::forward<decltype(args)>(args)...
-    ); };
-    lm::usb::debug::print_ep_table(cfg->endpoints, printer, {"\t", 1});
+    namespace fw = fabric::topic::framework_t;
+    device_q     = fabric::queue<fabric::event>(cfg->device_event_queue_size);
+    // Make sure we only catch events sent by the device we care about.
+    device_tok   = fabric::bus::subscribe(device_q, fw::topic, {
+        fw::types::usb_ctrl_capability,
+        fw::types::usb_ctrl_data,
+        fw::types::usb_ctrl_setup_request,
+        fw::types::usb_ctrl_interface_status,
+    }, [](void* _self, std::span<fabric::event> events){
+        auto& self = *(_self | rc<usbip*>);
+
+        auto& e = events[0];
+        if(
+            e.strand_id == self.device_strand_id &&
+            e.loom_id   == self.device_loom_id &&
+            e.mesh_id   == self.device_mesh_id
+        ) return fabric::bus::pass;
+
+        return fabric::bus::filter;
+    }, this);
 }
 
-auto lm::strands::usb::transport::usbip::get_cfg(get_cfg_args args) -> config_t::usbip_t const*
+auto lm::strands::usb::transport::usbip::find_cfg(find_cfg_args args) -> config_t::usbip_t const*
 {
+    #if LM_CONFIG_USBIP_COUNT >= 1
     // We basically ask if any managers know our name hash and use that to match against
     // config.usbip[n].strand.name to find the correct config.
     if(args.name_hash == 0)
-        args.name_hash = fabric::resolve_to_name(args.id, args.tries, args.timeout);
+        args.name_hash = fabric::resolve(args.id, args.id, args.tries, args.timeout);
 
-    #if LM_CONFIG_USBIP_COUNT >= 1
     for(auto& c : config.usbip)
         if(fnv1a_32(c.strand.name | to_text) == args.name_hash)
             return &c;
     #endif
+
     return nullptr;
 }
 
 auto lm::strands::usb::transport::usbip::on_ready() -> status
-{ return status::ok; }
+{
+    // TODO: policy config specifying if should retry or not. For now, just die if no device strand.
+    if(device_strand_id == 0) return status::suicidal;
+    return status::ok;
+}
 
 auto lm::strands::usb::transport::usbip::before_sleep() -> status
 { return status::ok; }
@@ -117,6 +119,16 @@ auto lm::strands::usb::transport::usbip::transition_state(state_t to) -> bool
     {
         chip::net::close(listen_sock);
         listen_sock = chip::invalid_socket;
+
+        std::memset(config_descriptor, 0, sizeof(config_descriptor));
+        config_descriptor_size = 0;
+        for(auto& sd : string_descriptors)
+        {
+            std::memset(sd.value, 0, sizeof(sd.value));
+            sd.idx = sd.unassigned;
+        }
+        string_descriptors_size = 0;
+        std::memset(device_descriptor.bytes.data(), 0, sizeof(device_descriptor));
     }
 
     switch(state)
@@ -145,16 +157,96 @@ auto lm::strands::usb::transport::usbip::transition_state(state_t to) -> bool
 
 auto lm::strands::usb::transport::usbip::do_initializing_state() -> desired_strand_action
 {
-    listen_sock = chip::net::make_listen_socket(cfg->port);
-    if (listen_sock == chip::invalid_socket) {
-        log::error("[usbip] Failed to open listen socket on port %i\n", cfg->port);
-        return desired_strand_action::die;
+    auto& data = state_data.initializing;
+    namespace fw = fabric::topic::framework_t;
+
+    if(listen_sock == chip::invalid_socket)
+    {
+        listen_sock = chip::net::make_listen_socket(cfg->port);
+        if (listen_sock == chip::invalid_socket) {
+            log::error("[usbip] Failed to open listen socket on port %i\n", cfg->port);
+            // TODO: implement policy config specifying if should retry or not. For now, just die.
+            return desired_strand_action::die;
+        }
+
+        chip::net::set_nonblocking(listen_sock);
+        log::info("[usbip] Listening on port %i\n", cfg->port);
     }
 
-    chip::net::set_nonblocking(listen_sock);
-    log::info("[usbip] Listening on port %i\n", cfg->port);
-    transition_state(listening);
-    return desired_strand_action::loop;
+    for(auto& e : device_q.consume<fabric::event>())
+    {
+        using cap = fw::usb_ctrl_capability;
+
+        if(e.type == cap::type)
+        {
+            auto ev = e.get_payload<cap>();
+            if(ev.seqnum == data.device_attach_seqnum && ev.status == cap::attach)
+            {
+                data.device_attached = true;
+                log::info("[usbip] Device attached sucessfully!\n");
+            }
+            // TODO: log if i got a stale response.
+        }
+
+        // TODO: check for other events.
+    }
+
+    auto now = chip::time::uptime();
+    if(!data.device_attached && now > data.attach_request_sent_timestamp + cfg->device_timeout_micros)
+    {
+        data.attach_request_sent_timestamp = now;
+        fabric::bus::publish(fabric::event{
+            .topic = fw::topic,
+            .type = fw::types::usb_ctrl_capability,
+            .strand_id = info.id,
+        }.with_payload(fw::usb_ctrl_capability{
+            .target_strand_id = device_strand_id,
+            .target_loom_id   = device_loom_id,
+            .target_mesh_id   = device_mesh_id,
+
+            .seqnum = ++data.device_attach_seqnum,
+
+            .ep_in_count     = 0, // TODO
+            .ep_out_count    = 0, // TODO
+
+            .supports_iso       = false, // TODO
+            .supports_bulk      = false, // TODO
+            .supports_interrupt = false, // TODO
+            .role               = fw::usb_ctrl_capability::role_t::device,
+            .status             = fw::usb_ctrl_capability::status_t::announcing,
+        }));
+    }
+
+    if(data.device_attached && now > data.device_descriptor_request_sent + cfg->device_timeout_micros)
+    {
+        data.device_descriptor_request_sent = now;
+        fabric::bus::publish(fabric::event{
+            .topic = fw::topic,
+            .type = fw::types::usb_ctrl_setup_request,
+            .strand_id = info.id,
+        }.with_payload(fw::usb_ctrl_setup_request{
+            .target_strand_id = device_strand_id,
+            .target_loom_id   = device_loom_id,
+            .target_mesh_id   = device_mesh_id,
+
+            .setup_bytes = lm::usb::sr::standard::get_descriptor({
+                .descriptor_type = lm::usb::sr::standard::desc::device,
+                .index = 0,
+                .length = sizeof(device_descriptor),
+            }).bytes_short,
+        }));
+    }
+
+    if(
+        listen_sock != chip::invalid_socket &&
+        data.device_attached == true &&
+        config_descriptor_size > 0 &&
+        device_descriptor.bytes[0] != 0 &&
+        string_descriptors_size > 0
+    )
+    { transition_state(listening); }
+
+    return desired_strand_action::yield;
 }
 
 auto lm::strands::usb::transport::usbip::do_listening_state() -> desired_strand_action
@@ -283,20 +375,21 @@ auto lm::strands::usb::transport::usbip::handshaking_process_req_devlist() -> vo
     }
 
     /// Device.
+    auto& dev = device_descriptor.spec;
     auto dev_info = lm::usbip::usbip_device_info{
         .path                = {'\0'}, // snprintf later.
         .busid               = {'\0'}, // snprintf later.
         .busnum              = hton32(1),
         .devnum              = hton32(1),
         .speed               = (lm::usbip::USBIP_Speed)hton32(lm::usbip::USBIP_SPEED_FULL),
-        .idVendor            = hton16(device_descriptor.idVendor),
-        .idProduct           = hton16(device_descriptor.idProduct),
-        .bcdDevice           = hton16(device_descriptor.bcdDevice),
-        .bDeviceClass        = device_descriptor.bDeviceClass,
-        .bDeviceSubClass     = device_descriptor.bDeviceSubClass,
-        .bDeviceProtocol     = device_descriptor.bDeviceProtocol,
+        .idVendor            = hton16(dev.idVendor),
+        .idProduct           = hton16(dev.idProduct),
+        .bcdDevice           = hton16(dev.bcdDevice),
+        .bDeviceClass        = dev.bDeviceClass,
+        .bDeviceSubClass     = dev.bDeviceSubClass,
+        .bDeviceProtocol     = dev.bDeviceProtocol,
         .bConfigurationValue = 1,
-        .bNumConfigurations  = device_descriptor.bNumConfigurations,
+        .bNumConfigurations  = dev.bNumConfigurations,
         .bNumInterfaces      = config_descriptor[4],
     };
     std::snprintf(dev_info.path,  sizeof(dev_info.path),  "%s", cfg->path);
@@ -349,6 +442,7 @@ auto lm::strands::usb::transport::usbip::handshaking_process_req_import() -> voi
 {
     auto& data = state_data.handshaking;
 
+    auto& dev = device_descriptor.spec;
     auto pkt = lm::usbip::usbip_rep_import{
         .version  = hton16(lm::usbip::USBIP_VERSION | tou),
         .command  = hton16(lm::usbip::OP_REP_IMPORT | tou),
@@ -359,14 +453,14 @@ auto lm::strands::usb::transport::usbip::handshaking_process_req_import() -> voi
             .busnum              = hton32(1),
             .devnum              = hton32(1),
             .speed               = (lm::usbip::USBIP_Speed)hton32(lm::usbip::USBIP_SPEED_FULL),
-            .idVendor            = hton16(device_descriptor.idVendor),
-            .idProduct           = hton16(device_descriptor.idProduct),
-            .bcdDevice           = hton16(device_descriptor.bcdDevice),
-            .bDeviceClass        = device_descriptor.bDeviceClass,
-            .bDeviceSubClass     = device_descriptor.bDeviceSubClass,
-            .bDeviceProtocol     = device_descriptor.bDeviceProtocol,
+            .idVendor            = hton16(dev.idVendor),
+            .idProduct           = hton16(dev.idProduct),
+            .bcdDevice           = hton16(dev.bcdDevice),
+            .bDeviceClass        = dev.bDeviceClass,
+            .bDeviceSubClass     = dev.bDeviceSubClass,
+            .bDeviceProtocol     = dev.bDeviceProtocol,
             .bConfigurationValue = 1,
-            .bNumConfigurations  = device_descriptor.bNumConfigurations,
+            .bNumConfigurations  = dev.bNumConfigurations,
             .bNumInterfaces      = config_descriptor[4],
         }
     };
@@ -613,9 +707,9 @@ auto lm::strands::usb::transport::usbip::transmitting_handle_setup(
     // Determine request type (Standard = 0, Class = 1, Vendor = 2)
     const u8 type = (bmRequestType >> 5) & 0x03;
 
-    using req = lm::usb::standard_setup_request::standard_setup_request_t;
+    using req = lm::usb::sr::standard::req;
     if (type == 0) { // Standard Request
-        switch (bRequest) {
+        switch ((req)bRequest) {
             case req::get_descriptor:
                 return setup_handle_get_descriptor(cmd.setup, seqnum);
 
@@ -779,14 +873,11 @@ auto lm::strands::usb::transport::usbip::setup_handle_get_descriptor(const u8 se
             }
 
             // Normal Case: Get string by index
-            if (desc_index < string_descriptors.size()) {
-                const char* src = string_descriptors[desc_index];
-                if(desc_index < lm::usb::string_descriptor::count){
-                    auto desc_name = renum<lm::usb::string_descriptor::idx>::unqualified(desc_index | toe);
-                    log::debug("[usbip] Sending String descriptor (%.*s): [%s])\n", (int)desc_name.size, desc_name.data, src);
-                } else{
-                    log::debug("[usbip] Sending String descriptor (%u): [%s])\n", desc_index, src);
-                }
+            for(auto& desc : string_descriptors) {
+                if(desc_index != desc.idx) continue;
+
+                char const* src = desc.value;
+                log::debug("[usbip] Sending String descriptor (%u): [%s])\n", desc_index, src);
 
                 // Prepare a temporary buffer for the USB descriptor
                 // Format: [Length] [Type=3] [Char0_L] [Char0_H] ...

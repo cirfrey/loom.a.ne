@@ -94,26 +94,15 @@ namespace lm::config_ini
 
         /// --- Usbip ---
         #if LM_CONFIG_USBIP_COUNT >= 1
+            ini::str("usbip.%u.device"_text,                    config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].controller; }, {.max_len = sizeof(config_t::usbip_t::controller)}),
+            ini::num("usbip.%u.device_timeout_micros"_text,     config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_timeout_micros; }),
+            ini::num("usbip.%u.device_event_queue_size"_text,   config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_event_queue_size; }),
             ini::num("usbip.%u.port"_text,                      config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].port; }),
             ini::feat("usbip.%u.close_conn_after_devlist"_text, config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].close_conn_after_devlist; }),
             ini::num("usbip.%u.stall_status_code"_text,         config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].stall_status_code; }),
             ini::str("usbip.%u.path"_text,                      config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].path; },  {.max_len = sizeof(config_t::usbip_t::path)}),
             ini::str("usbip.%u.busid"_text,                     config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].busid; }, {.max_len = sizeof(config_t::usbip_t::busid)}),
             ini::num("usbip.%u.out_event_queue_size"_text,      config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].out_event_queue_size; }),
-            ini::num("usbip.%u.device.class"_text,              config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.device_class; }),
-            ini::num("usbip.%u.device.subclass"_text,           config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.device_subclass; }),
-            ini::num("usbip.%u.device.protocol"_text,           config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.device_protocol; }),
-            ini::num("usbip.%u.device.vendor"_text,             config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.vendor_id; }),
-            ini::num("usbip.%u.device.product"_text,            config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.product_id; }),
-            ini::num("usbip.%u.device.bcd"_text,                config_t::usbip_count, +[](u8 i) { return &config_rw.usbip[i].device_descriptor.bcd_device; }),
-            ini::str("usbip.%u.string.manufacturer"_text,       config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.manufacturer; }, {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.product"_text,            config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.product; },      {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.serial"_text,             config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.serial; },       {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.midi"_text,               config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.midi; },         {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.hid"_text,                config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.hid; },          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.uac"_text,                config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.uac; },          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.cdc"_text,                config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.cdc; },          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
-            ini::str("usbip.%u.string.msc"_text,                config_t::usbip_count, +[](u8 i) { return config_rw.usbip[i].string_descriptors.msc; },          {.max_len = config_t::usbcommon::string_descriptor_max_len}),
         #endif
 
         /// --- Controllers ---

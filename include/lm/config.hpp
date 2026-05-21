@@ -8,6 +8,8 @@
 
 #include "lm/chip/memory.hpp"
 
+// TODO: #include "lm/arch_config.h"
+//       arch overrides.
 // TODO: #include "loomane_config.h"
 //       user overrides.
 
@@ -453,7 +455,7 @@ namespace lm
             struct hub_mode_t {} hub_mode;
         };
         #ifndef LM_CONFIG_CONTROLLER_COUNT
-        #define LM_CONFIG_CONTROLLER_COUNT 0
+        #define LM_CONFIG_CONTROLLER_COUNT 1
         #endif
         static constexpr auto controller_count = LM_CONFIG_CONTROLLER_COUNT;
         #if LM_CONFIG_CONTROLLER_COUNT >= 1
@@ -462,12 +464,19 @@ namespace lm
 
         struct usbip_t
         {
+            using string_descriptor = usbcommon::string_descriptor;
+
             #ifndef LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE
             // The descriptor can get very large when you enable multiple things.
             // This should be able to handle UAC + HID + MIDI (16 cables)
             #define LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE (128 * 6)
             #endif
             static constexpr u16 config_descriptor_max_size = LM_CONFIG_USBIP_CONFIG_DESCRIPTOR_MAX_SIZE;
+
+            #ifndef LM_CONFIG_USBIP_STRING_DESCRIPTORS_MAX_SIZE
+            #define LM_CONFIG_USBIP_STRING_DESCRIPTORS_MAX_SIZE 12
+            #endif
+            static constexpr u16 string_descriptors_max_size = LM_CONFIG_USBIP_STRING_DESCRIPTORS_MAX_SIZE;
 
             #ifndef LM_CONFIG_USBIP_MAX_ENDPOINTS
             // Since this is virtual and doesn't connect to real hardware, we
@@ -479,6 +488,15 @@ namespace lm
 
             strand_info::name_t controller;
 
+            // This timeout is used for talking to the device both during enumeration and
+            // during regular communication. If a device takes longer than that to send its
+            // descriptors it is considered faulty. If a data request takes longer than this then
+            // a stall is returned.
+            u64 device_timeout_micros = 1000 * 1000 * 1; // 1 Second default timeout.
+            // How many events it can take before it starts dropping.
+            // Remember this is includes extensions and all input/output events.
+            u16 device_event_queue_size = 256;
+
             u16 port = 3240;
             feature close_conn_after_devlist = feature::on;
 
@@ -489,15 +507,11 @@ namespace lm
             char path[64]  = "/sys/bus/usb/devices/1-1";
             char busid[16] = "1-1";
 
-            // How many events it can take before it starts dropping.
-            // Remember this is includes extensions and all output events.
+
             u16 out_event_queue_size = 256;
 
             // Generally set in lm::hook::arch_config.
             std::span<usb::ep_t> endpoints;
-
-            usbcommon::device_descriptor  device_descriptor;
-            usbcommon::string_descriptors string_descriptors;
 
             strand_info strand = strand_info{
                 .name        = {0},
@@ -505,7 +519,7 @@ namespace lm
             };
         };
         #ifndef LM_CONFIG_USBIP_COUNT
-        #define LM_CONFIG_USBIP_COUNT 0
+        #define LM_CONFIG_USBIP_COUNT 1
         #endif
         static constexpr auto usbip_count = LM_CONFIG_USBIP_COUNT;
         #if LM_CONFIG_USBIP_COUNT >= 1

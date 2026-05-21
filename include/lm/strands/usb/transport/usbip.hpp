@@ -10,8 +10,6 @@
 #include "lm/config.hpp"
 #include "lm/fabric/all.hpp"
 
-#include <common/tusb_types.h>
-
 #include <array>
 
 namespace lm::strands::usbip_backend
@@ -36,8 +34,9 @@ namespace lm::strands::usb::transport
     {
         using ri     = fabric::strand::strand_runtime_info;
         using status = fabric::strand::managed_strand_status;
+        using cfg_t  = config_t::usbip_t;
 
-        struct get_cfg_args
+        struct find_cfg_args
         {
             u8 id = 0;
             u64 tries = 3;
@@ -45,22 +44,20 @@ namespace lm::strands::usb::transport
             u32 name_hash = 0; // If you already have the name_hash and want to just get
                                // the pointer.
         };
-        static auto get_cfg(get_cfg_args) -> config_t::usbip_t const*;
+        static auto find_cfg(find_cfg_args) -> cfg_t const*;
 
         ri& info;
-        config_t::usbip_t const* cfg;
+        cfg_t const* cfg;
 
-        u8 instance_id = 0;
-
-        usbip(ri& info, config_t::usbip_t const* cfg = nullptr);
+        usbip(ri& info, cfg_t const* cfg = nullptr);
         auto on_ready()     -> status;
         auto before_sleep() -> status;
         auto on_wake()      -> status;
         ~usbip();
 
         enum state_t : u8 {
-            initializing, // Before the listen socket is open.
-            listening,    // Socket open, waiting for a TCP connection.
+            initializing, // Before the listen socket is open and device is attached.
+            listening,    // Socket is open and device is attached, waiting for a TCP connection.
             handshaking,  // Connected: handling OP_REQ_DEVLIST / OP_REQ_IMPORT.
             exported,     // OP_REP_IMPORT sent — about to bind DCD and let TinyUSB take over.
             transmitting, // DCD bound, URB loop running.
@@ -142,11 +139,18 @@ namespace lm::strands::usb::transport
 
             // For states that dont require any additional data.
             struct none_t {};
-            struct initializing_t : none_t {};
             struct listening_t    : none_t {};
             struct exported_t     : none_t {};
 
-            initializing_t initializing;
+            struct initializing_t
+            {
+                bool device_attached = false;
+                u8 device_attach_seqnum = 0;
+                u64 attach_request_sent_timestamp = 0;
+                u64 config_descriptor_request_sent = 0;
+                u64 device_descriptor_request_sent = 0;
+            } initializing;
+
             listening_t    listening;
             exported_t     exported;
 
@@ -181,21 +185,21 @@ namespace lm::strands::usb::transport
                     u16  max_len = 0;    // transfer_buffer_length from CMD_SUBMIT
                     bool parked  = false;
                 };
-                pending_in_t pending_in[config_t::usbip_t::max_endpoints] = {};
+                pending_in_t pending_in[cfg_t::max_endpoints] = {};
 
                 struct buffered_data_t {
                     u8   data[64] = {};
                     u16  len      = 0;
                     bool ready    = false;
                 };
-                buffered_data_t buffered_out[config_t::usbip_t::max_endpoints] = {};
+                buffered_data_t buffered_out[cfg_t::max_endpoints] = {};
 
                 fabric::queue_t              out_event_q   = {};
                 fabric::bus::subscribe_token out_event_tok = {};
 
                 u8 address = 0;
 
-                transmitting_t(config_t::usbip_t const* cfg) {
+                transmitting_t(cfg_t const* cfg) {
                     out_event_q   = fabric::queue<fabric::event>(cfg->out_event_queue_size);
                     out_event_tok = fabric::bus::subscribe(out_event_q, fabric::topic::output);
                 }
@@ -209,27 +213,26 @@ namespace lm::strands::usb::transport
         chip::socket_t listen_sock = chip::invalid_socket;
         chip::socket_t conn_sock   = chip::invalid_socket;
 
-        std::array<
-            config_t::usbcommon::string_descriptor,
-            lm::usb::string_descriptor::count
-        > string_descriptors;
-        tusb_desc_device_t device_descriptor = {
-            .bLength            = sizeof(tusb_desc_device_t),
-            .bDescriptorType    = TUSB_DESC_DEVICE,
-            .bcdUSB             = 0x0200,      // USB 2.0
-            .bDeviceClass       = TUSB_CLASS_MISC,
-            .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-            .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-            .bMaxPacketSize0    = 64, // TODO: review.
-            .idVendor           = 0x0000,
-            .idProduct          = 0x0000,
-            .bcdDevice          = 0x0000,
-            .iManufacturer      = lm::usb::string_descriptor::manufacturer,
-            .iProduct           = lm::usb::string_descriptor::product,
-            .iSerialNumber      = lm::usb::string_descriptor::serial,
-            .bNumConfigurations = 0x01         // We only have 1 "floor plan"
-        };
-        u8 config_descriptor[config_t::usbip_t::config_descriptor_max_size] = {0};
+        // Cached from the device.
+        u8 config_descriptor[cfg_t::config_descriptor_max_size] = {0};
         u16 config_descriptor_size = 0;
+        struct string_descriptor
+        {
+            static constexpr u16 unassigned = ~u16(0);
+
+            cfg_t::string_descriptor value = {0};
+            u16 idx = unassigned;
+
+            constexpr bool is_unassigned() const { return idx == unassigned; }
+        } string_descriptors[cfg_t::string_descriptors_max_size] = {0};
+        u16 string_descriptors_size = 0;
+        lm::usb::dd device_descriptor = lm::usb::dd::zero();
+
+        // For talking to the device.
+        u8 device_strand_id = 0;
+        u8 device_loom_id = 0;
+        u8 device_mesh_id = 0;
+        fabric::queue_t device_q = {};
+        fabric::bus::subscribe_token device_tok = {};
     };
 }

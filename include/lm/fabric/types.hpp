@@ -4,6 +4,7 @@
 
 #include <new> // You know it's hardcore memory wibbly-wobbly library stuff when you need <new>.
 #include <cstring> // For memcpy.
+#include <array>
 
 namespace lm::fabric
 {
@@ -236,6 +237,8 @@ namespace lm::fabric
                 u8 target_loom_id : event::loom_bits;
                 u8 target_mesh_id : event::mesh_bits;
 
+                u8 seqnum;
+
                 u8 ep_in_count : 4;
                 u8 ep_out_count : 4;
 
@@ -245,8 +248,6 @@ namespace lm::fabric
                 bool supports_interrupt : 1;
                 role_t role : 1;
                 status_t status : 2;
-
-                u8 seqnum;
             }; static_assert(sizeof(usb_ctrl_capability) <= sizeof(fabric::event::payload));
 
             struct usb_ctrl_data
@@ -292,11 +293,18 @@ namespace lm::fabric
                 u8 target_loom_id : event::loom_bits;
                 u8 target_mesh_id : event::mesh_bits;
 
-                u8 bmRequestType;
-                u8 bRequest;
-                u16 wValue;
-                u16 wIndex;
-                // Wlength can be extracted from event.extension_bytes().
+                // wLength can be extracted from event.extension_bytes().
+                struct fields_t {
+                    u8 bmRequestType;
+                    u8 bRequest;
+                    u16 wValue;
+                    u16 wIndex;
+                }; static_assert(sizeof(fields_t) == 6, "Setup packet fields must be exactly 6 bytes to fit in the payload.");
+
+                union {
+                    fields_t setup_fields;
+                    std::array<u8, sizeof(fields_t)> setup_bytes; // The raw 8-byte USB setup packet, minus wLength.
+                };
                 struct ext_extra_data
                 {
                     u8 data[24];

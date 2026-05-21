@@ -97,7 +97,7 @@ namespace lm::fabric
     // Call this if you get manager_cant_handle_more_strands and want to re-probe.
     auto invalidate_manager_cache() -> void;
 
-    auto resolve_to_name(u8 id, u64 max_tries = 0, u64 timeout = 0) -> u32;
+    auto resolve(u8 my_strand_id, u32 name_hash_or_id = 0, u64 max_tries = 0, u64 timeout = 0) -> u32;
 }
 
 
