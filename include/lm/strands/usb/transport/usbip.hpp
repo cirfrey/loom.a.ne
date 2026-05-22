@@ -5,7 +5,8 @@
 
 #include "lm/chip/types.hpp"
 #include "lm/usbd/usbip_types.hpp"
-#include "lm/usb/common.hpp"
+#include "lm/lib/usb.hpp"
+#include "lm/lib/usb2.hpp"
 
 #include "lm/config.hpp"
 #include "lm/fabric/all.hpp"
