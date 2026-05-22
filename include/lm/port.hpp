@@ -1,7 +1,7 @@
 // Loomane portability header.
-// We could cheat and ask platformio to sneak this info to us
+// We could cheat and ask the build system to sneak this info to us
 // ... but whats the fun in that?
-// Also, we want this to be somewhat portable, why rely on platformio?
+// Also, we want this to be somewhat portable, why rely on others?
 #pragma once
 
 // Having all the macros be defaulted to 0 is handy since the
@@ -47,9 +47,13 @@
 #define LM_PORT_ENV_FREESTANDING 0
 #define LM_PORT_ENV_CYGWIN       0
 #define LM_PORT_ENV_MINGW        0
+#define LM_PORT_ENV_EMSCRIPTEN   0
 #define LM_PORT_ENV_NATIVE       0
 #define LM_PORT_ENV_UNKNOWN      0
-#if defined(__STDC_HOSTED__) && __STDC_HOSTED__ == 0
+#if defined(__EMSCRIPTEN__)
+    #undef  LM_PORT_ENV_EMSCRIPTEN
+    #define LM_PORT_ENV_EMSCRIPTEN 1
+#elif defined(__STDC_HOSTED__) && __STDC_HOSTED__ == 0
     #undef  LM_PORT_ENV_FREESTANDING
     #define LM_PORT_ENV_FREESTANDING 1
 #elif defined(__CYGWIN__)
@@ -58,9 +62,12 @@
 #elif defined(__MINGW32__) || defined(__MINGW64__)
     #undef  LM_PORT_ENV_MINGW
     #define LM_PORT_ENV_MINGW 1
-#else // TODO: defaults to native, is this right?
+#elif defined(_WIN32) || defined(__linux__) || defined(__APPLE__) || defined(__ANDROID__)
     #undef  LM_PORT_ENV_NATIVE
     #define LM_PORT_ENV_NATIVE 1
+#else
+    #undef  LM_PORT_ENV_UNKNOWN
+    #define LM_PORT_ENV_UNKNOWN 1
 #endif
 
 // --- Host OS / Hardware Platform ---
@@ -76,8 +83,12 @@
 #define LM_PORT_HOST_TEENSY  0
 #define LM_PORT_HOST_AVR     0
 #define LM_PORT_HOST_ANDROID 0
+#define LM_PORT_HOST_WASM    0
 #define LM_PORT_HOST_UNKNOWN 0
-#if defined(ESP_PLATFORM)
+#if defined(__EMSCRIPTEN__) || defined(__wasm__)
+    #undef  LM_PORT_HOST_WASM
+    #define LM_PORT_HOST_WASM 1
+#elif defined(ESP_PLATFORM)
     #undef  LM_PORT_HOST_ESP32
     #define LM_PORT_HOST_ESP32 1
 #elif defined(ESP8266)
@@ -95,7 +106,7 @@
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     #undef  LM_PORT_HOST_WINDOWS
     #define LM_PORT_HOST_WINDOWS 1
-#elif defined(__ANDROID__) // Has to be before linux check since android defines linux macros.
+#elif defined(__ANDROID__)
     #undef  LM_PORT_HOST_ANDROID
     #define LM_PORT_HOST_ANDROID 1
 #elif defined(__linux__)
@@ -129,8 +140,12 @@
 #define LM_PORT_CPU_XTENSA  0
 #define LM_PORT_CPU_RISCV   0
 #define LM_PORT_CPU_AVR     0
+#define LM_PORT_CPU_WASM    0
 #define LM_PORT_CPU_UNKNOWN 0
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__wasm32__) || defined(__wasm64__) || defined(__wasm__)
+    #undef  LM_PORT_CPU_WASM
+    #define LM_PORT_CPU_WASM 1
+#elif defined(__x86_64__) || defined(_M_X64)
     #undef  LM_PORT_CPU_X64
     #define LM_PORT_CPU_X64 1
 #elif defined(__i386) || defined(_M_IX86)
@@ -179,7 +194,7 @@
     #endif
 #elif LM_PORT_CPU_X64 || LM_PORT_CPU_X86 || LM_PORT_CPU_XTENSA || \
       LM_PORT_CPU_RISCV || LM_PORT_CPU_AVR || LM_PORT_CPU_ARM32 || \
-      LM_PORT_CPU_ARM64
+      LM_PORT_CPU_ARM64 || LM_PORT_CPU_WASM
     #undef  LM_PORT_ENDIAN_LITTLE
     #define LM_PORT_ENDIAN_LITTLE 1
 #else
@@ -200,10 +215,12 @@
     #define LM_PORT_IS_32_BIT 0
 #endif
 
-#if (LM_PORT_HOST_LINUX || \
-    LM_PORT_HOST_MACOS || \
-    LM_PORT_HOST_IOS ||   \
-    LM_PORT_ENV_CYGWIN)
+#if (LM_PORT_HOST_LINUX ||   \
+     LM_PORT_HOST_MACOS ||   \
+     LM_PORT_HOST_IOS ||     \
+     LM_PORT_HOST_ANDROID || \
+     LM_PORT_HOST_WASM ||    \
+     LM_PORT_ENV_CYGWIN)
     #define LM_PORT_IS_POSIX 1
 #else
     #define LM_PORT_IS_POSIX 0
@@ -229,13 +246,14 @@ namespace lm::port
         native,         // Standard OS layer
         cygwin,         // POSIX-on-Windows
         mingw,          // Minimalist GNU-on-Windows
+        emscripten,     // Web browser runtime orchestration layer
         freestanding    // Baremetal / No standard OS utilities
     };
     enum class host_t {
-        unknown, windows, linux, macos, ios, android,
+        unknown, windows, linux, macos, ios, android, wasm,
         esp32, esp8266, stm32, nordic, pico, teensy, avr
     };
-    enum class cpu_t { unknown, x86, x64, arm32, arm64, xtensa, riscv, avr };
+    enum class cpu_t { unknown, x86, x64, arm32, arm64, xtensa, riscv, avr, wasm };
     enum class endian_t { unknown, little, big };
 
     enum class cpp_std_t : long {
@@ -259,18 +277,24 @@ namespace lm::port
         #endif
 
     inline constexpr env_t env =
-        #if   LM_PORT_ENV_FREESTANDING
+        #if   LM_PORT_ENV_EMSCRIPTEN
+            env_t::emscripten;
+        #elif LM_PORT_ENV_FREESTANDING
             env_t::freestanding;
         #elif LM_PORT_ENV_CYGWIN
             env_t::cygwin;
         #elif LM_PORT_ENV_MINGW
             env_t::mingw;
-        #else
+        #elif LM_PORT_ENV_NATIVE
             env_t::native;
+        #else
+            env_t::unknown;
         #endif
 
     inline constexpr host_t host =
-        #if   LM_PORT_HOST_ESP32
+        #if   LM_PORT_HOST_WASM
+            host_t::wasm;
+        #elif LM_PORT_HOST_ESP32
             host_t::esp32;
         #elif LM_PORT_HOST_ESP8266
             host_t::esp8266;
@@ -288,18 +312,20 @@ namespace lm::port
             host_t::macos;
         #elif LM_PORT_HOST_IOS
             host_t::ios;
+        #elif LM_PORT_HOST_ANDROID
+            host_t::android;
         #elif LM_PORT_HOST_LINUX
             host_t::linux;
         #elif LM_PORT_HOST_WINDOWS
             host_t::windows;
-        #elif LM_PORT_HOST_ANDROID
-            host_t::android;
         #else
             host_t::unknown;
         #endif
 
     inline constexpr cpu_t cpu =
-        #if   LM_PORT_CPU_X64
+        #if   LM_PORT_CPU_WASM
+            cpu_t::wasm;
+        #elif LM_PORT_CPU_X64
             cpu_t::x64;
         #elif LM_PORT_CPU_ARM64
             cpu_t::arm64;
