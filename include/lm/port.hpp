@@ -95,6 +95,9 @@
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     #undef  LM_PORT_HOST_WINDOWS
     #define LM_PORT_HOST_WINDOWS 1
+#elif defined(__ANDROID__) // Has to be before linux check since android defines linux macros.
+    #undef  LM_PORT_HOST_ANDROID
+    #define LM_PORT_HOST_ANDROID 1
 #elif defined(__linux__)
     #undef  LM_PORT_HOST_LINUX
     #define LM_PORT_HOST_LINUX 1
@@ -113,9 +116,6 @@
 #elif defined(__AVR__)
     #undef  LM_PORT_HOST_AVR
     #define LM_PORT_HOST_AVR 1
-#elif defined(__ANDROID__)
-    #undef  LM_PORT_HOST_ANDROID
-    #define LM_PORT_HOST_ANDROID 1
 #else
     #undef  LM_PORT_HOST_UNKNOWN
     #define LM_PORT_HOST_UNKNOWN 1
